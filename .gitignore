@@ -1,0 +1,23 @@
+# Dependencies
+/node_modules
+
+# Firebase
+# IMPORTANT: Never commit your service account keys or web app config!
+*.json
+firebase-config.js
+
+# Custom user files
+# This is the private notes file you requested.
+project-notes.md
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db

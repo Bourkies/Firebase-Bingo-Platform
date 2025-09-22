@@ -24,7 +24,8 @@ The repository is organized into the following key files:
 
 -   **`auth.js`**: Handles all user authentication logic (sign-in, sign-out, role checking).
 -   **`firebase-config.js`**: Contains the Firebase project configuration. **(Requires your keys)**.
-
+-   **`firebase-config.example.js`**: A template for the configuration file.
+-   **`.gitignore`**: Specifies files for Git to ignore, like your config and private notes.
 -   **`firestore.rules`**: Security rules for the Firestore database.
 -   **`storage.rules`**: Security rules for Firebase Storage (image uploads).
 
@@ -35,13 +36,14 @@ The repository is organized into the following key files:
 1.  **Create a Firebase Project**: Go to the Firebase Console and create a new project.
 2.  **Add a Web App**: In your project's dashboard, click the `</>` (Web) icon to register a new web app. Give it a nickname and click "Register app".
 3.  **Copy Config**: After registering, Firebase will display a `firebaseConfig` object. Copy this entire object.
-3.  **Enable Services**:
+4.  **Enable Services**:
     *   **Authentication**: Go to `Build > Authentication`, click "Get started," and enable **Google** as a sign-in provider.
     *   **Firestore**: Go to `Build > Firestore Database`, create a database in **Production mode**. You will be asked for a location; choose one that is geographically close to your users.
     *   **Storage**: Go to `Build > Storage` and get it started.
 5.  **Update Project Config**:
-    *   Open the `firebase-config.js` file.
-    *   Replace the entire placeholder `firebaseConfig` object with the one you copied from the Firebase console.
+    *   Create a copy of the `firebase-config.example.js` file and rename it to `firebase-config.js`.
+    *   Open the new `firebase-config.js` file.
+    *   Replace the entire placeholder `firebaseConfig` object with the one you copied from the Firebase console. This file is ignored by Git to keep your keys secure.
 
 ### Step 2: Set Security Rules
 
