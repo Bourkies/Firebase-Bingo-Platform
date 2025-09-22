@@ -142,22 +142,6 @@ This page is for managing user roles and verifying submissions. Access is restri
 
 All data management is done through the web interface; editing external spreadsheets is no longer part of the workflow.
 
-## Helper Tools
-
-### Tile Link Tool (`/tile_link_tool`)
-
-To simplify the creation of board layouts, especially for events like tile races where multiple start paths are needed, a visual helper tool is included in the `tile_link_tool` directory. This tool allows you to visually link adjacent tiles and export the prerequisite data.
-
-**Key Features:**
-
--   Load tile positions from a CSV file.
--   Display tiles over a background image of your board.
--   Automatically link tiles based on distance.
--   Manually add/remove links.
--   Export a new CSV with a `Prerequisites` column formatted for simple `OR` logic (e.g., `[["TileA"], ["TileB"]]`).
-
-This is particularly useful for generating the initial `OR` conditions for starting tiles or for creating branching paths on the board. For detailed instructions, see the `README.md` inside the `tile_link_tool` directory.
-
 ## **Note on AI Generation**
 
 This project was created collaboratively with Google's Gemini. While the logic and functionality have been guided and tested by a human developer, much of the boilerplate code and documentation was AI-generated.
@@ -165,3 +149,4 @@ This project was created collaboratively with Google's Gemini. While the logic a
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
