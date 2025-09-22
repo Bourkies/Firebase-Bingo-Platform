@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Bingo Platform - Overview</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #1e1e1e; --surface-color: #2d2d2d; --primary-text: #e0e0e0;
+      --secondary-text: #a0a0a0; --accent-color: #00b8d4; --border-color: #444;
+      --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+    }
+    body {
+      font-family: var(--font-main); background-color: var(--bg-color); color: var(--primary-text);
+      margin: 0; padding: 2rem; box-sizing: border-box;
+    }
+    .navbar {
+      width: 100%; max-width: 1400px; background-color: var(--surface-color); border-radius: 8px;
+      padding: 0.5rem 1rem; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between;
+      align-items: center; box-sizing: border-box;
+    }
+    .nav-links a, .nav-actions button {
+      color: var(--primary-text);
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .nav-links a:hover, .nav-actions button:hover { background-color: rgba(255, 255, 255, 0.1); }
+    .nav-links a.active { background-color: var(--accent-color); color: #111; font-weight: bold; }
+    /* --- NEW: Global Loader --- */
+    .global-loader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+        background-size: 200% auto;
+        animation: loading-animation 1.5s linear infinite;
+        z-index: 9999;
+        display: none; /* Hidden by default */
+    }
+    @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .container {
+      width: 100%; max-width: 1400px; margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      gap: 2rem;
+    }
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    .grid-item {
+      background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    h1, h2 { color: var(--accent-color); margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+    /* NEW: Chart wrapper for responsive resizing */
+    .chart-wrapper {
+      position: relative;
+      height: 40vh;
+      min-height: 300px;
+      width: 100%;
+    }
+    /* Leaderboard Styles */
+    #leaderboard-table { width: 100%; border-collapse: collapse; }
+    #leaderboard-table th, #leaderboard-table td {
+      padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color);
+    }
+    #leaderboard-table th { font-weight: bold; }
+    #leaderboard-table tr:last-child td { border-bottom: none; }
+    #leaderboard-table td:nth-child(1) { font-weight: bold; width: 40px; } /* Rank */
+    #leaderboard-table td:nth-child(3), #leaderboard-table td:nth-child(4) { text-align: right; } /* Tiles, Score */
+    /* Feed Styles */
+    #feed-container { display: flex; flex-direction: column; gap: 1rem; max-height: 600px; overflow-y: auto; }
+    .feed-item {
+      background-color: var(--bg-color); padding: 1rem; border-radius: 8px;
+      border-left: 4px solid var(--accent-color);
+    }
+    .feed-item p { margin: 0; }
+    .feed-item .feed-title { font-weight: bold; }
+    .feed-item .feed-meta { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.25rem; }
+
+    .feed-controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .feed-controls select {
+        background-color: var(--bg-color);
+        color: var(--primary-text);
+        border: 1px solid var(--border-color);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+    /* Responsive layout for smaller screens */
+    @media (max-width: 960px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+    #page-disabled {
+      text-align: center; padding: 3rem; background-color: var(--surface-color); border-radius: 12px;
+      max-width: 600px; margin: 4rem auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="global-loader" class="global-loader"></div>
+
+  <div class="navbar">
+    <div class="nav-links">
+      <a href="./index.html">Player View</a>
+      <a href="./overview.html" class="active">Overview</a>
+      <a href="./admin.html" id="admin-nav-link" style="display: none;">Admin</a>
+      <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
+    </div>
+  </div>
+
+  <div id="page-disabled" style="display: none;">
+      <h1>Overview Page Not Available</h1>
+      <p>The event administrator has disabled this page.</p>
+  </div>
+  
+  <div id="main-content" class="container" style="display: none;">
+    <div class="main-column">
+      <div class="grid-item">
+        <h2>Points Over Time</h2>
+        <div class="chart-wrapper">
+          <canvas id="score-chart"></canvas>
+        </div>
+      </div>
+      <div class="grid-item">
+        <h2>Leaderboard</h2>
+        <table id="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th>Tiles</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="side-column">
+      <div class="grid-item">
+        <h2>Latest Activity</h2>
+        <div class="feed-controls">
+          <label for="feed-team-filter">Filter:</label>
+          <select id="feed-team-filter" onchange="handleFilterChange()"></select>
+        </div>
+        <div id="feed-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth, getAuthState } from './auth.js';
+
+    let config = {};
+    let tiles = {};
+    let submissions = [];
+
+    let fullFeedData = [];
+    let teamColorMap = {};
+    let myScoreChart = null;
+    let fullChartData = [];
+    let allTeamNames = [];
+    let unsubscribeSubmissions = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      showGlobalLoader();
+      initAuth(onAuthStateChanged);
+      initializeApp();
+    });
+
+    function onAuthStateChanged(authState) {
+        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'block' : 'none';
+        document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'block' : 'none';
+    }
+
+    async function initializeApp() {
+      try {
+        const configSnap = await fb.getDoc(fb.doc(db, 'config', 'main'));
+        if (!configSnap.exists()) throw new Error("Config not found.");
+        config = configSnap.data() || {};
+        const authState = getAuthState();
+
+        if (String(config.enableOverviewPage).toUpperCase() !== 'TRUE' && !authState.isEventMod) {
+            document.getElementById('page-disabled').style.display = 'block';
+            document.getElementById('main-content').style.display = 'none';
+            hideGlobalLoader();
+            return;
+        }
+
+        const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
+        tilesSnap.forEach(doc => {
+            tiles[doc.id] = doc.data();
+        });
+
+        document.title = (config.pageTitle || 'Bingo') + ' | Overview';
+        allTeamNames = config.teams?.map(t => t.name) || [];
+        teamColorMap = generateTeamColors(allTeamNames);
+        populateFeedFilter(allTeamNames);
+
+        setupSubmissionsListener();
+      } catch (error) {
+        document.body.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error-color);">Failed to fetch initial data: ${error.message}</div>`;
+        hideGlobalLoader();
+      }
+    }
+
+    function setupSubmissionsListener() {
+        if (unsubscribeSubmissions) unsubscribeSubmissions();
+
+        const submissionsQuery = fb.collection(db, 'submissions');
+        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+            console.log("Overview data updated in real-time.");
+            submissions = snapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id,
+                Timestamp: doc.data().Timestamp?.toDate(),
+                CompletionTimestamp: doc.data().CompletionTimestamp?.toDate()
+            }));
+
+            processAllData();
+            document.getElementById('main-content').style.display = 'grid';
+            hideGlobalLoader();
+        }, (error) => {
+            console.error("Error listening to submissions:", error);
+            hideGlobalLoader();
+        });
+    }
+
+    function processAllData() {
+        // 1. Calculate Leaderboard
+        const scoreOnVerifiedOnly = String(config.scoreOnVerifiedOnly).toUpperCase() === 'TRUE';
+        const leaderboardData = allTeamNames.map(teamName => {
+            let score = 0;
+            let completedTiles = 0;
+            const teamSubmissions = submissions.filter(s => s.Team === teamName && !s.IsArchived);
+
+            Object.keys(tiles).forEach(tileId => {
+                const sub = teamSubmissions.find(s => s.TileID === tileId);
+                if (!sub) return;
+
+                const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+                if (isScored) {
+                    score += parseInt(tiles[tileId].Points) || 0;
+                    completedTiles++;
+                }
+            });
+            return { team: teamName, score, completedTiles };
+        }).sort((a, b) => b.score - a.score);
+
+        // 2. Generate Feed
+        fullFeedData = submissions
+            .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
+            .map(sub => {
+                const tile = tiles[sub.TileID];
+                const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+                return {
+                    team: sub.Team,
+                    tileId: sub.TileID,
+                    tileName: tile ? tile.Name : 'Unknown Tile',
+                    timestamp: sub.CompletionTimestamp,
+                    isScored: isScored
+                };
+            })
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+        // 3. Generate Chart Data
+        const scoredEvents = submissions
+            .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
+            .map(sub => {
+                const tile = tiles[sub.TileID];
+                const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+                return {
+                    team: sub.Team,
+                    points: isScored ? (parseInt(tile?.Points) || 0) : 0,
+                    timestamp: sub.CompletionTimestamp
+                };
+            })
+            .filter(event => event.points > 0)
+            .sort((a, b) => a.timestamp - b.timestamp);
+
+        const teamScores = {};
+        allTeamNames.forEach(name => teamScores[name] = 0);
+
+        fullChartData = scoredEvents.map(event => {
+            teamScores[event.team] += event.points;
+            return {
+                timestamp: event.timestamp,
+                ...teamScores
+            };
+        });
+
+        // Render everything
+        renderLeaderboard(leaderboardData);
+        handleFilterChange(); // This renders feed and chart
+    }
+
+    function renderLeaderboard(leaderboardData) {
+      const tbody = document.querySelector('#leaderboard-table tbody');
+      tbody.innerHTML = '';
+      if (!leaderboardData || leaderboardData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No data available.</td></tr>';
+        return;
+      }
+      leaderboardData.forEach((team, index) => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td style="color: ${teamColorMap[team.team] || '#fff'}">${team.team}</td>
+          <td>${team.completedTiles}</td>
+          <td>${team.score}</td>
+        `;
+      });
+    }
+
+    function populateFeedFilter(teamNames = []) {
+      const select = document.getElementById('feed-team-filter');
+      select.innerHTML = '<option value="all">All Teams</option>';
+      teamNames.forEach(team => {
+        const option = document.createElement('option');
+        option.value = team;
+        option.textContent = team;
+        select.appendChild(option);
+      });
+    }
+
+    function renderFeed() {
+        const container = document.getElementById('feed-container');
+        container.innerHTML = '';
+        const selectedTeam = document.getElementById('feed-team-filter').value;
+        
+        const filteredData = selectedTeam === 'all' 
+            ? fullFeedData 
+            : fullFeedData.filter(item => item.team === selectedTeam);
+
+        const scoredActivity = filteredData.filter(item => item.isScored);
+
+        if (!scoredActivity || scoredActivity.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">No scored activity for the selected filter.</p>';
+            return;
+        }
+
+        scoredActivity.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            const teamColor = teamColorMap[item.team] || 'var(--accent-color)';
+            div.style.borderLeftColor = teamColor;
+            
+            div.innerHTML = `
+            <p class="feed-title">${item.team}: ${item.tileId} ${item.tileName}</p>
+            <p class="feed-meta">${item.timestamp.toUTCString()}</p>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    /**
+     * Generates a list of visually distinct colors for the chart.
+     * @param {number} count The number of colors to generate.
+     * @returns {string[]} An array of HSL color strings.
+     */
+    function generateTeamColors(teamNames = []) {
+        const colors = {};
+        // Using the golden angle approximation for hue distribution ensures that
+        // colors are maximally distinct, even for a large number of teams.
+        const goldenAngle = 137.5; 
+        teamNames.forEach((team, i) => {
+            const hue = (i * goldenAngle) % 360;
+            colors[team] = `hsl(${hue}, 70%, 55%)`;
+        });
+        return colors;
+    }
+
+    function renderChart(chartData = [], teamNames = []) {
+        if (myScoreChart) {
+            myScoreChart.destroy();
+        }
+        const ctx = document.getElementById('score-chart').getContext('2d');
+        
+        const datasets = teamNames.map((team, index) => {
+            const color = teamColorMap[team] || '#ffffff';
+            return {
+                label: team,
+                data: chartData.map(point => ({ x: point.timestamp, y: point[team] || null })),
+                borderColor: color,
+                backgroundColor: color,
+                fill: false,
+                stepped: true,
+                spanGaps: true,
+            };
+        });
+
+        myScoreChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: 'var(--primary-text)' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                if (tooltipItems.length > 0) {
+                                    const date = new Date(tooltipItems[0].parsed.x);
+                                    return date.toUTCString();
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            // Tooltip format is now handled by the tooltip title callback
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: 'var(--secondary-text)'
+                        },
+                        ticks: { color: 'var(--secondary-text)' },
+                        grid: { color: 'var(--border-color)' }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Points',
+                            color: 'var(--secondary-text)'
+                        },
+                        ticks: { color: 'var(--secondary-text)', beginAtZero: true },
+                        grid: { color: 'var(--border-color)' }
+                    }
+                }
+            }
+        });
+    }
+
+    function handleFilterChange() {
+      renderFeed();
+      const selectedTeam = document.getElementById('feed-team-filter').value;
+      const filteredTeamNames = selectedTeam === 'all' ? allTeamNames : [selectedTeam];
+      renderChart(fullChartData, filteredTeamNames);
+    }
+
+    // Make functions available to onclick handlers
+    window.handleFilterChange = handleFilterChange;
+
+
+    // --- NEW: Global Loader Functions ---
+    function showGlobalLoader() {
+        document.getElementById('global-loader').style.display = 'block';
+    }
+    function hideGlobalLoader() {
+        document.getElementById('global-loader').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if a user has a specific role or higher
+    function hasRole(role) {
+      // Roles: Player, Captain, Event Mod, Admin
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      if (!userDoc.exists()) { return false; }
+      let roles = { 'Player': 1, 'Captain': 2, 'Event Mod': 3, 'Admin': 4 };      
+      return roles[userDoc.data.role] >= roles[role];
+    }
+
+    // Config and Tiles are publicly readable, but only Admins can modify them via the setup page.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if hasRole('Admin');
+    }
+    match /tiles/{tileId} {
+      allow read: if true;
+      allow write: if hasRole('Admin');
+    }
+
+    match /submissions/{subId} {
+      allow read: if true;
+
+      // A logged-in user can create a submission, but only for their own team.
+      allow create: if request.auth != null &&
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.team == request.resource.data.Team;
+
+      // An update is allowed if you are an Event Mod, OR
+      // if you are on the submission's team AND you are not changing the team field.
+      allow update: if request.auth != null && 
+                      ( hasRole('Event Mod') || 
+                        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.team == resource.data.Team &&
+                         request.resource.data.Team == resource.data.Team) );
+
+      allow delete: if hasRole('Event Mod');
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
+
+      // An Event Mod or higher can update any field (role, team).
+      // A user can only update their own profile, but cannot change their own role or team.
+      allow update: if hasRole('Event Mod') || 
+                      (request.auth.uid == userId &&
+                       request.resource.data.role == resource.data.role &&
+                       request.resource.data.team == resource.data.team);
+    }
+  }
+}

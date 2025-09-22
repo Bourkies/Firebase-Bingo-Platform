@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Bingo Platform</title>
+  <style>
+    :root {
+      --board-bg: #1a1a1a; --text-light: #f0f0f0; --text-dark: #222;
+      --accent-color: #00b8d4; --modal-bg: rgba(20, 20, 20, 0.95);
+      --input-bg: #333; --border-color: #444; --error-bg: #4d2a2a;
+      --error-border: #c0392b; --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+    }
+    body {
+      font-family: var(--font-main); background-color: var(--board-bg); color: var(--text-light);
+      margin: 0; padding: 1rem; display: flex; flex-direction: column;
+      align-items: center; min-height: 100vh; box-sizing: border-box;
+    } .navbar {
+      width: 100%;
+      max-width: 1400px;
+      background-color: var(--input-bg);
+      border-radius: 8px;      
+      padding: 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .nav-links a, .nav-actions button {      
+      color: var(--text-light); text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: background-color 0.2s; background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .nav-links a:hover, .nav-actions button:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    .nav-links a.active {
+      background-color: var(--accent-color);
+      color: var(--text-dark);
+      font-weight: bold;
+    }
+    #auth-container { display: flex; align-items: center; gap: 1rem; }
+    #user-info { font-size: 0.9rem; color: #a0a0a0; }
+    .global-loader {
+        position: fixed; top: 0; left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+        background-size: 200% auto;
+        animation: loading-animation 1.5s linear infinite;
+        z-index: 9999;
+        display: block;
+    }
+    @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .controls { width: 100%; max-width: 1400px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
+    #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--input-bg); color: var(--text-light); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
+    #board-container {
+      position: relative; width: 100%;
+      max-width: 1400px;
+      background-size: cover; background-position: center;
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); overflow: hidden;
+      display: flex; justify-content: center; align-items: center;
+      /* IMPROVEMENT: Placeholder background */
+      background-color: #222;
+      background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+      background-size: 20px 20px;
+    }
+    .tile-overlay {
+      position: absolute; box-sizing: border-box;
+      transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      color: white; font-weight: bold; text-shadow: 1px 1px 3px black;
+      font-size: 0.9rem; padding: 4px; cursor: pointer;
+    }
+    .stamp-image {
+      position: absolute; width: 100%; height: 100%; background-size: contain;
+      background-repeat: no-repeat; pointer-events: none; background-position: center;
+    }
+    .info-container {
+      display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1.5rem; width: 100%;
+    }
+    #color-key-container {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;
+      padding: 1rem; background-color: var(--input-bg); border-radius: 8px;
+    }
+    .key-item { display: flex; align-items: center; gap: 0.5rem; }
+    .key-color-box {
+      width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border-color);
+      /* For stamp images */
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+    #scoreboard-container {
+      display: none; flex-direction: column; gap: 0.5rem; padding: 1rem;
+      background-color: var(--input-bg); border-radius: 8px;
+    }
+    #scoreboard-container h2 { margin: 0 0 0.5rem 0; text-align: center; font-weight: 500; }
+    .scoreboard-item { display: grid; grid-template-columns: 30px 1fr 60px; align-items: center; padding: 0.5rem; border-radius: 6px; }
+    .scoreboard-item:nth-child(odd) { background-color: rgba(0,0,0,0.2); }
+    .scoreboard-rank, .scoreboard-score { font-weight: bold; }
+    .scoreboard-score { text-align: right; }
+    #submission-modal {
+      display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+      background-color: var(--modal-bg); backdrop-filter: blur(5px); justify-content: center; align-items: center;
+      padding: 1rem; box-sizing: border-box;
+    }
+    .modal-content {
+      background-color: #2a2a2a; padding: 2rem; border-radius: 12px; width: 100%;
+      max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;
+      max-height: 95vh; overflow-y: auto;
+    }
+    .close-button {
+      position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem;
+      font-weight: bold; color: #aaa; cursor: pointer; line-height: 1;
+    }
+    .close-button:hover { color: white; }
+    #submission-form h2 { margin-top: 0; }
+    #submission-form h3 { margin: 0.5rem 0 1rem 0; color: var(--accent-color); }
+    #submission-form p { color: #ccc; }
+    #submission-form label { display: block; margin-top: 1rem; }
+    #submission-form input, #submission-form textarea {
+      width: 100%; padding: 0.75rem; margin-top: 0.5rem; background-color: var(--input-bg);
+      border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-light); box-sizing: border-box;
+    }
+    #submission-form .checkbox-container { display: flex; align-items: center; margin-top: 1.5rem; gap: 0.5rem; }
+    #submission-form input[type="checkbox"] { width: auto; margin: 0; }
+    #submission-form button {
+      width: 100%; padding: 0.75rem; margin-top: 1.5rem; background-color: var(--accent-color);
+      color: var(--text-dark); font-weight: bold; font-size: 1rem; border: none;
+      border-radius: 8px; cursor: pointer; transition: background-color 0.2s;
+    }
+    #submission-form button:hover { background-color: #00d9f5; }
+    #submission-form button:disabled { background-color: #555; cursor: not-allowed; }
+    /* --- NEW: Evidence Input Styling --- */
+    #evidence-container { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem; }
+    .evidence-item {
+        background-color: var(--input-bg); padding: 1rem; border-radius: 8px;
+        border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.75rem;
+    }
+    .evidence-item-header { display: flex; justify-content: space-between; align-items: center; }
+    .evidence-item-header label { margin: 0; font-weight: bold; }
+    .remove-evidence-btn {
+        background: none; border: none; color: #aaa; font-size: 1.2rem;
+        cursor: pointer; padding: 0 0.5rem; line-height: 1;
+    }
+    .remove-evidence-btn:hover { color: var(--error-border); }
+    #add-evidence-btn {
+        width: auto; padding: 0.5rem 1rem; margin-top: 1rem; background-color: transparent;
+        color: var(--accent-color); border: 1px dashed var(--accent-color);
+        font-weight: normal; font-size: 0.9rem;
+    }
+    #add-evidence-btn:hover { background-color: rgba(0, 184, 212, 0.1); }
+    .error-message {
+        padding: 2rem; background-color: var(--error-bg); border: 2px dashed var(--error-border);
+        border-radius: 8px; text-align: center; width: 80%; word-wrap: break-word; position: absolute; z-index: 1;
+    }
+    #message-box {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;
+      z-index: 2000; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+    }
+    #message-box.show { opacity: 1; }
+    /* --- NEW: Tooltip Style --- */
+    #tile-tooltip {
+      display: none;
+      position: fixed;
+      z-index: 1001;
+      background-color: #111;
+      color: #fff;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      max-width: 300px;
+      pointer-events: none;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    #tile-tooltip h4 {
+        margin: 0 0 0.5rem 0;
+        color: var(--accent-color);
+        font-size: 1rem;
+    }
+    #tile-tooltip p {
+        margin: 0;
+        color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div id="global-loader" class="global-loader"></div>
+
+  <div class="navbar">
+    <div class="nav-links">
+      <a href="./index.html" class="active">Player View</a>
+      <a href="./overview.html" id="overview-nav-link" style="display: none;">Overview</a>
+      <a href="./admin.html" id="admin-nav-link" style="display: none;">Admin</a>
+      <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
+    </div>
+    <div id="auth-container" class="nav-actions">
+        <span id="user-info"></span>
+        <button id="auth-button">Login</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h1 id="page-title">OSRS Bingo</h1>
+    <select id="team-selector" onchange="handleTeamChange()"></select>
+  </div>
+
+  <div id="board-container">
+    <!-- Tiles will be rendered here -->
+  </div>
+  <div class="info-container">
+    <div id="color-key-container"></div>
+    <div id="scoreboard-container"></div>
+  </div>
+  <div id="submission-modal">
+    <div class="modal-content">
+      <span class="close-button" onclick="closeModal()">&times;</span>
+      <form id="submission-form" onsubmit="handleFormSubmit(event)">
+        <!-- UPDATED: Tile ID and Name format -->
+        <h2 id="modal-tile-name"></h2>
+        <h3 id="modal-team-name"></h3>
+        <p id="modal-tile-desc"></p>
+        <input type="hidden" id="modal-tile-id">
+        <label for="player-name">Player Name(s):</label>
+        <input type="text" id="player-name" required>
+        <label id="evidence-label">Evidence:</label>
+        <div id="evidence-container"></div>
+        <button type="button" id="add-evidence-btn" onclick="addEvidenceInput()">+ Add Evidence Item</button>
+        <label for="notes">Notes and Comments:</label>
+        <textarea id="notes" rows="3"></textarea>
+        <div class="checkbox-container">
+            <input type="checkbox" id="mark-as-complete">
+            <label for="mark-as-complete">Mark as complete and ready for review</label>
+        </div>
+        <div class="checkbox-container">
+            <input type="checkbox" id="requires-action">
+            <label for="requires-action">Flag for Admin Action</label>
+        </div>
+        <button type="submit" id="submit-button">Save Progress</button>
+      </form>
+    </div>
+  </div>
+  <div id="message-box"></div>
+  <!-- NEW: Tooltip element -->
+  <div id="tile-tooltip"></div>
+
+  <script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth, signInWithGoogle, signOut, getAuthState } from './auth.js';
+
+    let config = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {};
+    let unsubscribeSubmissions = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('auth-button').onclick = () => authState.isLoggedIn ? signOut() : signInWithGoogle();
+        initAuth(onAuthStateChanged);
+        loadStaticData();
+    });
+
+    async function onAuthStateChanged(newAuthState) {
+        authState = newAuthState;
+        updateNavbar();
+        renderBoard(); // Re-render to apply new permissions
+    }
+
+    async function loadStaticData() {
+        try {
+            const configSnap = await fb.getDoc(fb.doc(db, 'config', 'main'));
+            if (!configSnap.exists()) throw new Error("Configuration not found.");
+            config = configSnap.data();
+
+            applyGlobalStyles();
+
+            const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
+            tiles = tilesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+            document.getElementById('overview-nav-link').style.display = String(config.enableOverviewPage).toUpperCase() === 'TRUE' ? 'inline-block' : 'none';
+            document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
+
+            const teamNames = config.teams?.map(t => t.name) || [];
+            const loadFirstTeam = String(config.loadFirstTeamByDefault).toUpperCase() === 'TRUE';
+            populateTeamSelector(teamNames, loadFirstTeam);
+
+            if (loadFirstTeam && teamNames.length > 0) {
+                document.getElementById('team-selector').value = teamNames[0];
+                handleTeamChange();
+            }
+
+            renderColorKey();
+
+            setupSubmissionsListener();
+        } catch (error) {
+            const container = document.getElementById('board-container');
+            container.innerHTML = `<div class="error-message">Failed to load board data: ${error.message}</div>`;
+            hideGlobalLoader();
+        }
+    }
+
+    function setupSubmissionsListener() {
+        if (unsubscribeSubmissions) unsubscribeSubmissions();
+
+        const submissionsQuery = fb.collection(db, 'submissions');
+        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+            console.log("Player board data updated in real-time.");
+            submissions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+            processAllData();
+            renderBoard();
+            renderScoreboard();
+            hideGlobalLoader();
+        }, (error) => {
+            console.error("Error listening to submissions:", error);
+            hideGlobalLoader();
+        });
+    }
+
+    function updateNavbar() {
+        const authButton = document.getElementById('auth-button');
+        const userInfo = document.getElementById('user-info');
+
+        if (authState.isLoggedIn) {
+            authButton.textContent = 'Logout';
+            const teamInfo = authState.profile?.team ? ` | Team: ${authState.profile.team}` : '';
+            userInfo.textContent = `${authState.profile?.role || 'Player'}${teamInfo}`;
+        } else {
+            authButton.textContent = 'Login with Google';
+            userInfo.textContent = '';
+        }
+
+        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
+        document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
+    }
+
+    function processAllData() {
+        teamData = {};
+        const newScoreboard = [];
+        const teamNames = config.teams?.map(t => t.name) || [];
+
+        teamNames.forEach(teamName => {
+            const teamSubmissions = submissions.filter(s => s.Team === teamName && !s.IsArchived);
+            const tileStates = {};
+
+            teamSubmissions.forEach(sub => {
+                const tileId = sub.TileID;
+                if (!tileStates[tileId]) {
+                    tileStates[tileId] = { hasSubmission: false, complete: false, verified: false, requiresAction: false };
+                }
+                tileStates[tileId].hasSubmission = true;
+                if (sub.IsComplete) tileStates[tileId].complete = true;
+                if (sub.AdminVerified) tileStates[tileId].verified = true;
+                if (sub.RequiresAction) tileStates[tileId].requiresAction = true;
+            });
+            teamData[teamName] = { tileStates };
+        });
+
+        // Calculate scoreboard
+        teamNames.forEach(teamName => {
+            let score = 0;
+            let completedTiles = 0;
+            tiles.forEach(tile => {
+                const status = getTileStatus(tile, teamName);
+                const scoreOnVerified = String(config.scoreOnVerifiedOnly).toUpperCase() === 'TRUE';
+                const isScored = scoreOnVerified ? status === 'Verified' : (status === 'Verified' || status === 'Submitted');
+
+                if (isScored) {
+                    score += parseInt(tile.Points) || 0;
+                    completedTiles++;
+                }
+            });
+            newScoreboard.push({ team: teamName, score, completedTiles });
+        });
+
+        scoreboard = newScoreboard.sort((a, b) => b.score - a.score);
+    }
+    
+    function applyGlobalStyles() {
+        if (!config) return;
+        const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container, #main-content');
+        const maxWidth = config.maxPageWidth;
+        if (maxWidth) elements.forEach(el => el.style.maxWidth = maxWidth);
+    }
+
+    function populateTeamSelector(teamNames = [], loadFirstTeam = false) {
+      const selector = document.getElementById('team-selector');
+      selector.innerHTML = '';
+      if (!loadFirstTeam) {
+        const placeholder = document.createElement('option');
+        placeholder.value = ""; 
+        placeholder.textContent = "Select a Team...";
+        placeholder.disabled = true; 
+        placeholder.selected = true;
+        selector.appendChild(placeholder);
+      }
+      teamNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name; option.textContent = name;
+        selector.appendChild(option);
+      });
+    }
+
+    function handleTeamChange() {
+      const selector = document.getElementById('team-selector');
+      if (selector.value === "") return;
+      currentTeam = selector.value;
+      renderBoard();
+    }
+
+    function getTileStatus(tile, teamName) {
+        const isPublic = config.boardVisibility !== 'private';
+        // IMPROVEMENT: More robust check for visibility
+        if (!isPublic && teamName !== authState.profile?.team && !authState.isEventMod) {
+             return 'Hidden';
+        }
+
+        if (!teamName || !teamData[teamName]) return 'Locked';
+        const teamTileStates = teamData[teamName].tileStates;
+        const state = teamTileStates[tile.id] || {};
+        if (state.verified) return 'Verified';
+        if (state.requiresAction) return 'Requires Action';
+        if (state.complete) return 'Submitted';
+        if (state.hasSubmission) return 'Partially Complete';
+
+        const unlockOnVerifiedOnly = String(config.unlockOnVerifiedOnly).toUpperCase() === 'TRUE';
+
+        // The server's getBoardData() may split the 'Prerequisites' column by comma.
+        // We rejoin it here to reconstruct the original string, which could be a simple list or a JSON array string.
+        const prereqString = tile.Prerequisites || '';
+
+        if (!prereqString || !prereqString.trim()) {
+            return 'Unlocked'; // No prerequisites.
+        }
+
+        let orGroups = [];
+        let isNewFormat = false;
+
+        // Try to parse as JSON for the new AND/OR logic: e.g., [["A1","A2"],["B1"]]
+        if (prereqString.trim().startsWith('[')) {
+            try {
+                const parsed = JSON.parse(prereqString);
+                // Check if it's an array of arrays (or an empty array for an unlocked tile)
+                if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) {
+                    orGroups = parsed;
+                    isNewFormat = true;
+                }
+            } catch (e) {
+                // Not valid JSON, will fall through to old format handling.
+            }
+        }
+
+        if (!isNewFormat) {
+            // Fallback to old format: a single AND group from a comma-separated list.
+            const andGroup = prereqString.split(',').map(s => s.trim()).filter(Boolean);
+            orGroups = andGroup.length > 0 ? [andGroup] : [];
+        }
+
+        if (orGroups.length === 0) {
+            return 'Unlocked'; // No prerequisites after parsing.
+        }
+
+        // Check if any 'OR' group is satisfied.
+        const prereqsMet = orGroups.some(andGroup => {
+            // An empty AND group `[]` is vacuously true because `[].every()` returns true.
+            return andGroup.every(prereqId => {
+                const prereqState = teamTileStates[prereqId] || {};
+                return unlockOnVerifiedOnly ? prereqState.verified : (prereqState.verified || prereqState.complete);
+            });
+        });
+        return prereqsMet ? 'Unlocked' : 'Locked';
+    }
+
+    function renderBoard() {
+      if (!tiles || tiles.length === 0) {
+        document.getElementById('board-container').innerHTML = '';
+        return;
+      }
+
+      const container = document.getElementById('board-container');
+      container.innerHTML = '';
+      const displayTeam = currentTeam;
+      
+      if (displayTeam) {
+        document.title = `${config.pageTitle || 'Bingo'} : ${displayTeam}`;
+      } else {
+        document.title = config.pageTitle || 'Bingo';
+      }
+      document.getElementById('page-title').textContent = document.title;
+      const tooltip = document.getElementById('tile-tooltip');
+
+      const renderTiles = () => {
+        tiles.forEach(tile => {
+          if (getTileStatus(tile, displayTeam) === 'Hidden') return;
+          const tileDiv = document.createElement('div');
+          const status = getTileStatus(tile, displayTeam);
+          const statusClass = status.replace(/\s+/g, '-').toLowerCase();
+          tileDiv.className = `tile-overlay ${statusClass}`; // The key for config is `Tile ${status}`
+          const getProp = (propName) => { const overrides = tile['Overrides (JSON)'] ? JSON.parse(tile['Overrides (JSON)'] || '{}') : {}; return overrides[propName] !== undefined ? overrides[propName] : config[propName]; };
+          tileDiv.style.top = `${tile['Top (%)']}%`; tileDiv.style.left = `${tile['Left (%)']}%`;
+          tileDiv.style.width = `${tile['Width (%)']}%`; tileDiv.style.height = `${tile['Height (%)']}%`;
+          tileDiv.style.transform = `rotate(${tile.Rotation || '0deg'})`;
+          
+          const statusKey = status.replace(/\s+/g, '');
+          const color = getProp(`tileColor${statusKey}`) || '#FFFFFF';
+          const opacity = getProp(`tileOpacity${statusKey}`) || 0.7;
+          tileDiv.style.backgroundColor = hexToRgba(color, opacity);
+          const shape = (getProp('defaultTileShape') || 'Square').toLowerCase();
+          const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
+          if (clipPaths[shape]) tileDiv.style.clipPath = clipPaths[shape];
+          const borderWidth = getProp('defaultTileBorderWidth') || '2px';
+          const borderColor = getProp('defaultTileBorderColor') || 'transparent';
+          tileDiv.style.border = `${borderWidth} solid ${borderColor}`;
+          
+          // --- UPDATED: Tooltip logic ---
+          tileDiv.addEventListener('mousemove', (e) => {
+              tooltip.innerHTML = `<h4>${tile.id}: ${tile.Name}</h4><p>${tile.Description}</p>`;
+              tooltip.style.display = 'block';
+              // Position tooltip relative to cursor
+              tooltip.style.left = `${e.clientX + 15}px`;
+              tooltip.style.top = `${e.clientY + 15}px`;
+          });
+          tileDiv.addEventListener('mouseout', () => {
+              tooltip.style.display = 'none';
+              tileDiv.style.borderColor = borderColor;
+              tileDiv.style.borderWidth = borderWidth;
+          });
+          tileDiv.addEventListener('mouseover', () => {
+              const hoverWidth = getProp('hoverTileBorderWidth') || '3px';
+              const hoverColor = getProp('hoverTileBorderColor') || 'var(--accent-color)';
+              tileDiv.style.borderColor = hoverColor;
+              tileDiv.style.borderWidth = hoverWidth;
+          });
+
+          if(String(config.showTileNames).toUpperCase() === 'TRUE' || !config.boardImageUrl) {
+            const tileNameSpan = document.createElement('span');
+            tileNameSpan.textContent = tile.Name;
+            tileDiv.appendChild(tileNameSpan);
+          }
+          const useStamp = String(getProp(`useStampByDefault${statusKey}`)).toUpperCase() === 'TRUE';
+          const stampImg = getProp(`stampImageUrl${statusKey}`);
+          if (useStamp && stampImg) {
+              const stampScale = getProp(`stampScale${statusKey}`) || 1;
+              const stampRotation = getProp(`stampRotation${statusKey}`) || '0deg';
+              const stampPosition = getProp(`stampPosition${statusKey}`) || 'center';
+              const stampDiv = document.createElement('div');
+              stampDiv.className = 'stamp-image';
+              stampDiv.style.backgroundImage = `url('${stampImg}')`;
+              stampDiv.style.backgroundPosition = stampPosition;
+              stampDiv.style.transformOrigin = stampPosition;
+              stampDiv.style.transform = `scale(${stampScale}) rotate(${stampRotation})`;
+              tileDiv.appendChild(stampDiv);
+          }
+          if (displayTeam && status !== 'Locked') {
+            tileDiv.onclick = () => openModal(tile, status);
+          } else if (!displayTeam) {
+            // If no team is selected, show a message on click.
+            tileDiv.onclick = () => {
+              showMessage('Please select a team to interact with a tile.', true);
+            };
+          }
+          container.appendChild(tileDiv);
+        });
+      };
+
+      const imageUrl = config.boardImageUrl;
+      if (!imageUrl) {
+        container.style.aspectRatio = '1 / 1'; container.style.backgroundColor = 'var(--board-bg)';
+        renderTiles(); return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`; // Keep placeholder if image is set
+        container.style.backgroundImage = `url('${imageUrl}')`; renderTiles();
+      };
+      img.onerror = () => {
+        container.style.aspectRatio = '1 / 1';
+        // Do not remove background image, so placeholder from CSS shows
+        const errorDiv = document.createElement('div'); errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `<strong>Image Failed to Load</strong>`;
+        container.appendChild(errorDiv); renderTiles();
+      };
+      img.src = imageUrl;
+    }
+    
+    function renderColorKey() {
+        if (!config) return;
+        const keyContainer = document.getElementById('color-key-container');
+        keyContainer.innerHTML = '';
+        const keyOrder = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+        keyOrder.forEach(status => {
+            const statusKey = status.replace(/\s+/g, '');
+            const color = config[`tileColor${statusKey}`];
+            if (color) {
+                const opacity = config[`tileOpacity${statusKey}`] || 0.7;
+                const keyItem = document.createElement('div');
+                keyItem.className = 'key-item';
+                const colorBox = document.createElement('div');
+                colorBox.className = 'key-color-box';
+                colorBox.style.backgroundColor = hexToRgba(color, opacity);
+
+                const useStamp = String(config[`useStampByDefault${statusKey}`]).toUpperCase() === 'TRUE';
+                const stampImg = config[`stampImageUrl${statusKey}`];
+                if (useStamp && stampImg) {
+                    colorBox.style.backgroundImage = `url('${stampImg}')`;
+                } else {
+                    colorBox.style.backgroundImage = 'none';
+                }
+
+                const keyLabel = document.createElement('span');
+                keyLabel.textContent = status;
+                keyItem.appendChild(colorBox);
+                keyItem.appendChild(keyLabel);
+                keyContainer.appendChild(keyItem);
+            }
+        });
+    }
+
+    function renderScoreboard() {
+        const container = document.getElementById('scoreboard-container');
+        if (!config || String(config.showScoreboard).toUpperCase() !== 'TRUE') {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'flex';
+        container.innerHTML = '<h2>Scoreboard</h2>';
+        scoreboard.forEach((team, index) => {
+            const item = document.createElement('div');
+            item.className = 'scoreboard-item';
+            item.innerHTML = `<div class="scoreboard-rank">${index + 1}.</div><div class="scoreboard-team">${team.team}</div><div class="scoreboard-score">${team.score}</div>`;
+            container.appendChild(item);
+        });
+    }
+
+    // --- NEW: Dynamic Evidence Field Functions ---
+    function addEvidenceInput(link = '', name = '') {
+        const container = document.getElementById('evidence-container');
+        const itemCount = container.children.length;
+
+        const evidenceItemDiv = document.createElement('div');
+        evidenceItemDiv.className = 'evidence-item';
+
+        evidenceItemDiv.innerHTML = `
+            <div class="evidence-item-header">
+                <label>Evidence #${itemCount + 1}</label>
+                <button type="button" class="remove-evidence-btn" onclick="this.parentElement.parentElement.remove(); renumberEvidenceItems();">&times;</button>
+            </div>
+            <input type="text" class="evidence-link" placeholder="Link (e.g., https://discord...)" value="${link}">
+            <input type="text" class="evidence-name" placeholder="Name / Description" value="${name}">
+        `;
+        container.appendChild(evidenceItemDiv);
+    }
+
+    function renumberEvidenceItems() {
+        const container = document.getElementById('evidence-container');
+        const items = container.querySelectorAll('.evidence-item');
+        items.forEach((item, index) => {
+            const label = item.querySelector('label');
+            if (label) {
+                label.textContent = `Evidence #${index + 1}`;
+            }
+        });
+    }
+
+    function clearEvidenceInputs() {
+        const container = document.getElementById('evidence-container');
+        container.innerHTML = '';
+    }
+
+    function openModal(tile, status) {
+      const modal = document.getElementById('submission-modal');
+      const form = document.getElementById('submission-form');
+      form.reset();
+
+      document.getElementById('modal-tile-id').value = tile.id;
+      document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name}`;
+      document.getElementById('modal-team-name').textContent = `Team: ${currentTeam}`;
+      document.getElementById('modal-tile-desc').textContent = tile.Description;
+      document.getElementById('evidence-label').textContent = config.evidenceFieldLabel || 'Evidence:';
+
+      modal.style.display = 'flex';
+      const isEditable = status !== 'Verified';
+
+      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.TileID === tile.id && !s.IsArchived);
+
+      document.getElementById('player-name').value = existingSubmission?.PlayerName || '';
+      document.getElementById('notes').value = existingSubmission?.Notes || '';
+      document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
+      document.getElementById('requires-action').checked = existingSubmission?.RequiresAction || false;
+
+      let evidenceData = [];
+      if (existingSubmission?.Evidence) {
+          try {
+              evidenceData = JSON.parse(existingSubmission.Evidence);
+              if (!Array.isArray(evidenceData)) throw new Error("Not an array");
+          } catch (e) {
+              if (existingSubmission.Evidence) evidenceData = [{ link: existingSubmission.Evidence, name: '' }];
+          }
+      }
+      
+      clearEvidenceInputs();
+      if (evidenceData.length > 0) {
+          evidenceData.forEach(item => addEvidenceInput(item.link, item.name));
+      } else if (isEditable) {
+          addEvidenceInput();
+      }
+
+      const formElements = document.querySelectorAll('#submission-form input, #submission-form textarea, #submission-form button');
+      const submitButton = document.getElementById('submit-button');
+      if (isEditable) {
+          formElements.forEach(el => el.disabled = false);
+          submitButton.textContent = 'Save Progress';
+      } else {
+          formElements.forEach(el => el.disabled = true);
+          submitButton.textContent = 'Verified (Locked)';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('submission-modal').style.display = 'none';
+    }
+
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+      const submitButton = document.getElementById('submit-button');
+      submitButton.disabled = true;
+      showGlobalLoader();
+
+      // --- NEW: Collect evidence data ---
+      const evidenceItems = [];
+      document.querySelectorAll('#evidence-container .evidence-item').forEach(item => {
+          const link = item.querySelector('.evidence-link').value.trim();
+          const name = item.querySelector('.evidence-name').value.trim();
+          if (link || name) { // Only add if at least one field is filled
+              evidenceItems.push({ link, name });
+          }
+      });
+
+      const canSubmit = authState.isLoggedIn && (authState.profile?.team === currentTeam || authState.isEventMod);
+      if (!canSubmit) {
+          showMessage('You do not have permission to submit for this team.', true);
+          submitButton.disabled = false;
+          hideGlobalLoader();
+          return;
+      }
+      
+      const tileId = document.getElementById('modal-tile-id').value;
+      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.TileID === tileId && !s.IsArchived);
+
+      const dataToSave = {
+        PlayerName: document.getElementById('player-name').value,
+        Evidence: JSON.stringify(evidenceItems),
+        Notes: document.getElementById('notes').value,
+        Team: currentTeam,
+        TileID: tileId,
+        IsComplete: document.getElementById('mark-as-complete').checked,
+        RequiresAction: document.getElementById('requires-action').checked,
+      };
+
+      try {
+          if (existingSubmission) {
+              const subRef = fb.doc(db, 'submissions', existingSubmission.id);
+              if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
+                  dataToSave.CompletionTimestamp = fb.serverTimestamp();
+              }
+              await fb.updateDoc(subRef, dataToSave);
+          } else {
+              dataToSave.Timestamp = fb.serverTimestamp();
+              if (dataToSave.IsComplete) {
+                  dataToSave.CompletionTimestamp = fb.serverTimestamp();
+              }
+              await fb.addDoc(fb.collection(db, 'submissions'), dataToSave);
+          }
+          showMessage('Submission saved!', false);
+          closeModal();
+      } catch (error) {
+          showMessage('Submission failed: ' + error.message, true);
+          console.error("Submission error:", error);
+      } finally {
+          submitButton.disabled = false;
+          hideGlobalLoader();
+      }
+    }
+
+    function showMessage(text, isError = false) {
+      const box = document.getElementById('message-box');
+      box.textContent = text;
+      box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
+      box.classList.add('show');
+      setTimeout(() => box.classList.remove('show'), 4000);
+    }
+    
+    // --- NEW: Global Loader Functions ---
+    function showGlobalLoader() {
+        document.getElementById('global-loader').style.display = 'block';
+    }
+    function hideGlobalLoader() {
+        document.getElementById('global-loader').style.display = 'none';
+    }
+
+    function hexToRgba(colorStr, alpha) {
+        if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
+        const sColor = colorStr.trim();
+        if (sColor === 'transparent') return 'transparent';
+        if (!sColor.startsWith('#')) return sColor;
+        const hex = sColor.slice(1);
+        let r = 0, g = 0, b = 0;
+        if (hex.length === 3) {
+            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
+        } else if (hex.length === 6) {
+            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
+        } else { return `rgba(255, 255, 255, ${alpha})`; }
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 255, 255, ${alpha})`;
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // Expose functions to global scope for onclick handlers
+    window.handleTeamChange = handleTeamChange;
+    window.closeModal = closeModal;
+    window.handleFormSubmit = handleFormSubmit;
+    window.addEvidenceInput = addEvidenceInput;
+    window.renumberEvidenceItems = renumberEvidenceItems;
+
+  </script>
+</body>
+</html>

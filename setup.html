@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Bingo Platform - Setup</title>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <style>
+        :root { --accent-color: #00aaff; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .navbar {
+            width: 100%;
+            max-width: 1200px; /* Match controls width */
+            background-color: #2d2d2d; /* Match controls bg */
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        .nav-links a {
+            color: #f0f0f0;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+        .nav-links a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .nav-links a.active {
+            background-color: var(--accent-color);
+            color: #111;
+            font-weight: bold;
+        }
+        /* --- NEW: Global Loader & Message Box --- */
+        .global-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+            background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+            background-size: 200% auto;
+            animation: loading-animation 1.5s linear infinite;
+            z-index: 9999; display: none;
+        }
+        @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        #message-box {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;
+            z-index: 2000; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+        }
+        #message-box.show { opacity: 1; }
+        h1, h2 {
+            color: var(--accent-color);
+            text-align: center;
+        }
+        p {
+            text-align: center;
+            max-width: 800px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column; /* Always stack vertically */
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px; /* Match the controls width */
+        }
+        .outputs-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            align-items: flex-start;
+        }
+        .editor-panel {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .output-panel {
+            width: 100%;
+            display: flex;
+            flex: 1; /* Allow panels to grow */
+            flex-direction: column;
+        }
+        /* This is now the viewport for panning and zooming */
+        #board-container {
+            position: relative;
+            width: 100%;
+            /* REVISED: Removed max-width to fill the new container */
+            margin: auto;
+            border-radius: 8px;
+            overflow: hidden; /* Crucial for panning effect */
+            border: 2px solid #444;
+            cursor: grab;
+        }
+        #board-container:active {
+            cursor: grabbing;
+        }
+        /* This new element will be scaled and moved */
+        #board-content {
+            position: relative;
+            width: 100%;
+            transform-origin: top left;
+            transition: transform 0.1s ease-out;
+            background-repeat: no-repeat;
+            background-position: top left;
+            background-size: 100% 100%;
+        }
+        #board-image {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .draggable-tile {
+            position: absolute;
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            background-color: rgba(0, 170, 255, 0.3);
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+            cursor: move;
+            touch-action: none;
+            user-select: none;
+            z-index: 1; /* To be under the prerequisite lines */
+            padding: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer; /* Change cursor to indicate it's clickable */
+        }
+        #csv-output {
+            width: 100%;
+            height: 400px; /* Adjusted height slightly */
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #2d2d2d;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            resize: vertical;
+            box-sizing: border-box; /* Ensure padding/border is included in width */
+        }
+        .output-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            background-color: #00aaff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0088cc;
+        }
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .main-actions {
+            display: flex;
+            gap: 15px;
+        }
+        .file-inputs {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .file-inputs > div {
+            display: flex;
+            flex-direction: column;
+        }
+        .file-inputs label {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .file-inputs input {
+            font-size: 14px;
+        }
+        .zoom-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .prereq-vis-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .prereq-vis-control select {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        #prereq-lines-svg {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 5;
+            overflow: visible;
+        }
+        /* Details Panel Styles */
+        .details-panel {
+            width: 100%;
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .details-header h2 {
+            margin: 0;
+        }
+        #add-new-tile-btn {
+            margin-top: 0;
+            background-color: #28a745;
+        }
+        #delete-tile-btn {
+            margin-top: 0;
+            background-color: #dc3545;
+        }
+        #toggle-global-styles-btn {
+            margin-top: 0;
+            padding: 5px 10px;
+            font-size: 18px;
+        }
+        #details-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .form-field {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-field label {
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #aaa;
+        }
+        .form-field input, .form-field textarea, .form-field select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+        .form-field textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .form-field input:disabled, .form-field textarea:disabled, .form-field select:disabled {
+            background-color: #2a2a2a;
+            cursor: not-allowed;
+            color: #666;
+        }
+        .overrides-fieldset {
+            grid-column: 1 / -1; /* Span all columns */
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px 15px;
+        }
+        .overrides-fieldset.minimized .fieldset-content {
+            display: none;
+        }
+        .overrides-fieldset .fieldset-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            padding-top: 10px;
+        }
+        .legend-toggle {
+            margin-right: 8px;
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+        }
+        .overrides-fieldset legend {
+            color: var(--accent-color);
+        }
+        #overrides-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .override-item {
+            display: grid;
+            grid-template-columns: 1fr 2fr 40px;
+            gap: 10px;
+            align-items: center;
+        }
+        #add-override-btn {
+            background-color: #007bff;
+            width: fit-content;
+        }
+        #add-override-btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        #style-preview-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        .remove-override-btn {
+            background-color: #c0392b;
+            padding: 8px;
+        }
+        .override-item input,
+        .override-item select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+        .form-field-compound {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-field-compound input[type="color"] {
+            padding: 0;
+            height: 38px;
+            min-width: 38px;
+        }
+        .form-field-compound input[type="range"] {
+            flex-grow: 1;
+        }
+        .form-field-compound input[type="text"] {
+            /* Give text inputs in compound fields a fixed width */
+            width: 80px;
+        }
+        #teams-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-top: 10px;
+        }
+        .team-item {
+            display: grid;
+            grid-template-columns: 1fr 80px;
+            gap: 10px;
+            align-items: center;
+        }
+        .team-item input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+        #add-team-btn {
+            margin-top: 10px;
+            width: fit-content;
+        }
+
+        /* --- Prerequisite Editor Styles --- */
+        #prereq-editor-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #prereq-ui-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #1a1a1a;
+        }
+        .prereq-or-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .prereq-or-label {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        .prereq-and-input {
+            flex-grow: 1;
+        }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+        .image-upload-preview {
+            max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px;
+            border: 1px solid #444; background-color: #111; border-radius: 4px;
+        }
+
+    </style>
+</head>
+<body>
+<div id="global-loader" class="global-loader"></div>
+<div id="message-box"></div>
+
+<div id="main-content" style="display: block; width: 100%; display: flex; flex-direction: column; align-items: center;">
+    <div id="access-denied" style="display: block;">
+        <h1>Access Denied</h1>
+        <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
+    </div>
+    <div id="setup-view" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
+    <div class="navbar">
+        <div class="nav-links">
+            <a href="./index.html" target="_top">Player View</a>
+            <a href="./overview.html" target="_top">Overview</a>
+            <a href="./admin.html" target="_top">Admin View</a>
+            <a href="./setup.html" target="_top" class="active">Board Setup</a>
+        </div>
+    </div>
+    <h1>Bingo Board Setup</h1>
+    <p>Live editor for the bingo board configuration. Load the current settings from Firebase, make your changes to tiles, styles, and security, then save everything back. Remember to save your changes!</p>
+
+    <div class="controls">
+        <div class="main-actions">
+            <button id="load-data-btn" onclick="initializeApp()">Refresh Data</button>
+            <button id="save-data-btn" onclick="saveDataToFirebase()">Save All Changes to Firebase</button>
+        </div>
+        <div class="zoom-control">
+            <label for="zoom-slider">Zoom:</label>
+            <input type="range" id="zoom-slider" min="1" max="5" value="1" step="0.1">
+            <span id="zoom-value">100%</span>
+            <button id="reset-zoom">Reset</button>
+        </div>
+        <div class="prereq-vis-control">
+            <label for="prereq-vis-mode">Prerequisite Lines:</label>
+            <select id="prereq-vis-mode">
+                <option value="hide" selected>Hidden</option>
+                <option value="selected">Show for Selected</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="editor-panel">
+            <div id="style-preview-controls"></div>
+            <div id="board-container">
+                <div id="board-content">
+                    <img id="board-image" src="" alt="Bingo board background" style="visibility: hidden;" />
+                    <svg id="prereq-lines-svg"></svg>
+                    <!-- Tiles will be injected here -->
+                </div>
+            </div>
+        </div>
+        <div id="security-editor-box" class="details-panel">
+            <div class="details-header">
+                <h2>Security & Teams</h2>
+                <button id="toggle-security-btn" title="Toggle Visibility">-</button>
+            </div>
+            <form id="security-form">
+                <fieldset class="overrides-fieldset"><legend>Event Teams</legend><div id="teams-container" class="fieldset-content" style="display: flex;"></div><button type="button" id="add-team-btn">+ Add Team</button></fieldset>
+            </form>
+        </div>
+        <div id="global-style-editor-box" class="details-panel">
+            <div class="details-header">
+                <h2>Global Config &amp; Styles</h2>
+                <button id="toggle-global-styles-btn" title="Toggle Visibility">-</button>
+            </div>
+            <div id="global-style-form">
+                <p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>
+                <!-- Fieldsets will be generated here by renderGlobalConfig -->
+            </div>
+        </div>
+        <div id="tile-editor-box" class="details-panel">
+            <div class="details-header">
+                <h2>Edit Tile Details</h2>
+                <button id="delete-tile-btn" disabled>Delete Selected Tile</button>
+                <button id="add-new-tile-btn">Add New Tile</button>
+            </div>
+            <form id="details-form"></form>
+        </div>
+        <div class="outputs-container">
+            <div class="output-panel">
+                <h2>Generated Tile Position CSV</h2>
+                <textarea id="csv-output" readonly placeholder="Load a tile position CSV to see the output..."></textarea>
+                <div class="output-buttons">
+                    <button id="copy-button">Copy Tile CSV</button>
+                    <button id="download-button">Download Tile CSV</button>
+                </div>
+            </div>
+            <div class="output-panel">
+                <h2>Generated Config &amp; Style CSV</h2>
+                <textarea id="style-csv-output" readonly placeholder="Load or edit config &amp; styles to see the output..."></textarea>
+                <div class="output-buttons">
+                    <button id="copy-style-button">Copy Config CSV</button>
+                    <button id="download-style-button">Download Config CSV</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</div>
+
+    <script type="module">
+        import { db, storage, fb } from './firebase-config.js';
+        import { initAuth } from './auth.js';
+
+        let tilesData = [];
+        let config = {}; // NEW: Central object for global config/styles
+        let csvHeader = [];
+        let csvSeparator = ',';
+        let newTileCounter = 1;
+        let lastSelectedTileIndex = null;
+        let currentPreviewStatus = null;
+        const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+        let prereqVisMode = 'hide';
+
+        // NEW: Schema-driven configuration
+        const configSchema = {
+            // General
+            pageTitle: { label: 'Page Title', type: 'text', description: 'The title displayed at the top of the bingo page and in the browser tab.' },
+            boardImageUrl: { label: 'Board Background Image', type: 'image', path: 'config/board_background', description: 'A direct web URL to the bingo board background image. You can also upload a file here.' },
+            maxPageWidth: { label: 'Max Page Width', type: 'text', description: 'The maximum width for the page content. Use px or % (e.g., 1400px or 90%).' },
+            showTileNames: { label: 'Show Tile Names', type: 'boolean', description: 'Set to TRUE to display tile names on the board by default, especially if no background image is used.' },
+            // Gameplay Rules
+            unlockOnVerifiedOnly: { label: 'Unlock on Verified Only', type: 'boolean', description: 'Set to TRUE to require a tile to be "Verified" by an admin before its prerequisites are met for other tiles.' },
+            scoreOnVerifiedOnly: { label: 'Score on Verified Only', type: 'boolean', description: 'Set to TRUE to only count points for "Verified" tiles on the scoreboard and overview.' },
+            showScoreboard: { label: 'Show Scoreboard (Player Page)', type: 'boolean', description: 'Set to TRUE to display the team scoreboard at the bottom of the player page.' },
+            enableOverviewPage: { label: 'Enable Public Overview Page', type: 'boolean', description: 'Set to TRUE to show the "Overview" link in the navbar for everyone. Admins can always see it.' },
+            boardVisibility: { label: 'Board Visibility', type: 'select', options: ['public', 'private'], description: 'If "private", players can only see their own team\'s board state unless they are an admin.' },
+            evidenceFieldLabel: { label: 'Evidence Field Label', type: 'text', description: 'The text label displayed above the evidence submission inputs in the modal.' },
+            loadFirstTeamByDefault: { label: 'Load First Team by Default', type: 'boolean', description: 'Set to TRUE to automatically load the first team in the list on the player page, instead of showing "Select a Team...".' },
+            // Default Tile Styling
+            defaultTileShape: { label: 'Default Tile Shape', type: 'select', options: ['Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'], description: 'The overall shape of the tiles.' },
+            defaultTileBorderWidth: { label: 'Default Tile Border Width', type: 'text', description: 'The thickness of the border on all tiles (e.g., 2px).' },
+            defaultTileBorderColor: { label: 'Default Tile Border Color', type: 'color', description: 'The color of the border on all tiles.' },
+            hoverTileBorderWidth: { label: 'Hover Tile Border Width', type: 'text', description: 'The thickness of the border when a user hovers over a tile.' },
+            hoverTileBorderColor: { label: 'Hover Tile Border Color', type: 'color', description: 'The color of the border when a user hovers over a tile.' },
+        };
+
+        STATUSES.forEach(status => {
+            const statusKey = status.replace(/\s+/g, ''); // e.g., 'PartiallyComplete'
+            configSchema[`tileColor${statusKey}`] = { label: `Tile ${status} Color`, type: 'color', description: `Background color for tiles that are "${status}".` };
+            configSchema[`tileOpacity${statusKey}`] = { label: `${status} Opacity`, type: 'range', min: 0, max: 1, step: 0.01, description: `Opacity (transparency) for "${status}" tiles. 0 is fully transparent, 1 is fully opaque.` };
+            configSchema[`useStampByDefault${statusKey}`] = { label: `Use Stamp (${status})`, type: 'boolean', description: `Set to TRUE to show the stamp image on "${status}" tiles.` };
+            configSchema[`stampImageUrl${statusKey}`] = { label: `Stamp Image (${status})`, type: 'image', path: `config/stamps/${status.replace(/\s+/g, '_').toLowerCase()}`, description: `URL for the stamp image to display on "${status}" tiles. You can also upload a file.` };
+            configSchema[`stampScale${statusKey}`] = { label: `Stamp Scale (${status})`, type: 'range', min: 0, max: 3, step: 0.05, description: `Size multiplier for the stamp on "${status}" tiles (e.g., 1 is 100%, 0.5 is 50%).` };
+            configSchema[`stampRotation${statusKey}`] = { label: `Stamp Rotation (${status})`, type: 'text', description: `Rotation of the stamp on "${status}" tiles (e.g., 45deg).` };
+            configSchema[`stampPosition${statusKey}`] = { label: `Stamp Position (${status})`, type: 'text', description: `Position of the stamp within the tile for "${status}" status (e.g., center, top left).` };
+        });
+
+        const configGroups = {
+            'Board Configuration': ['pageTitle', 'boardImageUrl', 'maxPageWidth', 'showTileNames', 'evidenceFieldLabel', 'loadFirstTeamByDefault'],
+            'Rules & Visibility': ['unlockOnVerifiedOnly', 'scoreOnVerifiedOnly', 'showScoreboard', 'enableOverviewPage', 'boardVisibility'],
+            'Default Tile Styles': ['defaultTileShape', 'defaultTileBorderWidth', 'defaultTileBorderColor', 'hoverTileBorderWidth', 'hoverTileBorderColor'],
+        };
+        // Dynamically create property groups for each status
+        STATUSES.forEach(status => {
+            const statusKey = status.replace(/\s+/g, '');
+            configGroups[`Status Styles (${status})`] = Object.keys(configSchema).filter(k => k.endsWith(statusKey));
+        });
+
+        // END NEW: Schema-driven configuration
+
+        // Generate valid override properties from the schema, excluding general page config
+        const VALID_OVERRIDE_PROPERTIES = Object.keys(configSchema).filter(key => 
+            key.startsWith('tile') || 
+            key.startsWith('default') || 
+            key.startsWith('hover') ||
+            key.startsWith('stamp') ||
+            key.startsWith('useStamp')
+        ).sort();
+
+
+        let currentScale = 1;
+        // Store pan coordinates
+        let pan = { x: 0, y: 0 };
+
+        const boardContainer = document.getElementById('board-container');
+        const boardContent = document.getElementById('board-content'); // The new pannable/zoomable element
+        const boardImage = document.getElementById('board-image');
+        const csvOutput = document.getElementById('csv-output');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomValue = document.getElementById('zoom-value');
+        const resetZoomBtn = document.getElementById('reset-zoom');
+        const copyButton = document.getElementById('copy-button');
+        const downloadButton = document.getElementById('download-button');
+        const copyStyleButton = document.getElementById('copy-style-button');
+        const downloadStyleButton = document.getElementById('download-style-button');
+        const detailsPanel = document.getElementById('tile-editor-box');
+        const detailsForm = document.getElementById('details-form');
+        const addNewTileBtn = document.getElementById('add-new-tile-btn');
+        const deleteTileBtn = document.getElementById('delete-tile-btn');
+        const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
+        const toggleSecurityBtn = document.getElementById('toggle-security-btn');
+        const prereqVisModeSelect = document.getElementById('prereq-vis-mode');
+        const prereqLinesSvg = document.getElementById('prereq-lines-svg');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initAuth(onAuthStateChanged);
+            createStylePreviewButtons();
+            toggleSecurity(); // Start with the security panel minimized
+            toggleGlobalStyles(); // Start with the panel minimized
+        });
+
+        function onAuthStateChanged(authState) {
+            if (authState.isAdmin) {
+                document.getElementById('setup-view').style.display = 'flex';
+                document.getElementById('access-denied').style.display = 'none';
+                initializeApp();
+            } else {
+                document.getElementById('setup-view').style.display = 'none';
+                document.getElementById('access-denied').style.display = 'block';
+                // Provide a more specific message if the user is logged in but not an admin
+                document.querySelector('#access-denied p').textContent = authState.isLoggedIn ? 'You must be an Admin to view this page.' : 'You must be logged in as an Admin to view this page.';
+            }
+        }
+
+        // A more robust CSV/TSV parser
+        function parseCsvLine(line, separator) {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i++; // Skip next quote
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === separator && !inQuotes) {
+                    values.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            values.push(current);
+            return values;
+        }
+
+        function parseCSV(text) {
+            const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
+            if (lines.length < 2) return [];
+            
+            csvSeparator = lines[0].includes('\t') ? '\t' : ',';
+            csvHeader = parseCsvLine(lines.shift(), csvSeparator).map(h => h.trim());
+            
+            return lines.map(line => {
+                if (!line.trim()) return null;
+                const values = parseCsvLine(line, csvSeparator);
+                const row = {};
+                csvHeader.forEach((key, index) => {
+                    row[key] = values[index] || '';
+                });
+
+                // Map to internal format, preserving all original columns
+                const internalRow = { ...row };
+                internalRow.id = row['TileID'];
+                internalRow.x_pct = parseFloat(row['Left (%)']) || 0;
+                internalRow.y_pct = parseFloat(row['Top (%)']) || 0;
+                internalRow.width_pct = parseFloat(row['Width (%)']) || 0;
+                internalRow.height_pct = parseFloat(row['Height (%)']) || 0;
+                return internalRow;
+            }).filter(Boolean); // Remove empty lines
+        }
+
+        function renderTiles() {
+            boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
+            if (!tilesData) return;
+            tilesData.forEach((tile, index) => {
+                const tileEl = document.createElement('div');
+                tileEl.classList.add('draggable-tile');
+                if (lastSelectedTileIndex === index) {
+                    tileEl.style.borderColor = '#00d9f5'; // Highlight selected tile
+                    tileEl.style.zIndex = 2; // Bring selected tile forward
+                } else {
+                    tileEl.style.zIndex = 1;
+                }
+                tileEl.dataset.index = index;
+
+                const showTileNames = String(config.showTileNames).toUpperCase() === 'TRUE';
+                tileEl.textContent = showTileNames ? (tile.Name || tile.id) : tile.id;
+
+                // --- NEW: Dynamic Styling ---
+                const status = currentPreviewStatus || 'Unlocked'; // Default to unlocked for preview
+                const getProp = (propName) => {
+                    if (tile['Overrides (JSON)']) {
+                        try {
+                            const overrides = JSON.parse(tile['Overrides (JSON)']);
+                            if (overrides[propName] !== undefined) return overrides[propName];
+                        } catch (e) {}
+                    }
+                    return config[propName];
+                };
+
+                tileEl.style.left = `${tile.x_pct || 10}%`;
+                tileEl.style.top = `${tile.y_pct || 10}%`;
+                tileEl.style.width = `${tile.width_pct || 10}%`;
+                tileEl.style.height = `${tile.height_pct || 10}%`;
+                tileEl.style.transform = `rotate(${tile['Rotation'] || '0deg'})`;
+                
+                const statusKey = status.replace(/\s+/g, '');
+                const color = getProp(`tileColor${statusKey}`) || '#888888';
+                const opacity = getProp(`tileOpacity${statusKey}`) || 0.5;
+                tileEl.style.backgroundColor = hexToRgba(color, opacity);
+
+                const borderWidth = getProp('defaultTileBorderWidth') || '2px';
+                const borderColor = getProp('defaultTileBorderColor') || 'transparent';
+                tileEl.style.border = `${borderWidth} solid ${borderColor}`;
+
+                const shape = (getProp('defaultTileShape') || 'Square').toLowerCase();
+                const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
+                if (clipPaths[shape]) tileEl.style.clipPath = clipPaths[shape];
+
+                // --- Stamp Logic ---
+                const useStamp = String(getProp(`useStampByDefault${statusKey}`)).toUpperCase() === 'TRUE';
+                const stampUrl = getProp(`stampImageUrl${statusKey}`);
+
+                if (useStamp && stampUrl) {
+                    const scale = getProp(`stampScale${statusKey}`) || '1';
+                    const rotation = getProp(`stampRotation${statusKey}`) || '0deg';
+                    const position = getProp(`stampPosition${statusKey}`) || 'center';
+
+                    tileEl.textContent = ''; // Clear ID/Name text when stamp is shown
+                    const stampEl = document.createElement('div'); // Use a DIV for more reliable background positioning
+                    stampEl.style.position = 'absolute';
+                    stampEl.style.width = '100%';
+                    stampEl.style.height = '100%';
+                    stampEl.style.left = '0';
+                    stampEl.style.top = '0';
+                    stampEl.style.pointerEvents = 'none';
+                    stampEl.style.zIndex = '1';
+
+                    stampEl.style.backgroundImage = `url('${stampUrl}')`;
+                    stampEl.style.backgroundRepeat = 'no-repeat';
+                    stampEl.style.backgroundSize = 'contain';
+                    stampEl.style.backgroundPosition = position;
+                    stampEl.style.transformOrigin = position;
+                    stampEl.style.transform = `scale(${scale}) rotate(${rotation})`;
+                    tileEl.appendChild(stampEl);
+                }
+
+                tileEl.addEventListener('mouseover', () => {
+                    const hoverWidth = getProp('hoverTileBorderWidth') || '3px';
+                    const hoverColor = getProp('hoverTileBorderColor') || '#00d9f5';
+                    tileEl.style.border = `${hoverWidth} solid ${hoverColor}`;
+                });
+                tileEl.addEventListener('mouseout', () => {
+                    tileEl.style.border = `${borderWidth} solid ${borderColor}`;
+                });
+
+                boardContent.appendChild(tileEl); // Append to the content div
+            });
+            renderPrereqLines(); // Re-render lines whenever tiles are re-rendered
+        }
+
+        function generateCSV(header, data) {
+            const headerString = header.join(csvSeparator);
+            const rows = data.map(tile => {
+                // Map internal format back to CSV format for writing
+                const outputTile = { ...tile };
+                outputTile['Left (%)'] = (outputTile.x_pct || 0).toFixed(2);
+                outputTile['Top (%)'] = (outputTile.y_pct || 0).toFixed(2);
+                outputTile['Width (%)'] = (outputTile.width_pct || 0).toFixed(2);
+                outputTile['Height (%)'] = (outputTile.height_pct || 0).toFixed(2);
+
+                return header.map(key => {
+                    const value = outputTile[key];
+                    const stringValue = String(value === undefined || value === null ? '' : value);
+                    
+                    // Quote if it contains the separator, a quote, or a newline
+                    if (stringValue.includes(csvSeparator) || stringValue.includes('"') || stringValue.includes('\n')) {
+                        return `"${stringValue.replace(/"/g, '""')}"`;
+                    }
+                    return stringValue;
+                }).join(csvSeparator);
+            });
+            return [headerString, ...rows].join('\n');
+        }
+
+        function updateCsvOutput() {
+            if (tilesData.length === 0) return;
+            const csvString = generateCSV(csvHeader, tilesData);
+            csvOutput.value = csvString;
+        }
+
+        function parseStyleCSV(text) {
+            const styles = {};
+            const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
+            const header = lines.shift(); // Assume header is "Property,Value"
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                const parts = parseCsvLine(line, ',');
+                if (parts.length >= 2) {
+                    const key = parts[0].trim();
+                    const value = parts[1].trim();
+                    styles[key] = value;
+                }
+            });
+            return styles;
+        }
+
+        function generateStyleCSV() {
+            const header = 'Property,Value';
+            const rows = Object.entries(globalStyles).map(([key, value]) => {
+                const keyStr = `"${key.replace(/"/g, '""')}"`;
+                const valStr = `"${String(value).replace(/"/g, '""')}"`;
+                return `${keyStr},${valStr}`;
+            });
+            return [header, ...rows].join('\n');
+        }
+
+        function updateStyleCsvOutput() {
+            const csvString = generateStyleCSV();
+            document.getElementById('style-csv-output').value = csvString;
+        }
+
+
+        // NEW: Function to apply the zoom and pan transform
+        function applyTransform() {
+            boardContent.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
+        }
+
+        function updateZoom() {
+            currentScale = parseFloat(zoomSlider.value);
+            zoomValue.textContent = `${Math.round(currentScale * 100)}%`;
+            // When zooming, we might need to adjust the pan to keep the image centered
+            // For simplicity now, we just apply the transform. A more advanced version could zoom towards the mouse pointer.
+            applyTransform();
+        }
+
+        zoomSlider.addEventListener('input', updateZoom);
+
+        resetZoomBtn.addEventListener('click', () => {
+            zoomSlider.value = 1;
+            pan = { x: 0, y: 0 }; // Reset pan on zoom reset
+            updateZoom();
+        });
+
+        // NEW: Panning logic for the board container
+        interact(boardContainer)
+            .draggable({
+                listeners: {
+                    move(event) {
+                        pan.x += event.dx;
+                        pan.y += event.dy;
+                        applyTransform();
+                    }
+                },
+                // Only allow panning when the target is the container or image, not a tile
+                allowFrom: '#board-content'
+            });
+
+        // REVISED: Tile interaction logic to correctly handle zoom
+        interact('.draggable-tile')
+            .draggable({
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const index = target.dataset.index;
+                        if (!tilesData[index]) return;
+
+                        const containerWidth = boardContainer.clientWidth;
+                        const containerHeight = boardContainer.clientHeight;
+
+                        // Correctly scale the mouse movement by the current zoom level
+                        const dx_scaled = event.dx / currentScale;
+                        const dy_scaled = event.dy / currentScale;
+
+                        const x_pct = (parseFloat(target.style.left) || 0) + (dx_scaled / containerWidth * 100);
+                        const y_pct = (parseFloat(target.style.top) || 0) + (dy_scaled / containerHeight * 100);
+
+                        target.style.left = `${x_pct}%`;
+                        target.style.top = `${y_pct}%`;
+
+                        const x_pct_val = parseFloat(x_pct.toFixed(2));
+                        const y_pct_val = parseFloat(y_pct.toFixed(2));
+                        tilesData[index].x_pct = x_pct_val;
+                        tilesData[index].y_pct = y_pct_val;
+                        tilesData[index]['Left (%)'] = x_pct_val.toFixed(2);
+                        tilesData[index]['Top (%)'] = y_pct_val.toFixed(2);
+                        updateEditorPanel(index);
+                        
+                        requestAnimationFrame(updateCsvOutput);
+                        requestAnimationFrame(renderPrereqLines);
+                    }
+                }
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    move(event) {
+                        const target = event.target;
+                        const index = target.dataset.index;
+                        if (!tilesData[index]) return;
+
+                        const containerWidth = boardContainer.clientWidth;
+                        const containerHeight = boardContainer.clientHeight;
+
+                        let x_pct = parseFloat(target.style.left) || 0;
+                        let y_pct = parseFloat(target.style.top) || 0;
+                        
+                        // event.rect contains the new width/height, which needs to be scaled
+                        const width_pct = (event.rect.width / currentScale) / containerWidth * 100;
+                        const height_pct = (event.rect.height / currentScale) / containerHeight * 100;
+
+                        // event.deltaRect contains the change in position, also needs scaling
+                        x_pct += (event.deltaRect.left / currentScale) / containerWidth * 100;
+                        y_pct += (event.deltaRect.top / currentScale) / containerHeight * 100;
+
+                        target.style.width = `${width_pct}%`;
+                        target.style.height = `${height_pct}%`;
+                        target.style.left = `${x_pct}%`;
+                        target.style.top = `${y_pct}%`;
+                        
+                        const x_pct_val = parseFloat(x_pct.toFixed(2));
+                        const y_pct_val = parseFloat(y_pct.toFixed(2));
+                        const width_pct_val = parseFloat(width_pct.toFixed(2));
+                        const height_pct_val = parseFloat(height_pct.toFixed(2));
+
+                        tilesData[index].x_pct = x_pct_val;
+                        tilesData[index].y_pct = y_pct_val;
+                        tilesData[index].width_pct = width_pct_val;
+                        tilesData[index].height_pct = height_pct_val;
+                        tilesData[index]['Left (%)'] = x_pct_val.toFixed(2);
+                        tilesData[index]['Top (%)'] = y_pct_val.toFixed(2);
+                        tilesData[index]['Width (%)'] = width_pct_val.toFixed(2);
+                        tilesData[index]['Height (%)'] = height_pct_val.toFixed(2);
+                        updateEditorPanel(index);
+                        
+                        requestAnimationFrame(updateCsvOutput);
+                        requestAnimationFrame(renderPrereqLines);
+                    }
+                }
+            });
+
+        copyButton.addEventListener('click', () => {
+            if(!csvOutput.value) return;
+            csvOutput.select();
+            document.execCommand('copy');
+            const originalText = copyButton.textContent;
+            copyButton.textContent = 'Copied!';
+            setTimeout(() => {
+                copyButton.textContent = originalText;
+            }, 1500);
+        });
+
+        downloadButton.addEventListener('click', () => {
+            if (!csvOutput.value) return;
+
+            const blob = new Blob([csvOutput.value], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'tile_positions.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        copyStyleButton.addEventListener('click', () => {
+            const output = document.getElementById('style-csv-output');
+            if(!output.value) return;
+            output.select();
+            document.execCommand('copy');
+            const originalText = copyStyleButton.textContent;
+            copyStyleButton.textContent = 'Copied!';
+            setTimeout(() => { copyStyleButton.textContent = originalText; }, 1500);
+        });
+
+        downloadStyleButton.addEventListener('click', () => {
+            const output = document.getElementById('style-csv-output');
+            if (!output.value) return;
+            const blob = new Blob([output.value], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'tile_styles.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        function hexToRgba(colorStr, alpha) {
+            if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
+            const sColor = colorStr.trim();
+            if (sColor === 'transparent') return 'transparent';
+            if (!sColor.startsWith('#')) return sColor;
+            const hex = sColor.slice(1);
+            let r = 0, g = 0, b = 0;
+            if (hex.length === 3) { r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16); }
+            else if (hex.length === 6) { r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16); }
+            else { return `rgba(255, 255, 255, ${alpha})`; }
+            if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 255, 255, ${alpha})`;
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+
+        // --- Tile Selection & Editor Panel Logic ---
+
+        
+        function createEditorForm(header) {
+            detailsForm.innerHTML = ''; // Clear previous form
+            header.forEach(key => {
+                const fieldContainer = document.createElement('div');
+                fieldContainer.className = 'form-field';
+
+                const label = document.createElement('label');
+                label.htmlFor = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                label.title = key; // Add tooltip with full name
+                label.textContent = key;
+
+                // Skip creating a direct field for Overrides (JSON)
+                if (key === 'Overrides (JSON)') return;
+
+                const posKeys = ['Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
+                if (posKeys.includes(key)) {
+                    const compound = document.createElement('div');
+                    compound.className = 'form-field-compound';
+                    const rangeInput = document.createElement('input');
+                    rangeInput.type = 'range';
+                    rangeInput.min = 0; rangeInput.max = 100; rangeInput.step = 0.01;
+                    rangeInput.dataset.sync = key;
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.name = key;
+                    textInput.dataset.sync = key;
+                    compound.append(rangeInput, textInput);
+                    fieldContainer.appendChild(compound);
+                } else if (key === 'Rotation') {
+                    const compound = document.createElement('div');
+                    compound.className = 'form-field-compound';
+                    const rangeInput = document.createElement('input');
+                    rangeInput.type = 'range';
+                    rangeInput.min = 0; rangeInput.max = 360; rangeInput.step = 1;
+                    rangeInput.dataset.sync = key;
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.name = key;
+                    textInput.dataset.sync = key;
+                    compound.append(rangeInput, textInput);
+                    fieldContainer.appendChild(compound);
+                } else if (key.toLowerCase().includes('description')) {
+                    const textarea = document.createElement('textarea');
+                    textarea.id = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    textarea.name = key;
+                    textarea.title = key;
+                    fieldContainer.appendChild(textarea);
+                } else {
+                    if (key === 'Prerequisites') {
+                        const prereqContainer = document.createElement('div');
+                        prereqContainer.id = 'prereq-editor-container';
+
+                        const textarea = document.createElement('textarea');
+                        textarea.id = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                        textarea.name = key;
+                        textarea.title = key;
+                        textarea.style.display = 'none'; // Hide the raw textarea, UI will populate it
+
+                        const uiContainer = document.createElement('div');
+                        uiContainer.id = 'prereq-ui-container';
+
+                        const addGroupBtn = document.createElement('button');
+                        addGroupBtn.type = 'button';
+                        addGroupBtn.textContent = '+ Add OR Group';
+                        addGroupBtn.onclick = () => { addPrereqOrGroup(); updatePrereqJson(); };
+
+                        prereqContainer.appendChild(textarea);
+                        prereqContainer.appendChild(uiContainer);
+                        prereqContainer.appendChild(addGroupBtn);
+                        fieldContainer.appendChild(prereqContainer);
+                        fieldContainer.prepend(label);
+                        detailsForm.appendChild(fieldContainer);
+                        return; // Skip default input creation
+                    }
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    input.name = key;
+                    input.title = key;
+                    fieldContainer.appendChild(input);
+                }
+
+                fieldContainer.prepend(label);
+                detailsForm.appendChild(fieldContainer);
+            });
+
+            // Create a dedicated section for overrides
+            const fieldset = document.createElement('fieldset');
+            fieldset.className = 'overrides-fieldset';
+            const legend = document.createElement('legend');
+            legend.textContent = 'Overrides';
+            
+            const overridesContainer = document.createElement('div');
+            overridesContainer.id = 'overrides-container';
+
+            const addOverrideBtn = document.createElement('button');
+            addOverrideBtn.type = 'button';
+            addOverrideBtn.id = 'add-override-btn';
+            addOverrideBtn.textContent = '+ Add Override';
+            addOverrideBtn.disabled = true;
+            addOverrideBtn.addEventListener('click', () => addOverrideRow());
+
+            fieldset.appendChild(legend);
+            fieldset.appendChild(overridesContainer);
+            fieldset.appendChild(addOverrideBtn);
+
+            detailsForm.appendChild(fieldset);
+        }
+
+        function updateEditorPanel(index) {
+            if (index === null || !tilesData[index]) {
+                lastSelectedTileIndex = null;
+                deleteTileBtn.disabled = true;
+                document.getElementById('add-override-btn').disabled = true;
+                Array.from(detailsForm.elements).forEach(el => {
+                    el.disabled = true;
+                    el.value = '';
+                });
+                renderPrereqLines();
+                return;
+            }
+            
+            lastSelectedTileIndex = index;
+            const tile = tilesData[index];
+
+            Array.from(detailsForm.elements).forEach(el => el.disabled = false);
+            document.getElementById('add-override-btn').disabled = false;
+            deleteTileBtn.disabled = false;
+
+            // Populate the form
+            csvHeader.forEach(key => {
+                // Skip the raw overrides field
+                if (key === 'Overrides (JSON)') return;
+
+                const input = detailsForm.elements[key];
+                const syncElements = detailsForm.querySelectorAll(`[data-sync="${key}"]`);
+                if (syncElements.length > 0) {
+                    const value = tile[key] || '';
+                    syncElements.forEach(el => {
+                        if (key === 'Rotation' && el.type === 'range') {
+                            el.value = parseFloat(value) || 0;
+                        } else {
+                            el.value = value;
+                        }
+                    });
+                } else if (input) {
+                    input.value = tile[key] || '';
+                }
+            });
+
+            // Populate the prerequisites UI
+            const prereqTextarea = detailsForm.elements['Prerequisites'];
+            if (prereqTextarea) {
+                const prereqValue = tile['Prerequisites'] || '';
+                prereqTextarea.value = prereqValue;
+                populatePrereqUI(prereqValue);
+            }
+
+            // Populate the overrides section
+            let overrides = {};
+            try {
+                if (tile['Overrides (JSON)']) {
+                    overrides = JSON.parse(tile['Overrides (JSON)']);
+                }
+            } catch (e) { /* Ignore invalid JSON */ }
+
+            // Clear and populate override rows
+            document.getElementById('overrides-container').innerHTML = '';
+            for (const [key, value] of Object.entries(overrides)) {
+                addOverrideRow(key, value);
+            }
+            renderPrereqLines();
+        }
+
+        function populatePrereqUI(prereqString) {
+            const uiContainer = document.getElementById('prereq-ui-container');
+            if (!uiContainer) return;
+            uiContainer.innerHTML = '';
+
+            let orGroups = [];
+            let isNewFormat = false;
+
+            if (prereqString && prereqString.trim().startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(prereqString);
+                    if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) {
+                        orGroups = parsed;
+                        isNewFormat = true;
+                    }
+                } catch (e) { /* Not valid JSON, treat as old format */ }
+            }
+
+            if (isNewFormat) {
+                if (orGroups.length === 0) addPrereqOrGroup([]); // Show one empty box if it's an empty array `[]`
+                else orGroups.forEach(andGroup => addPrereqOrGroup(andGroup));
+            } else {
+                // Old format (e.g., "A1,A2") or invalid. Show as a single group.
+                addPrereqOrGroup(prereqString ? prereqString.split(',') : []);
+            }
+        }
+
+        function addPrereqOrGroup(andConditions = []) {
+            const uiContainer = document.getElementById('prereq-ui-container');
+            if (!uiContainer) return;
+
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'prereq-or-group';
+
+            const andInput = document.createElement('input');
+            andInput.type = 'text';
+            andInput.className = 'prereq-and-input';
+            andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
+            andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
+            andInput.oninput = updatePrereqJson;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = '−';
+            removeBtn.className = 'remove-override-btn'; // Re-use style
+            removeBtn.style.marginTop = 0;
+            removeBtn.onclick = () => {
+                groupDiv.remove();
+                updatePrereqJson();
+                // After removing, re-label the "OR"s
+                uiContainer.querySelectorAll('.prereq-or-label').forEach((label, index) => {
+                    if (index > 0) label.style.display = 'block'; else label.style.display = 'none';
+                });
+            };
+
+            const label = document.createElement('span');
+            label.textContent = 'OR';
+            label.className = 'prereq-or-label';
+            if (uiContainer.children.length === 0) label.style.display = 'none';
+
+            groupDiv.append(label, andInput, removeBtn);
+            uiContainer.appendChild(groupDiv);
+        }
+
+        function updatePrereqJson() {
+            const uiContainer = document.getElementById('prereq-ui-container');
+            const prereqTextarea = detailsForm.elements['Prerequisites'];
+            if (!uiContainer || !prereqTextarea) return;
+
+            const orGroups = Array.from(uiContainer.querySelectorAll('.prereq-or-group')).map(groupDiv => {
+                const input = groupDiv.querySelector('.prereq-and-input');
+                return input.value.split(',').map(s => s.trim()).filter(Boolean);
+            }).filter(group => group.length > 0);
+
+            if (orGroups.length === 0) prereqTextarea.value = '';
+            else if (orGroups.length === 1) prereqTextarea.value = orGroups[0].join(',');
+            else prereqTextarea.value = JSON.stringify(orGroups);
+            prereqTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function addOverrideRow(key = '', value = '') {
+            const container = document.getElementById('overrides-container');
+            const item = document.createElement('div');
+            item.className = 'override-item';
+
+            const valueContainer = document.createElement('div');
+            valueContainer.className = 'override-value-container';
+
+            const keySelect = document.createElement('select');
+            keySelect.className = 'override-key';
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Select a property...';
+            keySelect.appendChild(placeholder); // The key here is the camelCase key
+
+            VALID_OVERRIDE_PROPERTIES.forEach(prop => {
+                const option = document.createElement('option');
+                option.value = prop;
+                option.textContent = prop;
+                keySelect.appendChild(option);
+            });
+
+            keySelect.value = key;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-override-btn';
+            removeBtn.textContent = '−';
+
+            item.append(keySelect, valueContainer, removeBtn);
+            container.appendChild(item);
+
+            keySelect.addEventListener('change', () => {
+                populateValueContainer(valueContainer, keySelect.value, '');
+                // Manually trigger an input event on the form to update the JSON
+                keySelect.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            populateValueContainer(valueContainer, key, value);
+
+            removeBtn.addEventListener('click', () => {
+                item.remove();
+                updateOverridesJsonForCurrentTile();
+                renderTiles();
+                requestAnimationFrame(updateCsvOutput);
+            });
+        }
+
+        function populateValueContainer(container, propertyName, value) {
+            container.innerHTML = ''; // Clear previous input
+
+            const isColor = propertyName.toLowerCase().includes('color');
+            const isOpacity = propertyName.toLowerCase().includes('opacity');
+            const isBoolean = propertyName.startsWith('useStampByDefault') || propertyName === 'showTileNames' || propertyName.endsWith('Only') || propertyName === 'showScoreboard' || propertyName === 'enableOverviewPage' || propertyName === 'loadFirstTeamByDefault';
+            const isShape = propertyName === 'defaultTileShape';
+
+            if (isColor) {
+                const compound = document.createElement('div');
+                compound.className = 'form-field-compound';
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.className = 'override-value';
+                
+                colorInput.value = value;
+                textInput.value = value;
+
+                colorInput.addEventListener('input', () => { textInput.value = colorInput.value; textInput.dispatchEvent(new Event('input', { bubbles: true })); });
+                textInput.addEventListener('input', () => { try { colorInput.value = textInput.value; } catch(e) {} });
+
+                compound.append(colorInput, textInput);
+                container.appendChild(compound);
+            } else if (isOpacity) {
+                const compound = document.createElement('div');
+                compound.className = 'form-field-compound';
+                const rangeInput = document.createElement('input');
+                rangeInput.type = 'range';
+                rangeInput.min = 0; rangeInput.max = 1; rangeInput.step = 0.01;
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.className = 'override-value';
+                textInput.style.maxWidth = '60px';
+
+                rangeInput.value = value;
+                textInput.value = value;
+
+                rangeInput.addEventListener('input', () => { textInput.value = rangeInput.value; textInput.dispatchEvent(new Event('input', { bubbles: true })); });
+                textInput.addEventListener('input', () => { rangeInput.value = textInput.value; });
+
+                compound.append(rangeInput, textInput);
+                container.appendChild(compound);
+            } else if (isBoolean) {
+                const select = document.createElement('select');
+                select.className = 'override-value';
+                ['', 'TRUE', 'FALSE'].forEach(val => {
+                    const option = document.createElement('option');
+                    option.value = val; option.textContent = val === '' ? 'Default' : val;
+                    select.appendChild(option);
+                });
+                // Handle both boolean and string "true"/"false" from JSON
+                if (typeof value === 'boolean') {
+                    select.value = value ? 'TRUE' : 'FALSE';
+                } else {
+                    select.value = String(value).toUpperCase();
+                }
+                if (value === '') select.value = '';
+
+                container.appendChild(select);
+            } else if (isShape) {
+                const select = document.createElement('select');
+                select.className = 'override-value';
+                ['', 'Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'].forEach(shape => {
+                    const option = document.createElement('option');
+                    option.value = shape; option.textContent = shape === '' ? 'Default' : shape;
+                    select.appendChild(option);
+                });
+                select.value = value;
+                container.appendChild(select);
+            } else {
+                const valueInput = document.createElement('input');
+                valueInput.type = 'text';
+                valueInput.className = 'override-value';
+                valueInput.placeholder = 'Value';
+                valueInput.value = value;
+                container.appendChild(valueInput);
+            }
+        }
+
+        function handleEditorInputChange(event) {
+            if (lastSelectedTileIndex === null) return;
+
+            const input = event.target;
+            // Check if the input is part of an override item
+            if (input.closest('#prereq-editor-container')) {
+                // The updatePrereqJson function already handles updating the hidden textarea and firing the event.
+            }
+            if (input.closest('.override-item')) {
+                updateOverridesJsonForCurrentTile();
+                renderTiles(); // Re-render to apply style overrides
+            } else {
+                updateMainTileData(input);
+            }
+            if (input.name === 'Prerequisites') {
+                renderPrereqLines();
+            }
+            
+            requestAnimationFrame(updateCsvOutput);
+        }
+
+        function updateMainTileData(input) {
+            const index = lastSelectedTileIndex;
+            if (index === null) return;
+            const tile = tilesData[index];
+            const key = input.dataset.sync || input.name;
+            let value = input.value;
+
+            // Handle Rotation slider specifically to add 'deg'
+            if (key === 'Rotation' && input.type === 'range') {
+                value = `${value}deg`;
+            }
+
+            // If a synced input changes, update the others
+            const syncName = input.dataset.sync;
+            if (syncName) {
+                detailsForm.querySelectorAll(`[data-sync="${syncName}"]`).forEach(el => {
+                    if (el !== input) {
+                        // When updating the rotation slider from the text input
+                        if (syncName === 'Rotation' && el.type === 'range') {
+                            el.value = parseFloat(value) || 0;
+                        } else {
+                            el.value = value;
+                        }
+                    }
+                });
+            }
+            
+            tile[key] = value;
+
+            // If a position/size/ID/Rotation field was changed, update the visual tile
+            const tileEl = boardContent.querySelector(`[data-index="${index}"]`);
+            if (!tileEl) return;
+
+            if (key === 'TileID') {
+                tileEl.textContent = value;
+            } else if (key === 'Rotation') {
+                tileEl.style.transform = `rotate(${value || '0deg'})`;
+            }
+            
+            const posKeys = {'Left (%)': 'x_pct', 'Top (%)': 'y_pct', 'Width (%)': 'width_pct', 'Height (%)': 'height_pct'};
+            if (posKeys[key]) {
+                const floatValue = parseFloat(value) || 0;
+                tile[posKeys[key]] = floatValue;
+                if (key === 'Left (%)') tileEl.style.left = `${floatValue}%`;
+                if (key === 'Top (%)') tileEl.style.top = `${floatValue}%`;
+                if (key === 'Width (%)') tileEl.style.width = `${floatValue}%`;
+                if (key === 'Height (%)') tileEl.style.height = `${floatValue}%`;
+            }
+        }
+
+        function updateOverridesJsonForCurrentTile() {
+            if (lastSelectedTileIndex === null) return;
+            const index = lastSelectedTileIndex;
+
+            const overrides = {};
+            document.querySelectorAll('#overrides-container .override-item').forEach(item => {
+                const key = item.querySelector('.override-key').value;
+                const valueInput = item.querySelector('.override-value');
+                if (key && valueInput) {
+                    let value = valueInput.value;
+                    if (value !== '') {
+                        if (value === 'TRUE') {
+                            overrides[key] = true;
+                        } else if (value === 'FALSE') {
+                            overrides[key] = false;
+                        } else {
+                            overrides[key] = value;
+                        }
+                    }
+                }
+            });
+            if (Object.keys(overrides).length > 0) {
+                tilesData[index]['Overrides (JSON)'] = JSON.stringify(overrides);
+            } else {
+                tilesData[index]['Overrides (JSON)'] = '';
+            }
+        }
+
+        function addNewTile() {
+            const newTile = {};
+            csvHeader.forEach(key => newTile[key] = '');
+
+            const newId = `NewTile_${newTileCounter++}`;
+            newTile['TileID'] = newId;
+            newTile['Name'] = 'New Tile';
+            newTile['Left (%)'] = '45.00';
+            newTile['Top (%)'] = '45.00';
+            newTile['Width (%)'] = '10.00';
+            newTile['Height (%)'] = '10.00';
+
+            // Map to internal format
+            newTile.id = newId;
+            newTile.x_pct = 45.0;
+            newTile.y_pct = 45.0;
+            newTile.width_pct = 10.0;
+            newTile.height_pct = 10.0;
+
+            const newIndex = tilesData.push(newTile) - 1;
+            renderTiles(); // Redraws all tiles including the new one
+            updateEditorPanel(newIndex); // Selects the new tile
+            updateCsvOutput();
+        }
+
+        function deleteSelectedTile() {
+            if (lastSelectedTileIndex === null) return;
+            if (confirm(`Are you sure you want to delete tile "${tilesData[lastSelectedTileIndex].TileID}"?`)) {
+                tilesData.splice(lastSelectedTileIndex, 1);
+                lastSelectedTileIndex = null;
+                renderTiles();
+                updateEditorPanel(null); // Explicitly clear the editor panel
+                updateCsvOutput();
+                renderPrereqLines();
+            }
+        }
+
+        detailsForm.addEventListener('input', handleEditorInputChange);
+        document.getElementById('global-style-form').addEventListener('input', handleGlobalStyleInputChange);
+        addNewTileBtn.addEventListener('click', addNewTile);
+        deleteTileBtn.addEventListener('click', deleteSelectedTile);
+        toggleSecurityBtn.addEventListener('click', toggleSecurity);
+        toggleGlobalStylesBtn.addEventListener('click', toggleGlobalStyles);
+
+        prereqVisModeSelect.addEventListener('change', (event) => {
+            prereqVisMode = event.target.value;
+            renderPrereqLines();
+        });
+
+        boardContent.addEventListener('click', (event) => {
+            // Don't open modal if the user is dragging/resizing with interact.js
+            if (event.target.classList.contains('interact-resizing') || event.target.classList.contains('interact-dragging')) {
+                return;
+            }
+            const tileEl = event.target.closest('.draggable-tile');
+            if (tileEl) {
+                const index = parseInt(tileEl.dataset.index, 10);
+                updateEditorPanel(index);
+            }
+        });
+
+        function toggleGlobalStyles() {
+            const form = document.getElementById('global-style-form');
+            const isHidden = form.style.display === 'none';
+            form.style.display = isHidden ? '' : 'none';
+            toggleGlobalStylesBtn.textContent = isHidden ? '-' : '+';
+        }
+
+        function toggleSecurity() {
+            const form = document.getElementById('security-form');
+            const isHidden = form.style.display === 'none';
+            form.style.display = isHidden ? '' : 'none';
+            toggleSecurityBtn.textContent = isHidden ? '-' : '+';
+        }
+        // --- Global Style Editor Logic ---
+        function renderGlobalConfig() {
+            const form = document.getElementById('global-style-form');
+            form.innerHTML = ''; // Clear existing
+
+            Object.entries(configGroups).forEach(([groupName, properties]) => {
+                const fieldset = document.createElement('fieldset');
+                fieldset.className = 'overrides-fieldset minimized';
+                const legend = document.createElement('legend');
+                legend.innerHTML = `<span class="legend-toggle">[+]</span>${groupName}`;
+                fieldset.appendChild(legend);
+
+                legend.addEventListener('click', () => {
+                    fieldset.classList.toggle('minimized');
+                    const toggle = legend.querySelector('.legend-toggle');
+                    toggle.textContent = fieldset.classList.contains('minimized') ? '[+]' : '[-]';
+                });
+
+                const fieldsetContent = document.createElement('div');
+                fieldsetContent.className = 'fieldset-content config-grid';
+
+                properties.forEach(prop => {
+                    const schema = configSchema[prop];
+                    if (!schema) return;
+
+                    const value = config[prop] ?? (schema.type === 'boolean' ? false : '');
+
+                    const fieldContainer = document.createElement('div');
+                    fieldContainer.className = 'form-field';
+                    const label = document.createElement('label');
+                    label.textContent = schema.label;
+                    label.title = schema.description || '';
+                    fieldContainer.appendChild(label);
+
+                    let inputHtml = '';
+                    switch(schema.type) {
+                        case 'image':
+                            inputHtml = `<input type="file" class="config-input" data-key="${prop}" data-path="${schema.path}">
+                                         <img src="${value}" class="image-upload-preview" style="${!value ? 'display:none' : ''}">`;
+                            break;
+                        case 'boolean':
+                            const checked = String(value).toUpperCase() === 'TRUE';
+                            inputHtml = `<input type="checkbox" class="config-input" data-key="${prop}" ${checked ? 'checked' : ''}>`;
+                            break;
+                        case 'select':
+                            const options = schema.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+                            inputHtml = `<select class="config-input" data-key="${prop}">${options}</select>`;
+                            break;
+                        case 'color':
+                            inputHtml = `<input type="color" class="config-input" data-key="${prop}" value="${value}">`;
+                            break;
+                        case 'range':
+                            inputHtml = `<input type="range" class="config-input" data-key="${prop}" value="${value}" min="${schema.min}" max="${schema.max}" step="${schema.step}">
+                                         <span>${value}</span>`; // Show value next to slider
+                            break;
+                        case 'text':
+                        default:
+                            inputHtml = `<input type="text" class="config-input" data-key="${prop}" value="${value}">`;
+                            break;
+                    }
+                    fieldContainer.innerHTML += inputHtml;
+                    fieldsetContent.appendChild(fieldContainer);
+                });
+
+                fieldset.appendChild(fieldsetContent);
+                form.appendChild(fieldset);
+            });
+
+            // Add event listeners for image uploads and range sliders
+            form.querySelectorAll('input[type="file"]').forEach(input => {
+                input.addEventListener('change', (e) => handleImageUpload(e.target));
+            });
+            form.querySelectorAll('input[type="range"]').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    e.target.nextElementSibling.textContent = e.target.value;
+                });
+            });
+        }
+
+        function handleGlobalStyleInputChange(event) {
+            const input = event.target;
+            const key = input.dataset.key;
+            if (!key) return;
+
+            if (input.type === 'checkbox') {
+                config[key] = input.checked ? 'TRUE' : 'FALSE';
+            } else {
+                config[key] = input.value;
+            }
+
+            if (key === 'Bingo Board Image') {
+                const imageUrl = input.value || '';
+                boardImage.src = imageUrl;
+                boardContent.style.backgroundImage = imageUrl ? `url('${imageUrl}')` : 'none';
+            }
+            updateStyleCsvOutput();
+            renderTiles();
+        }
+
+        // --- Style Preview Logic ---
+        function createStylePreviewButtons() {
+            const container = document.getElementById('style-preview-controls');
+            const statuses = [...STATUSES, null];
+            statuses.forEach(status => {
+                const btn = document.createElement('button');
+                btn.textContent = status || 'Clear Preview';
+                btn.onclick = () => {
+                    currentPreviewStatus = status;
+                    container.querySelectorAll('button').forEach(b => b.style.backgroundColor = '');
+                    if (status) btn.style.backgroundColor = '#0088cc';
+                    renderTiles();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // --- Prerequisite Line Rendering ---
+        function parsePrerequisites(prereqString) {
+            if (!prereqString || !prereqString.trim()) {
+                return [];
+            }
+            const trimmed = prereqString.trim();
+            if (trimmed.startsWith('[')) { // New format [[A,B],[C]]
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) {
+                        return parsed;
+                    }
+                } catch (e) { /* fall through to old format */ }
+            }
+            // Old format "A,B,C" treated as [[A,B,C]]
+            return [trimmed.split(',').map(s => s.trim()).filter(Boolean)];
+        }
+
+        function renderPrereqLines() {
+            prereqLinesSvg.innerHTML = ''; // Clear previous lines
+
+            if (prereqVisMode === 'hide' || lastSelectedTileIndex === null) {
+                return;
+            }
+
+            const destTileData = tilesData[lastSelectedTileIndex];
+            if (!destTileData) return;
+
+            const orGroups = parsePrerequisites(destTileData['Prerequisites']);
+            if (orGroups.length === 0) return;
+
+            const destCenter = {
+                x: destTileData.x_pct + destTileData.width_pct / 2,
+                y: destTileData.y_pct + destTileData.height_pct / 2
+            };
+
+            const totalGroups = orGroups.length;
+            const baseStrokeWidth = 0.3; // The width of the top-most line
+            const strokeWidthIncrement = 0.4; // The extra width for each layer underneath
+            const outlinePadding = 0.15; // Extra width for the black outline
+
+            // Draw layer by layer, from thickest (bottom) to thinnest (top).
+            // This ensures thinner lines are rendered on top of thicker ones.
+            orGroups.forEach((andGroup, orIndex) => {
+                // The thickest layer is drawn first. Its index is 0.
+                const strokeWidth = baseStrokeWidth + (totalGroups - 1 - orIndex) * strokeWidthIncrement;
+                const outlineWidth = strokeWidth + outlinePadding;
+                
+                // Distribute hue evenly across the color wheel for maximum distinction.
+                const hue = (orIndex * 360) / totalGroups;
+                const color = `hsl(${hue}, 85%, 55%)`;
+
+                const outlinesFragment = document.createDocumentFragment();
+                const fillsFragment = document.createDocumentFragment();
+
+                andGroup.forEach(tileId => {
+                    const sourceTileData = tilesData.find(t => t.TileID === tileId);
+                    if (!sourceTileData) return;
+
+                    const sourceCenter = {
+                        x: sourceTileData.x_pct + sourceTileData.width_pct / 2,
+                        y: sourceTileData.y_pct + sourceTileData.height_pct / 2
+                    };
+
+                    const p1 = { ...sourceCenter };
+                    const p2 = { ...destCenter };
+
+                    // Create outline line for this segment and add to fragment
+                    const outlineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    outlineLine.setAttribute('x1', `${p1.x}%`); outlineLine.setAttribute('y1', `${p1.y}%`);
+                    outlineLine.setAttribute('x2', `${p2.x}%`); outlineLine.setAttribute('y2', `${p2.y}%`);
+                    outlineLine.setAttribute('stroke', 'black');
+                    outlineLine.setAttribute('stroke-width', `${outlineWidth}%`);
+                    outlineLine.setAttribute('stroke-linecap', 'round');
+                    outlinesFragment.appendChild(outlineLine);
+
+                    // Create fill line for this segment and add to a separate fragment
+                    const fillLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    fillLine.setAttribute('x1', `${p1.x}%`); fillLine.setAttribute('y1', `${p1.y}%`);
+                    fillLine.setAttribute('x2', `${p2.x}%`); fillLine.setAttribute('y2', `${p2.y}%`);
+                    fillLine.setAttribute('stroke', color);
+                    fillLine.setAttribute('stroke-width', `${strokeWidth}%`);
+                    fillLine.setAttribute('stroke-linecap', 'round');
+                    fillsFragment.appendChild(fillLine);
+                });
+
+                // For each layer, append all its outlines first, then all its fills.
+                // This ensures fills are drawn on top of outlines within the same layer.
+                prereqLinesSvg.appendChild(outlinesFragment);
+                prereqLinesSvg.appendChild(fillsFragment);
+            });
+        }
+
+        // --- New Data Sync and Security Logic ---
+
+        async function handleImageUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const key = input.dataset.key;
+            const storagePath = input.dataset.path;
+            const previewImg = input.nextElementSibling;
+            
+            showGlobalLoader();
+
+            // If there's an old image URL, delete the old file from storage
+            if (config[key] && config[key].includes('firebasestorage')) {
+                try {
+                    const oldRef = fb.ref(storage, config[key]);
+                    await fb.deleteObject(oldRef);
+                } catch (error) {
+                    if (error.code !== 'storage/object-not-found') console.error("Could not delete old file:", error);
+                }
+            }
+
+            try {
+                const newFileRef = fb.ref(storage, `${storagePath}/${file.name}`);
+                await fb.uploadBytes(newFileRef, file);
+                const url = await fb.getDownloadURL(newFileRef);
+
+                // Update the config object in memory and the UI
+                config[key] = url;
+                previewImg.src = url;
+                previewImg.style.display = 'block';
+                showMessage(`Uploaded ${file.name}`, false);
+            } catch (error) {
+                showMessage(`Upload failed: ${error.message}`, true);
+            } finally {
+                hideGlobalLoader();
+            }
+        }
+
+        async function initializeApp() {
+            console.log("Loading configuration from Firebase...");
+            document.getElementById('load-data-btn').disabled = true;
+            document.getElementById('save-data-btn').disabled = true;
+            showGlobalLoader();
+
+            try {
+                const configRef = fb.doc(db, 'config', 'main');
+                const configSnap = await fb.getDoc(configRef);
+                const loadedConfig = configSnap.exists() ? configSnap.data() : {};
+
+                const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
+                const tilesList = tilesSnap.docs.map(doc => ({ ...doc.data(), TileID: doc.id, id: doc.id }));
+
+                onDataLoaded({ tiles: tilesList, config: loadedConfig });
+            } catch (err) {
+                showMessage('Failed to load data: ' + err.message, true);
+                hideGlobalLoader();
+                document.getElementById('load-data-btn').disabled = false;
+                document.getElementById('save-data-btn').disabled = false;
+            }
+        }
+
+        function onDataLoaded(data) {
+            try {
+                console.log("Data loaded successfully.", data);
+                // 1. Load Tiles
+                tilesData = data.tiles || [];
+                // Re-create header from the first tile if it exists
+                if (tilesData.length > 0) {
+                    csvHeader = Object.keys(tilesData[0]);
+                } else {
+                    // Fallback to a default header if no tiles exist
+                    csvHeader = ['TileID', 'Name', 'Description', 'Prerequisites', 'Top (%)', 'Left (%)', 'Width (%)', 'Height (%)', 'Points', 'Rotation', 'Overrides (JSON)'];
+                }
+
+                if (csvHeader.length > 0) {
+                    createEditorForm(csvHeader);
+                    updateEditorPanel(null);
+                }
+                
+                // 2. Load Global Styles
+                config = data.config || {};
+                renderGlobalConfig();
+                const imageUrl = config.boardImageUrl || '';
+                boardImage.src = imageUrl;
+                boardContent.style.backgroundImage = imageUrl ? `url('${imageUrl}')` : 'none';
+
+                // 3. Load Security & Teams
+                // This is now handled by the security panel directly
+                populateSecurityEditor();
+
+                // 4. Render and Update UI
+                renderTiles();
+                updateCsvOutput();
+                updateStyleCsvOutput();
+                showMessage('Data loaded successfully!', false);
+            } catch (e) {
+                showMessage('Error processing loaded data: ' + e.message, true);
+                console.error("Error in onDataLoaded: ", e);
+            } finally {
+                // This block runs whether the try succeeded or failed, ensuring UI is restored.
+                hideGlobalLoader();
+                document.getElementById('load-data-btn').disabled = false;
+                document.getElementById('save-data-btn').disabled = false;
+            }
+        }
+
+        async function saveDataToFirebase() {
+            document.getElementById('save-data-btn').disabled = true;
+            document.getElementById('load-data-btn').disabled = true;
+            showGlobalLoader();
+
+            try {
+                const batch = fb.writeBatch(db);
+
+                // 1. Save all tiles
+                tilesData.forEach(tile => {
+                    const tileId = tile.TileID;
+                    if (!tileId) {
+                        console.warn("Skipping tile with no TileID:", tile);
+                        return;
+                    }
+                    // Create a clean object to save, removing internal properties if any
+                    const tileDataToSave = { ...tile };
+                    delete tileDataToSave.id; // Remove any temporary internal IDs
+
+                    const tileRef = fb.doc(db, 'tiles', tileId);
+                    batch.set(tileRef, tileDataToSave);
+                });
+
+                // 2. Save config, styles, and security
+                const securityData = collectSecurityData();
+                const configRef = fb.doc(db, 'config', 'main');
+                // 'config' object is the source of truth for styles, updated by the form listener.
+                const configPayload = {
+                    ...config,
+                    teams: securityData.teams, // Now just an array of {name: '...'}
+                };
+                batch.set(configRef, configPayload, { merge: true });
+
+                await batch.commit();
+                showMessage('All changes saved successfully!', false);
+
+            } catch (e) {
+                showMessage('Error preparing data to save: ' + e.message, true);
+                console.error("Error in saveDataToSheet: ", e);
+            } finally {
+                hideGlobalLoader();
+                document.getElementById('save-data-btn').disabled = false;
+                document.getElementById('load-data-btn').disabled = false;
+            }
+        }
+
+        function populateSecurityEditor() {
+            const teamsContainer = document.getElementById('teams-container');
+            teamsContainer.innerHTML = '';
+            // config object holds the teams array
+            if (config.teams) {
+                config.teams.forEach(team => addTeamRow(team.name));
+            }
+        }
+
+        function addTeamRow(name = '') {
+            const container = document.getElementById('teams-container');
+            const item = document.createElement('div');
+            item.className = 'team-item';
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'team-name';
+            nameInput.placeholder = 'Team Name';
+            nameInput.value = name;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-team-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = () => item.remove();
+
+            item.append(nameInput, removeBtn);
+            container.appendChild(item);
+        }
+
+        function collectSecurityData() {
+            const teams = [];
+            document.querySelectorAll('.team-item').forEach(item => {
+                const name = item.querySelector('.team-name').value.trim();
+                if (name) {
+                    teams.push({ name });
+                }
+            });
+            return {
+                teams: teams
+            };
+        }
+
+        document.getElementById('add-team-btn').addEventListener('click', () => addTeamRow());
+
+        // --- NEW: Global Loader & Message Box Functions ---
+        function showGlobalLoader() {
+            document.getElementById('global-loader').style.display = 'block';
+        }
+        function hideGlobalLoader() {
+            document.getElementById('global-loader').style.display = 'none';
+        }
+        function showMessage(text, isError = false) {
+            const box = document.getElementById('message-box');
+            box.textContent = text;
+            box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
+            box.classList.add('show');
+            setTimeout(() => box.classList.remove('show'), 4000);
+        }
+
+        window.initializeApp = initializeApp;
+        window.saveDataToFirebase = saveDataToFirebase;
+
+    </script>
+</body>
+</html>

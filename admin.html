@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Bingo Platform - Admin</title>
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --surface-color: #2d2d2d;
+      --primary-text: #e0e0e0;
+      --secondary-text: #a0a0a0;
+      --accent-color: #00b8d4;
+      --border-color: #444;
+      --error-color: #e57373;
+      --success-color: #81c784;
+      --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+    }
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg-color);
+      color: var(--primary-text);
+      margin: 0;
+      padding: 2rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .navbar {
+      width: 100%;
+      max-width: 1200px;
+      background-color: var(--surface-color);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .nav-links a, .nav-actions button {
+      color: var(--primary-text);
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .nav-links a:hover, .nav-actions button:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    .nav-links a.active {
+      background-color: var(--accent-color);
+      color: #111;
+      font-weight: bold;
+    }
+    /* --- NEW: Global Loader --- */
+    .global-loader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+        background-size: 200% auto;
+        animation: loading-animation 1.5s linear infinite;
+        z-index: 9999;
+        display: block;
+    }
+    @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .container {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      color: var(--accent-color); margin-bottom: 2rem;
+    }
+    #admin-view { display: none; width: 100%;}
+    #access-denied { text-align: center; padding: 3rem; background-color: var(--surface-color); border-radius: 12px; max-width: 600px; margin: 4rem auto; display: none; }
+    #admin-view { display: none; width:100%; max-width: 1400px; }
+    .dashboard-grid { display: grid; grid-template-columns: minmax(300px, 1fr) 2fr; gap: 2rem; }
+    @media (max-width: 960px) { .dashboard-grid { grid-template-columns: 1fr; } }
+    .card { background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px; }
+    .card h2 { margin-top: 0; }
+    #user-management-table { width: 100%; border-collapse: collapse; }
+    #user-management-table td, #user-management-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+    #user-management-table th { font-weight: bold; }
+    #user-management-table select { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; }
+    #user-management-table select:disabled { background-color: #333; color: #888; cursor: not-allowed; }
+
+    /* Submission Table Styles */
+    #submissions-filters { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+    #submissions-filters select, #submissions-filters input { background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px; }
+    #submissions-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    #submissions-table th, #submissions-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #submissions-table th { font-weight: bold; }
+    #submissions-table tbody tr { cursor: pointer; transition: background-color 0.2s; }
+    #submissions-table tbody tr:hover { background-color: #3a3a3a; }
+    .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+    .status-Verified { background-color: var(--success-color); }
+    .status-Submitted { background-color: #ffeb3b; }
+    .status-Requires-Action { background-color: var(--error-color); }
+    .status-Partially-Complete { background-color: #64b5f6; }
+
+    /* Modal Styles */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+    .modal-content { background-color: var(--surface-color); margin: 10% auto; padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; position: relative; }
+    .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .modal-content h3 { margin-top: 0; color: var(--accent-color); }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .modal-field { display: flex; flex-direction: column; }
+    .modal-field label { color: var(--secondary-text); font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .modal-field span { background-color: var(--bg-color); padding: 0.5rem; border-radius: 4px; min-height: 24px; word-wrap: break-word; }
+    .modal-field.full-width { grid-column: 1 / -1; }
+    .modal-actions { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+    .modal-actions .checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
+    .modal-actions input[type="checkbox"] { width: 18px; height: 18px; }
+    .modal-actions button { background-color: var(--accent-color); color: #111; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+    .modal-actions button:disabled { background-color: #555; cursor: not-allowed; }
+    #evidence-links a { color: var(--accent-color); display: block; margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+  <div id="global-loader" class="global-loader"></div>
+  <div id="main-content" style="width: 100%;">
+    <div id="access-denied">
+        <h1>Access Denied</h1>
+        <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
+    </div>
+    <div id="admin-view" style="display: none; width: 100%;">
+        <div class="navbar" style="max-width: 1400px; margin-left: auto; margin-right: auto;">
+          <div class="nav-links">
+            <a href="./index.html">Player View</a>
+            <a href="./overview.html" id="overview-nav-link" style="display: none;">Overview</a>
+            <a href="./admin.html" class="active">Admin</a>
+            <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
+          </div>
+          <div id="auth-container" class="nav-actions">
+              <span id="user-info"></span>
+              <button id="auth-button">Logout</button>
+          </div>
+        </div>
+        <h1>Admin Dashboard</h1>
+        <div class="container dashboard-grid">
+            <div id="user-management-card" class="card">
+                <h2>User Management</h2>
+                <table id="user-management-table">
+                    <thead><tr><th>User</th><th>Role</th><th>Team</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="submissions-card" class="card">
+                <h2>Submissions</h2>
+                <div id="submissions-filters">
+                    <select id="team-filter"><option value="all">All Teams</option></select>
+                    <select id="status-filter">
+                        <option value="all">All Statuses</option>
+                        <option value="Submitted">Submitted</option>
+                        <option value="Requires Action">Requires Action</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Partially Complete">Partially Complete</option>
+                    </select>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="submissions-table">
+                        <thead><tr><th>Status</th><th>Tile</th><th>Team</th><th>Player(s)</th><th>Submitted</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Submission Modal -->
+  <div id="submission-modal" class="modal">
+      <div class="modal-content">
+          <span class="close-button">&times;</span>
+          <h3 id="modal-tile-name"></h3>
+          <div class="modal-grid">
+              <div class="modal-field"><label>Team</label><span id="modal-team"></span></div>
+              <div class="modal-field"><label>Player(s)</label><span id="modal-players"></span></div>
+              <div class="modal-field"><label>Submitted At</label><span id="modal-timestamp"></span></div>
+              <div class="modal-field"><label>Completed At</label><span id="modal-completion-timestamp"></span></div>
+              <div class="modal-field full-width"><label>Evidence</label><span id="modal-evidence"></span></div>
+              <div class="modal-field full-width"><label>Notes</label><span id="modal-notes"></span></div>
+          </div>
+          <form id="modal-form">
+              <input type="hidden" id="modal-submission-id">
+              <div class="modal-actions">
+                  <div class="checkbox-group"><input type="checkbox" id="modal-verified"><label for="modal-verified">Admin Verified</label></div>
+                  <div class="checkbox-group"><input type="checkbox" id="modal-requires-action"><label for="modal-requires-action">Requires Action</label></div>
+                  <button type="submit">Update Submission</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
+  <script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth, signOut } from './auth.js';
+
+    let allUsers = [], allTeams = [], allTiles = {}, allSubmissions = [];
+
+    document.addEventListener('DOMContentLoaded', () => initAuth(onAuthStateChanged));
+
+    function onAuthStateChanged(authState) {
+        if (authState.isCaptain) { // Captains, Mods, and Admins can access this page
+            document.getElementById('auth-button').onclick = signOut;
+            const userInfo = document.getElementById('user-info');
+            const teamInfo = authState.profile?.team ? ` | Team: ${authState.profile.team}` : '';
+            userInfo.textContent = `${authState.profile?.role || 'Player'}${teamInfo}`;
+
+            document.getElementById('access-denied').style.display = 'none';
+            document.getElementById('admin-view').style.display = 'block';
+            document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'block' : 'none';
+            initializeApp(authState);
+        } else {
+            document.getElementById('access-denied').style.display = 'block';
+            document.getElementById('admin-view').style.display = 'none';
+            // If user is logged in but not an admin, show a different message
+            if (authState.isLoggedIn) {
+                document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Captain, Event Mod, or Admin) to view this page.';
+            }
+            hideGlobalLoader();
+        }
+    }
+
+    async function initializeApp(authState) {
+        try {
+            const [usersSnap, configSnap, tilesSnap] = await Promise.all([
+                fb.getDocs(fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'))),
+                fb.getDoc(fb.doc(db, 'config', 'main')),
+                fb.getDocs(fb.collection(db, 'tiles')),
+            ]);
+
+            allUsers = usersSnap.docs.map(doc => ({...doc.data(), uid: doc.id}));
+            const config = configSnap.data() || {};
+            allTeams = config.teams || [];
+            document.getElementById('overview-nav-link').style.display = String(config.enableOverviewPage).toUpperCase() === 'TRUE' ? 'block' : 'none';
+            tilesSnap.forEach(doc => { allTiles[doc.id] = doc.data(); });
+
+            renderUserManagement(authState);
+            // Only show submission manager to Mods/Admins
+            if (authState.isEventMod) {
+                document.getElementById('submissions-card').style.display = 'block';
+                setupSubmissionsListener(authState);
+            } else {
+                document.getElementById('submissions-card').style.display = 'none';
+            }
+            hideGlobalLoader();
+        } catch (error) {
+            console.error("Initialization failed:", error);
+            hideGlobalLoader();
+        }
+    }
+
+    function renderUserManagement(authState) {
+        const tbody = document.querySelector('#user-management-table tbody');
+        let usersToDisplay = allUsers;
+
+        // Captains can only see their own team members and unassigned players
+        if (authState.isCaptain && !authState.isEventMod) {
+            usersToDisplay = allUsers.filter(user => !user.team || user.team === authState.profile.team);
+        }
+
+        tbody.innerHTML = usersToDisplay.map(user => {
+            const canEditUser = authState.isAdmin || (authState.isEventMod && user.role !== 'Admin');
+            
+            let teamOptions;
+            if (authState.isCaptain && !authState.isEventMod) {
+                // Captains can only assign to their own team
+                teamOptions = `<option value="${authState.profile.team}" ${user.team === authState.profile.team ? 'selected' : ''}>${authState.profile.team}</option>`;
+            } else {
+                // Admins/Mods can assign to any team
+                teamOptions = allTeams.map(team => `<option value="${team.name}" ${user.team === team.name ? 'selected' : ''}>${team.name}</option>`).join('');
+            }
+
+            const roleSelectorHTML = (() => {
+                // Captains cannot change roles at all
+                if (authState.isCaptain && !authState.isEventMod) {
+                    return `<select disabled><option selected>${user.role || 'Player'}</option></select>`;
+                }
+
+                // Admins can assign any role
+                if (authState.isAdmin) {
+                    return `
+                        <select class="role-select" data-uid="${user.uid}">
+                            <option value="Player" ${user.role === 'Player' ? 'selected' : ''}>Player</option>
+                            <option value="Captain" ${user.role === 'Captain' ? 'selected' : ''}>Captain</option>
+                            <option value="Event Mod" ${user.role === 'Event Mod' ? 'selected' : ''}>Event Mod</option>
+                            <option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option>
+                        </select>`;
+                }
+                // Event Mods cannot assign Admin role or edit other Admins/Mods
+                if (user.role === 'Admin') return `<select disabled><option selected>Admin</option></select>`;
+                if (user.role === 'Event Mod' && user.uid !== authState.user.uid) return `<select disabled><option selected>Event Mod</option></select>`;
+                return `
+                    <select class="role-select" data-uid="${user.uid}" ${!canEditUser ? 'disabled' : ''}>
+                        <option value="Player" ${user.role === 'Player' ? 'selected' : ''}>Player</option>
+                        <option value="Captain" ${user.role === 'Captain' ? 'selected' : ''}>Captain</option>
+                        <option value="Event Mod" ${user.role === 'Event Mod' ? 'selected' : ''}>Event Mod</option>
+                    </select>`;
+            })();
+
+            const teamSelectorDisabled = (() => {
+                if (authState.isCaptain && !authState.isEventMod) return false; // Captains can edit teams
+                if (!canEditUser) return true;
+                return false;
+            })();
+
+
+            return `
+                <tr>
+                    <td>${user.displayName || user.email}</td>
+                    <td>${roleSelectorHTML}</td>
+                    <td>
+                        <select class="team-select" data-uid="${user.uid}" ${teamSelectorDisabled ? 'disabled' : ''}>
+                            <option value="">--None--</option>
+                            ${teamOptions}
+                        </select>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        // Add event listeners to update Firestore on change
+        document.querySelectorAll('.role-select, .team-select').forEach(select => {
+            select.addEventListener('change', async (e) => {
+                if(e.target.disabled) return;
+                const uid = e.target.dataset.uid;
+                const field = e.target.classList.contains('role-select') ? 'role' : 'team';
+                const value = e.target.value || null;
+                try {
+                    showGlobalLoader();
+                    await fb.updateDoc(fb.doc(db, 'users', uid), { [field]: value });
+                } catch (error) {
+                    console.error(`Failed to update user ${uid}:`, error);
+                    // Optionally show an error message to the user
+                } finally {
+                    hideGlobalLoader();
+                }
+            });
+        });
+    }
+
+    function setupSubmissionsListener(authState) {
+        const q = fb.query(fb.collection(db, 'submissions'), fb.orderBy('Timestamp', 'desc'));
+        fb.onSnapshot(q, (snapshot) => {
+            allSubmissions = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+            populateFilters();
+            renderSubmissionsTable();
+        });
+
+        document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
+        document.getElementById('status-filter').addEventListener('change', renderSubmissionsTable);
+        document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
+        document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
+    }
+
+    function populateFilters() {
+        const teamFilter = document.getElementById('team-filter');
+        teamFilter.innerHTML = '<option value="all">All Teams</option>';
+        allTeams.forEach(team => {
+            teamFilter.innerHTML += `<option value="${team.name}">${team.name}</option>`;
+        });
+    }
+
+    function renderSubmissionsTable() {
+        const tbody = document.querySelector('#submissions-table tbody');
+        const selectedTeam = document.getElementById('team-filter').value;
+        const selectedStatus = document.getElementById('status-filter').value;
+
+        const filteredSubmissions = allSubmissions.filter(sub => {
+            const status = getSubmissionStatus(sub);
+            const teamMatch = selectedTeam === 'all' || sub.Team === selectedTeam;
+            const statusMatch = selectedStatus === 'all' || status === selectedStatus;
+            return teamMatch && statusMatch && !sub.IsArchived;
+        });
+
+        tbody.innerHTML = filteredSubmissions.map(sub => {
+            const status = getSubmissionStatus(sub);
+            const tileName = allTiles[sub.TileID]?.Name || sub.TileID;
+            const timestamp = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
+            return `
+                <tr data-id="${sub.id}">
+                    <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
+                    <td title="${tileName}">${tileName}</td>
+                    <td>${sub.Team}</td>
+                    <td title="${sub.PlayerName}">${sub.PlayerName}</td>
+                    <td>${timestamp}</td>
+                </tr>
+            `;
+        }).join('');
+
+        document.querySelectorAll('#submissions-table tbody tr').forEach(row => {
+            row.addEventListener('click', () => openSubmissionModal(row.dataset.id));
+        });
+    }
+
+    function getSubmissionStatus(sub) {
+        if (sub.AdminVerified) return 'Verified';
+        if (sub.RequiresAction) return 'Requires Action';
+        if (sub.IsComplete) return 'Submitted';
+        return 'Partially Complete';
+    }
+
+    function openSubmissionModal(submissionId) {
+        const sub = allSubmissions.find(s => s.id === submissionId);
+        if (!sub) return;
+
+        document.getElementById('modal-submission-id').value = sub.id;
+        document.getElementById('modal-tile-name').textContent = `${sub.TileID}: ${allTiles[sub.TileID]?.Name || 'Unknown Tile'}`;
+        document.getElementById('modal-team').textContent = sub.Team;
+        document.getElementById('modal-players').textContent = sub.PlayerName;
+        document.getElementById('modal-timestamp').textContent = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
+        document.getElementById('modal-completion-timestamp').textContent = sub.CompletionTimestamp?.toDate()?.toLocaleString() || 'N/A';
+        document.getElementById('modal-notes').textContent = sub.Notes || 'None';
+
+        let evidenceHTML = 'None';
+        if (sub.Evidence) {
+            try {
+                const evidenceList = JSON.parse(sub.Evidence);
+                if (Array.isArray(evidenceList) && evidenceList.length > 0) {
+                    evidenceHTML = evidenceList.map(item => `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.name || item.link}</a>`).join('');
+                }
+            } catch (e) {
+                evidenceHTML = `<a href="${sub.Evidence}" target="_blank" rel="noopener noreferrer">${sub.Evidence}</a>`;
+            }
+        }
+        document.getElementById('modal-evidence').innerHTML = evidenceHTML;
+
+        document.getElementById('modal-verified').checked = sub.AdminVerified || false;
+        document.getElementById('modal-requires-action').checked = sub.RequiresAction || false;
+
+        document.getElementById('submission-modal').style.display = 'flex';
+    }
+
+    async function handleSubmissionUpdate(event) {
+        event.preventDefault();
+        showGlobalLoader();
+        const submissionId = document.getElementById('modal-submission-id').value;
+        const subRef = fb.doc(db, 'submissions', submissionId);
+        try {
+            await fb.updateDoc(subRef, {
+                AdminVerified: document.getElementById('modal-verified').checked,
+                RequiresAction: document.getElementById('modal-requires-action').checked
+            });
+            document.getElementById('submission-modal').style.display = 'none';
+        } catch (error) {
+            console.error("Failed to update submission:", error);
+        } finally {
+            hideGlobalLoader();
+        }
+    }
+
+    function showGlobalLoader() { document.getElementById('global-loader').style.display = 'block'; }
+    function hideGlobalLoader() { document.getElementById('global-loader').style.display = 'none'; }
+  </script>
+</body>
+</html>
