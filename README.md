@@ -33,18 +33,19 @@ The repository is organized into the following key files:
 ### Step 1: Create and Configure Firebase Project
 
 1.  **Create a Firebase Project**: Go to the Firebase Console and create a new project.
-2.  **Add a Web App**: In your project dashboard, click the `</>` (Web) icon to register a web app. Copy the `firebaseConfig` object provided.
+2.  **Add a Web App**: In your project's dashboard, click the `</>` (Web) icon to register a new web app. Give it a nickname and click "Register app".
+3.  **Copy Config**: After registering, Firebase will display a `firebaseConfig` object. Copy this entire object.
 3.  **Enable Services**:
     *   **Authentication**: Go to `Build > Authentication`, click "Get started," and enable **Google** as a sign-in provider.
-    *   **Firestore**: Go to `Build > Firestore Database`, create a database in **production mode**.
+    *   **Firestore**: Go to `Build > Firestore Database`, create a database in **Production mode**. You will be asked for a location; choose one that is geographically close to your users.
     *   **Storage**: Go to `Build > Storage` and get it started.
-4.  **Update Project Config**:
+5.  **Update Project Config**:
     *   Open the `firebase-config.js` file.
-    *   Paste your `firebaseConfig` object, replacing the placeholder values.
+    *   Replace the entire placeholder `firebaseConfig` object with the one you copied from the Firebase console.
 
 ### Step 2: Set Security Rules
 
-This project includes two files, `firestore.rules` and `storage.rules`, which contain the necessary security rules for the application.
+This project includes `firestore.rules` and `storage.rules`, which are essential for protecting your data and ensuring the role-based permission system works correctly.
 
 1.  **Firestore Rules**:
     *   In the Firebase Console, navigate to `Build > Firestore Database > Rules`.
@@ -58,11 +59,23 @@ This project includes two files, `firestore.rules` and `storage.rules`, which co
     *   Copy the entire contents of the file and paste it into the rules editor, replacing any existing rules.
     *   Click "Publish".
 
-These rules are crucial for protecting your data and ensuring the role-based permission system works correctly.
+### Step 3: Assign Your First Admin (Crucial Step)
+
+After setting up your project, you need to assign an `Admin` role to your own user account to access the `admin.html` and `setup.html` pages.
+
+1.  **Open the App**: Open `index.html` in your browser (or your deployed site URL).
+2.  **Log In**: Click the "Login" button and sign in with the Google account you want to be the administrator. This action creates your user profile in the Firestore database.
+3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database`.
+4.  **Find Your User**: You should see a `users` collection. Click on it. Find the document that has an `email` field matching your email address.
+5.  **Update Your Role**:
+    *   Click on your user document to view its fields.
+    *   Find the `role` field, which is currently set to `"Player"`.
+    *   Change the value from `"Player"` to `"Admin"` (case-sensitive) and click "Update".
+6.  **Refresh the App**: Go back to the application and refresh the page. You should now see the "Admin" and "Setup" links in the navigation bar.
 
 ## **Part 2: Data Migration (One-Time Step)**
 
-If you have existing data in a Google Sheet, you need to migrate it to Firestore.
+This is an **optional step** only for users migrating data from a previous Google Sheets-based system. For new events, you can configure everything through the `setup.html` page.
 
 1.  **Export Sheets to CSV**: From your old Google Sheet, export the `Config` and `Tiles` sheets as separate CSV files (e.g., `config.csv`, `tiles.csv`) and place them in your project folder.
 2.  **Run Migration Script**: A migration script (`migration-script.js`) is included to upload this data to Firestore. You will need to have Node.js installed.
@@ -149,4 +162,3 @@ This project was created collaboratively with Google's Gemini. While the logic a
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
