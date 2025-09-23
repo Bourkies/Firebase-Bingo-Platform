@@ -184,7 +184,7 @@ These steps must be performed from a local clone of the repository.
         steps:
           - uses: actions/checkout@v4
           - name: Create Firebase Config
-            run: echo "${{ secrets.FIREBEASE_CONFIG_JS }}" > firebase-config.js
+            run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
           - uses: FirebaseExtended/action-hosting-deploy@v0
             with:
               repoToken: '${{ secrets.GITHUB_TOKEN }}'
@@ -201,7 +201,27 @@ These steps must be performed from a local clone of the repository.
     ```
     Any future `git push` to your main branch will now automatically and securely deploy your site.
 
-## Part 3: Initial Admin Setup (Crucial Step)
+## Part 3: Accessing Your Site
+
+**Important Note:** After setting up automated deployments, the Firebase Console's Hosting page might still show a "Get started" button. This is normal. The Hosting dashboard will fully populate with your site's information and deployment history **only after the first successful deployment** is completed by the GitHub Action.
+
+1.  **Trigger the First Deployment**: The `git push` command you ran in the previous step will have triggered the first deployment. You can monitor its progress in your GitHub repository under the "Actions" tab.
+
+2.  **Find Your URL**: Once the deployment is successful (you'll see a green checkmark in GitHub Actions), go to the Firebase Console and navigate to `Build > Hosting`. The dashboard will now be active, and you will see your default URLs (e.g., `your-project-id.web.app`).
+
+### Connecting a Custom Domain
+
+If you own a domain name (e.g., `mybingoevent.com`), you can connect it for a professional-looking URL.
+
+1.  **Go to the Hosting Dashboard**: In the Firebase Console, navigate to the `Hosting` section.
+2.  **Add Custom Domain**: Click the "Add custom domain" button.
+3.  **Enter Your Domain**: Type in the domain you want to connect (e.g., `www.mybingoevent.com`). It's generally recommended to add the `www` version and also redirect the root domain (`mybingoevent.com`) to it.
+4.  **Verify Ownership**: Firebase will provide you with a TXT record. You must add this record to your domain's DNS settings through your domain registrar (e.g., GoDaddy, Namecheap, Google Domains). This proves you own the domain.
+    *   This step can take some time to propagate, from a few minutes to several hours. Firebase will periodically check for the record.
+5.  **Add A Records**: Once your domain is verified, Firebase will provide you with one or more IP addresses (A records). Go back to your domain registrar's DNS settings and add these A records for your domain. This points your domain to Firebase's servers.
+6.  **Wait for Provisioning**: After adding the A records, it will take some time for the SSL certificate to be provisioned and for the domain to become fully active. Firebase will show the status as "Pending" and then "Connected".
+
+## Part 4: Initial Admin Setup (Crucial Step)
 
 After setting up your Firebase project and serving the application (either locally or by deploying it), you must assign an `Admin` role to your own user account to access the `admin.html` and `setup.html` pages.
 
@@ -215,7 +235,7 @@ After setting up your Firebase project and serving the application (either local
     *   Change the value from `false` to `true` and click "Update".
 6.  **Refresh the App**: Go back to the application tab and refresh the page. You should now see the "Admin" and "Setup" links in the navigation bar.
 
-## Part 4: How to Use
+## Part 5: How to Use
 
 All pages contain a navigation bar at the top to easily switch between the Player, Overview, and Admin views.
 

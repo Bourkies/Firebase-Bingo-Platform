@@ -69,7 +69,7 @@
       /* IMPROVEMENT: Placeholder background */
       background-color: #222;
       background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
-      background-size: 20px 20px;
+      /* The size for the placeholder gradient is now handled in JS to avoid conflicts */
     }
     .tile-overlay {
       position: absolute; box-sizing: border-box;
@@ -628,7 +628,7 @@
           
           // --- UPDATED: Tooltip logic ---
           tileDiv.addEventListener('mousemove', (e) => {
-              tooltip.innerHTML = `<h4>${tile.id}: ${tile.Name}</h4><p>${tile.Description}</p>`; // tile.id is user-facing
+              tooltip.innerHTML = `<h4>${tile.id}: ${tile.Name}</h4><p>${tile.Description}</p>`;
               tooltip.style.display = 'block';
               // Position tooltip relative to cursor
               tooltip.style.left = `${e.clientX + 15}px`;
@@ -636,14 +636,12 @@
           });
           tileDiv.addEventListener('mouseout', () => {
               tooltip.style.display = 'none';
-              tileDiv.style.borderColor = borderColor;
-              tileDiv.style.borderWidth = borderWidth;
+              tileDiv.style.border = `${borderWidth} solid ${borderColor}`;
           });
           tileDiv.addEventListener('mouseover', () => {
               const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
               const hoverColor = getProp('hoverBorderColor', status) || 'var(--accent-color)';
-              tileDiv.style.borderColor = hoverColor;
-              tileDiv.style.borderWidth = hoverWidth;
+              tileDiv.style.border = `${hoverWidth} solid ${hoverColor}`;
           });
 
           if(config.showTileNames === true || !config.boardImageUrl) {
@@ -677,19 +675,31 @@
         });
       };
 
+      // Helper function to apply the default placeholder background styles
+      const setPlaceholderBackground = () => {
+          container.style.backgroundImage = 'linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%)';
+          container.style.backgroundSize = '20px 20px';
+          container.style.backgroundRepeat = 'repeat';
+          container.style.aspectRatio = '1 / 1';
+      };
+
       const imageUrl = config.boardImageUrl;
       if (!imageUrl) {
-        container.style.aspectRatio = '1 / 1'; container.style.backgroundColor = 'var(--board-bg)';
+        setPlaceholderBackground();
         renderTiles(); return;
       }
       const img = new Image();
       img.onload = () => {
-        container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`; // Keep placeholder if image is set
-        container.style.backgroundImage = `url('${imageUrl}')`; renderTiles();
+        container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+        container.style.backgroundImage = `url('${imageUrl}')`;
+        // FIX: Explicitly set the background size and repeat properties for the real image
+        container.style.backgroundSize = 'cover';
+        container.style.backgroundRepeat = 'no-repeat';
+        renderTiles();
       };
       img.onerror = () => {
-        container.style.aspectRatio = '1 / 1';
-        // Do not remove background image, so placeholder from CSS shows
+        // On error, revert to the placeholder background
+        setPlaceholderBackground();
         const errorDiv = document.createElement('div'); errorDiv.className = 'error-message';
         errorDiv.innerHTML = `<strong>Image Failed to Load</strong>`;
         container.appendChild(errorDiv); renderTiles();

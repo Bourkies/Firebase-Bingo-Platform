@@ -418,9 +418,15 @@
         .form-field-compound input[type="color"] {
             padding: 0;
             height: 38px;
-            min-width: 38px;
+            width: 38px;
+            flex-shrink: 0;
+            border: none; /* Looks better without a border next to the text input */
         }
         .form-field-compound input[type="range"] {
+            flex-grow: 1;
+        }
+        .color-text-input {
+            font-family: 'Courier New', Courier, monospace;
             flex-grow: 1;
         }
         .form-field-compound input[type="text"] {
@@ -834,7 +840,7 @@
                 tileEl.textContent = tile.id;
 
                 // --- NEW: Dynamic Styling ---
-                const status = currentPreviewStatus || 'Unlocked'; // Default to unlocked for preview
+                const status = currentPreviewStatus || 'Unlocked';
                 const getProp = (propName, status) => {
                     // 1. Check tile-specific overrides for the given status
                     if (tile['Overrides (JSON)']) {
@@ -903,10 +909,10 @@
                 tileEl.addEventListener('mouseover', () => {
                     const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
                     const hoverColor = getProp('hoverBorderColor', status) || '#00d9f5';
-                    tileEl.style.border = `${hoverWidth} solid ${hoverColor}`;
+                    tileEl.style.border = `${hoverWidth} solid ${hoverColor}`; // Use shorthand for robustness
                 });
                 tileEl.addEventListener('mouseout', () => {
-                    tileEl.style.border = `${borderWidth} solid ${borderColor}`;
+                    tileEl.style.border = `${borderWidth} solid ${borderColor}`; // Revert to non-hover state
                 });
 
                 boardContent.appendChild(tileEl); // Append to the content div
@@ -1577,7 +1583,35 @@
                 const options = styleSchema.shape.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
                 inputHtml = `<select class="override-value"><option value="">Default</option>${options}</select>`;
             } else if (isColor) {
-                inputHtml = `<input type="color" class="override-value" value="${value || '#000000'}">`;
+                // NEW: Use DOM creation for color inputs to add sync listeners
+                const compoundDiv = document.createElement('div');
+                compoundDiv.className = 'form-field-compound';
+
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.value = value || '#000000';
+
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.className = 'override-value color-text-input'; // This one has the class to be picked up
+                textInput.value = value || '#000000';
+
+                colorInput.addEventListener('change', (e) => {
+                    textInput.value = e.target.value;
+                    textInput.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+                textInput.addEventListener('input', (e) => {
+                    let potentialColor = e.target.value;
+                    if (/^[0-9A-F]{6}$/i.test(potentialColor) || /^[0-9A-F]{3}$/i.test(potentialColor)) {
+                        potentialColor = '#' + potentialColor;
+                        e.target.value = potentialColor; // FIX: Update the text input's value so it's saved correctly
+                    }
+                    colorInput.value = potentialColor;
+                });
+
+                compoundDiv.append(colorInput, textInput);
+                container.appendChild(compoundDiv);
+                return; // Exit early
             } else if (isWidth) {
                 inputHtml = `<div class="form-field-compound">
                                 <input type="number" class="override-value" value="${parseFloat(value) || 0}" data-unit="px" min="0" max="20" step="1">
@@ -2134,8 +2168,8 @@
                     const opacityVal = allStyles[status]?.opacity ?? 0.5;
                     inputHtml = `<div class="form-field-compound" style="flex-direction: column; align-items: stretch; gap: 8px;">
                                     <div class="form-field-compound">
-                                        <input type="color" class="config-input" data-status="${status}" data-key="color" value="${colorVal}">
-                                        <span style="margin-left: 10px; flex-grow: 1;">Color</span>
+                                        <input type="color" data-status="${status}" data-key="color" value="${colorVal}">
+                                        <input type="text" class="config-input color-text-input" data-status="${status}" data-key="color" value="${colorVal}">
                                     </div>
                                     <div class="form-field-compound">
                                         <input type="range" class="config-input" data-status="${status}" data-key="opacity" value="${opacityVal}" min="0" max="1" step="0.01">
@@ -2143,6 +2177,41 @@
                                     </div>
                                     </div>`;
                     break;
+                    const mainDiv = document.createElement('div');
+                    mainDiv.className = 'form-field-compound';
+                    mainDiv.style.flexDirection = 'column'; mainDiv.style.alignItems = 'stretch'; mainDiv.style.gap = '8px';
+
+                    const colorDiv = document.createElement('div');
+                    colorDiv.className = 'form-field-compound';
+                    const colorInput = Object.assign(document.createElement('input'), { type: 'color', value: colorVal, dataset: { status, key: 'color' } });
+                    const textInput = Object.assign(document.createElement('input'), { type: 'text', className: 'config-input color-text-input', value: colorVal, dataset: { status, key: 'color' } });
+
+                    colorInput.addEventListener('change', (e) => {
+                        textInput.value = e.target.value;
+                        textInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                    textInput.addEventListener('input', (e) => {
+                        let potentialColor = e.target.value;
+                        if (/^[0-9A-F]{6}$/i.test(potentialColor) || /^[0-9A-F]{3}$/i.test(potentialColor)) {
+                            potentialColor = '#' + potentialColor;
+                            e.target.value = potentialColor;
+                        }
+                        colorInput.value = potentialColor;
+                    });
+                    colorDiv.append(colorInput, textInput);
+
+                    const opacityDiv = document.createElement('div');
+                    opacityDiv.className = 'form-field-compound';
+                    const rangeInput = Object.assign(document.createElement('input'), { type: 'range', className: 'config-input', value: opacityVal, min: 0, max: 1, step: 0.01, dataset: { status, key: 'opacity' } });
+                    const rangeSpan = Object.assign(document.createElement('span'), { textContent: opacityVal });
+                    rangeSpan.style.cssText = 'width: 40px; text-align: left; margin-left: 10px;';
+                    rangeInput.addEventListener('input', () => rangeSpan.textContent = rangeInput.value);
+                    opacityDiv.append(rangeInput, rangeSpan);
+
+                    mainDiv.append(colorDiv, opacityDiv);
+                    fieldContainer.appendChild(mainDiv);
+                    parentContainer.appendChild(fieldContainer);
+                    return;
                 }
                 case 'widthAndColor':
                 {
@@ -2154,9 +2223,24 @@
                     inputHtml = `<div class="form-field-compound">
                                     <input type="number" class="config-input" data-status="${status}" data-key="${widthKey}" value="${widthVal}" min="0" max="20" step="1" data-unit="${unit}" style="max-width: 70px;">
                                     <span style="width: 30px; text-align: left; margin-left: 5px;">${unit}</span>
-                                    <input type="color" class="config-input" data-status="${status}" data-key="${colorKey}" value="${colorVal}">
+                                    <input type="color" data-status="${status}" data-key="${colorKey}" value="${colorVal}">
+                                    <input type="text" class="config-input color-text-input" data-status="${status}" data-key="${colorKey}" value="${colorVal}">
                                     </div>`;
                     break;
+                    const mainDiv = document.createElement('div');
+                    mainDiv.className = 'form-field-compound';
+                    const widthInput = Object.assign(document.createElement('input'), { type: 'number', className: 'config-input', value: widthVal, min: 0, max: 20, step: 1, dataset: { status, key: widthKey, unit }});
+                    widthInput.style.maxWidth = '70px';
+                    const widthSpan = Object.assign(document.createElement('span'), { textContent: unit });
+                    widthSpan.style.cssText = 'width: 30px; text-align: left; margin-left: 5px;';
+                    const colorInput = Object.assign(document.createElement('input'), { type: 'color', value: colorVal, dataset: { status, key: colorKey } });
+                    const textInput = Object.assign(document.createElement('input'), { type: 'text', className: 'config-input color-text-input', value: colorVal, dataset: { status, key: colorKey } });
+                    colorInput.addEventListener('change', (e) => { textInput.value = e.target.value; textInput.dispatchEvent(new Event('input', { bubbles: true })); });
+                    textInput.addEventListener('input', (e) => { let potentialColor = e.target.value; if (/^[0-9A-F]{6}$/i.test(potentialColor) || /^[0-9A-F]{3}$/i.test(potentialColor)) { potentialColor = '#' + potentialColor; e.target.value = potentialColor; } colorInput.value = potentialColor; });
+                    mainDiv.append(widthInput, widthSpan, colorInput, textInput);
+                    fieldContainer.appendChild(mainDiv);
+                    parentContainer.appendChild(fieldContainer);
+                    return;
                 }
                 default: // text, color, etc.
                     inputHtml = `<input type="${schema.type}" class="config-input" data-status="${status}" data-key="${prop}" value="${value}">`;
