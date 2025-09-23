@@ -8,6 +8,7 @@ An interactive, real-time platform for bingo competitions built with Firebase. T
 *   **Secure Authentication**: Manages user access with Firebase Authentication (Google Sign-In), protecting sensitive admin and setup pages.
 *   **Role-Based Permissions**: A flexible four-tier permission system (Admin, Event Mod, Captain, Player) controls who can perform which actions.
 *   **Visual Board Editor**: A graphical interface (`setup.html`) for admins to visually arrange tiles, manage users, and configure all event settings directly in the browser.
+*   **Mass Tile Import/Export**: A dedicated page (`import.html`) to bulk import tiles from a CSV file with dynamic column mapping, and export all existing tiles to a CSV.
 *   **Direct Image Uploads**: Upload the board background and custom stamp images directly to Firebase Storage from the setup page.
 *   **Live Overview Dashboard**: A public-facing page (`overview.html`) with a leaderboard, activity feed, and score-over-time chart that can be toggled on or off.
 
@@ -21,6 +22,7 @@ The repository is organized into the following key files:
 -   **`admin.html`**: The dashboard for admins/mods to manage users and verify submissions.
 -   **`overview.html`**: The public-facing dashboard with leaderboards and activity charts.
 -   **`setup.html`**: The powerful graphical editor for admins to configure the entire event.
+-   **`import.html`**: The page for bulk importing and exporting tile data.
 
 -   **`auth.js`**: Handles all user authentication logic (sign-in, sign-out, role checking).
 -   **`firebase-config.js`**: Contains the Firebase project configuration. **(Requires your keys)**.
@@ -152,21 +154,35 @@ All pages contain a navigation bar at the top to easily switch between the Playe
 
 ### **Overview Page**
 
-This page provides a public dashboard for the event, showing a leaderboard, a live feed of recent completions, and a chart of each team's score over time.
+This page provides a public dashboard for the event, showing a leaderboard, a live feed of recent completions, and a chart of each team's score over time. It can be disabled by an admin in the `setup.html` page.
 
-### **Board Setup Page**
+### **Board Setup Page (`setup.html`)**
 
-This project includes a powerful **Board Setup** page that provides a graphical interface for editing the entire bingo board configuration. It is accessible from the main navigation bar.
+This is the central hub for event administrators. It provides a graphical interface for editing the entire bingo board configuration and is accessible only to users with the `Admin` role.
 
 #### **Features**
 
--   **Admin-Only Access**: Access is restricted to users authenticated with the `Admin` role.
+-   **Live Tile Editor**: Drag, resize, and edit tiles directly on a visual representation of the board. All changes are saved automatically.
+-   **Global Configuration**: Edit event-wide settings like the page title, board background image, and gameplay rules.
+-   **Team Management**: Create, rename, and delete teams.
+-   **Mass Import / Export**: A link to the dedicated `import.html` page to manage tiles in bulk.
+-   **Mass Deletion**: A "Delete All Tiles" button with a strong confirmation modal to safely clear the board.
 
 #### ⚠️ **Security Warning**
 
-The `setup.html` page provides full administrative control over the bingo board's configuration, including all styles, tiles, and event rules. Access is protected by Firebase Authentication, and only users with the `Admin` role (as defined in your Firestore `users` collection) can view and use this page.
+The `setup.html` page provides full administrative control over the bingo board's configuration. Access is protected by Firebase Authentication, and only users with the `Admin` role can view and use this page. Ensure that the `Admin` role is assigned only to trusted individuals.
 
-Ensure that the `Admin` role is assigned only to trusted individuals. You can manage user roles from the **Admin View** page or by directly editing the documents in the `users` collection in the Firebase console.
+### **Import/Export Page (`import.html`)**
+
+This page provides powerful tools for managing tile data in bulk. It is accessible from the **Board Setup** page and is restricted to `Admin` users.
+
+-   **Export to CSV**: Download all current tiles into a single CSV file. This file serves as a perfect template for editing and re-importing.
+-   **Import from CSV**:
+    -   **Column Mapping**: After uploading a CSV, you can dynamically map columns from your file to the required tile attributes (e.g., `id`, `Name`, `Points`).
+    -   **Import Modes**: Choose how to handle tiles from your CSV that have the same ID as existing tiles on the board:
+        -   `Create new & reject duplicates` (Default): A safe option that prevents accidental overwrites.
+        -   `Create new & overwrite duplicates`: Useful for updating existing tiles in bulk.
+    -   **Validation & Feedback**: The tool validates data before importing and provides detailed success and failure lists after the operation is complete.
 
 ### **Admin View**
 
@@ -175,17 +191,12 @@ This page is for managing user roles and verifying submissions. Access is restri
 *   **User Management**: Admins and Event Mods can assign roles and teams to users. Captains can assign players to their own team.
 *   **Submission Review**: Event Mods and Admins will see a list of all submissions. You can filter them by status, click any row to open an edit modal, and update the verification status.
 
-All data management is done through the web interface; editing external spreadsheets is no longer part of the workflow.
+### **Data Management**
 
-## Part 5: Data Migration (Optional)
+With the introduction of the **Import/Export Page**, managing data is now primarily done through the web interface.
 
-This is a one-time step only for users migrating data from a previous Google Sheets-based system. For new events, you can configure everything through the `setup.html` page.
-
-1.  **Export Sheets to CSV**: From your old Google Sheet, export the `Config` and `Tiles` sheets as separate CSV files and place them in your project folder.
-2.  **Run Migration Script**: A migration script (`migration-script.js`) is included to upload this data to Firestore. You will need to have Node.js installed.
-    *   **Install Dependencies**: In your terminal, run `npm install firebase-admin csv-parser`.
-    *   **Get Service Account Key**: In the Firebase Console, go to `Project Settings > Service Accounts`, and click "Generate new private key". Save the downloaded JSON file in your project folder.
-    *   **Run the Script**: Execute the script from your terminal, pointing it to your service key file: `node migration-script.js`.
+-   **For New Events**: The recommended workflow is to use the `setup.html` page for initial configuration and the `import.html` page for bulk-adding tiles from a CSV.
+-   **For Data Migration**: The old `migration-script.js` is still available for developers comfortable with Node.js or for migrating from a specific legacy Google Sheets format. However, for most use cases, exporting your old data to CSV and using the new import tool is the easier path.
 
 ## Note on AI Generation
 
