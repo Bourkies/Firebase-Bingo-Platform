@@ -14,11 +14,13 @@
     }
     body {
       font-family: var(--font-main); background-color: var(--bg-color); color: var(--primary-text);
-      margin: 0; padding: 2rem; box-sizing: border-box;
+      margin: 0; padding: 2rem; box-sizing: border-box; display: flex;
+      flex-direction: column;
+      align-items: center;
     }
     .navbar {
       width: 100%; max-width: 1400px; background-color: var(--surface-color); border-radius: 8px;
-      padding: 0.5rem 1rem; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between;
+      padding: 0.5rem 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between;
       align-items: center; box-sizing: border-box;
     }
     .nav-links a, .nav-actions button {
@@ -49,7 +51,7 @@
     }
     @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     .container {
-      width: 100%; max-width: 1400px; margin: 0 auto;
+      width: 100%; max-width: 1400px;
       display: grid;
       grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
       gap: 2rem;
@@ -188,8 +190,8 @@
     });
 
     function onAuthStateChanged(authState) {
-        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'block' : 'none';
-        document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'block' : 'none';
+        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
+        document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
     }
 
     function initializeApp() {

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Bingo Platform - User Permissions</title>
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --surface-color: #2d2d2d;
+      --primary-text: #e0e0e0;
+      --secondary-text: #a0a0a0;
+      --accent-color: #00b8d4;
+      --border-color: #444;
+      --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+    }
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg-color);
+      color: var(--primary-text);
+      margin: 0;
+      padding: 2rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .navbar {
+      width: 100%;
+      max-width: 1200px;
+      background-color: var(--surface-color);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .nav-links a, .nav-actions button {
+      color: var(--primary-text);
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+      background: none;
+      border: none;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .nav-links a:hover, .nav-actions button:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    .nav-links a.active {
+      background-color: var(--accent-color);
+      color: #111;
+      font-weight: bold;
+    }    
+    .global-loader {
+        position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+        background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+        background-size: 200% auto;
+        animation: loading-animation 1.5s linear infinite;
+        z-index: 9999; display: block;
+    }
+    @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .container { width: 100%; max-width: 1200px; margin: 0 auto; }
+    h1 { text-align: center; color: var(--accent-color); margin-bottom: 2rem; }
+    #access-denied { text-align: center; padding: 3rem; background-color: var(--surface-color); border-radius: 12px; max-width: 600px; margin: 4rem auto; display: none; }    
+    #permissions-view { display: none; width:100%; }
+    .card { background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px; }
+    .card h2 { margin-top: 0; }
+    #user-management-table { width: 100%; border-collapse: collapse; }
+    #user-management-table td, #user-management-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+    #user-management-table th { font-weight: bold; white-space: nowrap; }
+    #user-management-table input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; box-sizing: border-box; }
+    #user-management-table input:disabled { background-color: #333; color: #888; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="global-loader" class="global-loader"></div>
+  <div class="navbar">
+    <div class="nav-links">
+      <a href="./index.html">Player View</a>
+      <a href="./overview.html" id="overview-nav-link" style="display: none;">Overview</a>      
+      <a href="./admin.html" class="active">Admin</a>
+      <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
+    </div>
+    <div id="auth-container" class="nav-actions">
+        <span id="user-info"></span>
+        <button id="auth-button">Login</button>
+    </div>
+  </div>
+  <div id="main-content" style="width: 100%;">
+    <div id="access-denied">
+        <h1>Access Denied</h1>
+        <p>You must be an Admin to view this page. Please log in with an authorized account.</p>
+    </div>
+    <div id="permissions-view" class="container">
+        <h1>User Permissions</h1>
+        <div class="card">
+            <table id="user-management-table" style="table-layout: fixed;">
+                <thead><tr><th style="width: 40%;">Display Name</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th><th style="width: 30%;">Email</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth, signInWithGoogle, signOut } from './auth.js';
+ 
+    let allUsers = [], allTeams = {};
+    let unsubscribeUsers, unsubscribeTeams, unsubscribeConfig;
+ 
+    document.addEventListener('DOMContentLoaded', () => {
+        initAuth(onAuthStateChanged);
+    });
+    
+    async function onAuthStateChanged(authState) {
+        const authButton = document.getElementById('auth-button');
+        const userInfo = document.getElementById('user-info');
+        if (authState.isLoggedIn) {
+            authButton.textContent = 'Logout';
+            authButton.onclick = signOut;
+            const profile = authState.profile || {};
+            const roles = [];
+            if (profile.isAdmin) roles.push('Admin');
+            else if (profile.isEventMod) roles.push('Event Mod');
+            
+            const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
+            const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
+            const teamInfo = teamName ? ` | Team: ${teamName}` : '';
+            userInfo.textContent = `${profile.displayName || ''} ${roleString} ${teamInfo}`;
+        } else {
+            authButton.textContent = 'Login';
+            authButton.onclick = signInWithGoogle;
+            userInfo.textContent = '';
+        }
+
+        if (authState.isAdmin) {
+            document.getElementById('access-denied').style.display = 'none';
+            document.getElementById('permissions-view').style.display = 'block';
+            document.getElementById('setup-nav-link').style.display = 'inline-block';
+            initializeApp(authState);
+        } else {
+            document.getElementById('access-denied').style.display = 'block';
+            document.getElementById('permissions-view').style.display = 'none';
+            if (authState.isLoggedIn) {
+                document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Admin) to view this page.';
+            }
+            hideGlobalLoader();
+        }
+    }
+ 
+    function initializeApp(authState) {
+        if (unsubscribeUsers) unsubscribeUsers();
+        if (unsubscribeTeams) unsubscribeTeams();
+        if (unsubscribeConfig) unsubscribeConfig();
+
+        let initialDataLoaded = { users: false, teams: false, config: false };
+        const checkAllLoaded = () => {
+            if (Object.values(initialDataLoaded).every(Boolean)) {
+                hideGlobalLoader();
+            }
+        };
+
+        unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+            const config = doc.data() || {};
+            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
+            if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
+        });
+
+        const usersQuery = fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'));
+        unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
+            allUsers = snapshot.docs.map(doc => ({...doc.data(), uid: doc.id}));
+            renderUserManagement(authState);
+            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
+        });
+
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            renderUserManagement(authState);
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        });
+    }
+
+    function renderUserManagement(authState) {
+        const tbody = document.querySelector('#user-management-table tbody');
+        tbody.innerHTML = allUsers.map(user => {
+            // An admin can edit any user's roles, except they cannot remove their own admin status.
+            const canEditRoles = authState.isAdmin;
+            const canEditAdmin = authState.isAdmin && user.uid !== authState.user.uid;
+            const adminTooltip = !canEditAdmin ? 'title="Cannot remove your own admin status."' : '';
+
+            return `
+                <tr>
+                    <td>${user.displayName || ''}</td>
+                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles ? 'disabled' : ''}></td>
+                    <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
+                    <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
+                </tr>`;
+        }).join('');
+
+        document.querySelectorAll('.user-field').forEach(input => {
+            const eventType = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
+            const handler = async (e) => {
+                if(e.target.disabled) return;
+                const uid = e.target.dataset.uid;
+                const field = e.target.dataset.field;
+                const value = e.target.type === 'checkbox' ? e.target.checked : (e.target.value || null);
+                try {
+                    showGlobalLoader();
+                    await fb.updateDoc(fb.doc(db, 'users', uid), { [field]: value });
+                } catch (error) {
+                    console.error(`Failed to update user ${uid}:`, error);
+                    alert(`Update failed: ${error.message}`);
+                    e.target.type === 'checkbox' ? e.target.checked = !value : e.target.value = allUsers.find(u=>u.uid===uid)[field] || '';
+                } finally {
+                    hideGlobalLoader();
+                }
+            };
+
+            if (eventType === 'input') {
+                let timeout;
+                input.addEventListener(eventType, (e) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => handler(e), 1000);
+                });
+            } else {
+                input.addEventListener(eventType, handler);
+            }
+        });
+    }
+
+    function showGlobalLoader() { document.getElementById('global-loader').style.display = 'block'; }
+    function hideGlobalLoader() { document.getElementById('global-loader').style.display = 'none'; }
+  </script>
+</body>
+</html>

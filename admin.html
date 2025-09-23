@@ -29,7 +29,7 @@
     }
     .navbar {
       width: 100%;
-      max-width: 1200px;
+      max-width: 1400px;
       background-color: var(--surface-color);
       border-radius: 8px;
       padding: 0.5rem 1rem;
@@ -57,6 +57,31 @@
       background-color: var(--accent-color);
       color: #111;
       font-weight: bold;
+    }    
+    .admin-links-container {
+        width: 100%;
+        margin-bottom: 1.5rem;
+        background-color: var(--surface-color);
+        padding: 1rem;        
+        border-radius: 8px;
+        box-sizing: border-box;
+        display: flex;
+        gap: 1rem;
+    }
+    .admin-links-container .button-like-link {
+        background-color: #17a2b8;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        text-decoration: none;
+        transition: background-color 0.3s;
+        display: inline-block;
+        text-align: center;
+    }
+    .admin-links-container .button-like-link:hover {
+        background-color: #138496;
     }
     /* --- NEW: Global Loader --- */
     .global-loader {
@@ -75,17 +100,18 @@
     .container {
       width: 100%;
       max-width: 1400px;
-      margin: 0 auto;
     }
     h1 {
       text-align: center;
       color: var(--accent-color); margin-bottom: 2rem;
     }
-    #admin-view { display: none; width: 100%;}
+    #admin-view {
+      /* display is set to 'flex' by JS when active */
+      flex-direction: column;
+      align-items: center;
+    }
     #access-denied { text-align: center; padding: 3rem; background-color: var(--surface-color); border-radius: 12px; max-width: 600px; margin: 4rem auto; display: none; }
-    #admin-view { display: none; width:100%; max-width: 1400px; }
-    .dashboard-grid { display: grid; grid-template-columns: minmax(300px, 1fr) 2fr; gap: 2rem; }
-    @media (max-width: 960px) { .dashboard-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 960px) { /* No more grid */ }
     .card { background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px; }
     .card h2 { margin-top: 0; }
     #user-management-table { width: 100%; border-collapse: collapse; }
@@ -95,8 +121,29 @@
     #user-management-table select:disabled { background-color: #333; color: #888; cursor: not-allowed; }
 
     /* Submission Table Styles */
-    #submissions-filters { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+    #submissions-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+        align-items: center;
+    }
     #submissions-filters select, #submissions-filters input { background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px; }
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .filter-group label {
+        font-weight: bold;
+        white-space: nowrap;
+    }
+    .checkbox-filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    #submissions-filters input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
     #submissions-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     #submissions-table th, #submissions-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #submissions-table th { font-weight: bold; }
@@ -128,48 +175,66 @@
 </head>
 <body>
   <div id="global-loader" class="global-loader"></div>
+
+  <div class="navbar">
+    <div class="nav-links">
+      <a href="./index.html">Player View</a>
+      <a href="./overview.html" id="overview-nav-link" style="display: none;">Overview</a>
+      <a href="./admin.html" class="active">Admin</a>
+      <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
+    </div>
+    <div id="auth-container" class="nav-actions">
+        <span id="user-info"></span>
+        <button id="auth-button">Login</button>
+    </div>
+  </div>
+
   <div id="main-content" style="width: 100%;">
     <div id="access-denied">
         <h1>Access Denied</h1>
         <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
     </div>
-    <div id="admin-view" style="display: none; width: 100%;">
-        <div class="navbar" style="max-width: 1400px; margin-left: auto; margin-right: auto;">
-          <div class="nav-links">
-            <a href="./index.html">Player View</a>
-            <a href="./overview.html" id="overview-nav-link" style="display: none;">Overview</a>
-            <a href="./admin.html" class="active">Admin</a>
-            <a href="./setup.html" id="setup-nav-link" style="display: none;">Setup</a>
-          </div>
-          <div id="auth-container" class="nav-actions">
-              <span id="user-info"></span>
-              <button id="auth-button">Logout</button>
-          </div>
-        </div>
-        <h1>Admin Dashboard</h1>
-        <div class="container dashboard-grid">
-            <div id="user-management-card" class="card">
-                <h2>User Management</h2>
-                <table id="user-management-table" style="table-layout: fixed;">
-                    <thead><tr><th style="width: 30%;">Display Name</th><th style="width: 25%;">Team</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th><th style="width: 15%;">Email</th></tr></thead>
-                    <tbody></tbody>
-                </table>
+    <div id="admin-view">
+        <div class="container">
+            <h1>Admin Dashboard</h1>
+            <div class="admin-links-container">
+                <a href="./users.html" target="_blank" id="user-assignment-link" class="button-like-link" style="display: none;">Manage User Teams</a>
+                <a href="./permissions.html" target="_blank" id="user-permissions-link" class="button-like-link" style="display: none;">Manage Permissions</a>
             </div>
             <div id="submissions-card" class="card">
                 <h2>Submissions</h2>
                 <div id="submissions-filters">
-                    <select id="team-filter"><option value="all">All Teams</option></select>
-                    <select id="status-filter">
-                        <option value="all">All Statuses</option>
-                        <option value="Submitted">Submitted</option>
-                        <option value="Requires Action">Requires Action</option>
-                        <option value="Verified">Verified</option>
-                        <option value="Partially Complete">Partially Complete</option>
-                    </select>
+                    <div class="filter-group">
+                        <label for="search-filter">Search:</label>
+                        <input type="text" id="search-filter" placeholder="Filter by keyword...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="team-filter">Team:</label>
+                        <select id="team-filter"><option value="all">All Teams</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status:</label>
+                        <div class="checkbox-filter-group">
+                            <input type="checkbox" id="status-submitted" value="Submitted" checked> <label for="status-submitted">Submitted</label>
+                        </div>
+                        <div class="checkbox-filter-group">
+                            <input type="checkbox" id="status-requires-action" value="Requires Action" checked> <label for="status-requires-action">Requires Action</label>
+                        </div>
+                        <div class="checkbox-filter-group">
+                            <input type="checkbox" id="status-partially-complete" value="Partially Complete"> <label for="status-partially-complete">Partially Complete</label>
+                        </div>
+                        <div class="checkbox-filter-group">
+                            <input type="checkbox" id="status-verified" value="Verified"> <label for="status-verified">Verified</label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Time:</label>
+                        <div class="checkbox-filter-group"><input type="checkbox" id="utc-time-toggle"><label for="utc-time-toggle">Show UTC</label></div>
+                    </div>
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="submissions-table">
-                        <thead><tr><th>Status</th><th>Tile</th><th>Team</th><th>Player(s)</th><th>Submitted</th></tr></thead>
+                        <thead><tr><th>Status</th><th>Tile ID</th><th>Tile</th><th>Team</th><th>Player(s)</th><th>Submitted</th></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -204,41 +269,52 @@
 
   <script type="module">
     import { db, fb } from './firebase-config.js';
-    import { initAuth, signOut } from './auth.js';
+    import { initAuth, signInWithGoogle, signOut } from './auth.js';
  
     let allUsers = [], allTeams = {}, allTiles = {}, allSubmissions = [];
     let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
  
     document.addEventListener('DOMContentLoaded', () => {
         initAuth(onAuthStateChanged);
+        // Add listeners for all filter controls
         document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
-        document.getElementById('status-filter').addEventListener('change', renderSubmissionsTable);
+        document.getElementById('search-filter').addEventListener('input', renderSubmissionsTable);
+        document.querySelectorAll('#submissions-filters input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', renderSubmissionsTable);
+        });
         document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
         document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
     });
     
     async function onAuthStateChanged(authState) {
-        const teamsMap = allTeams || {}; // Use the globally populated allTeams map
-        const isCaptain = authState.isLoggedIn && Object.values(teamsMap).some(team => team.captainId === authState.user.uid);
-
-        if (authState.isEventMod || isCaptain) { // Mods, Admins, or Captains can access this page
-            document.getElementById('auth-button').onclick = signOut;
+        const authButton = document.getElementById('auth-button');
+        if (authState.isLoggedIn) {
+            authButton.textContent = 'Logout';
+            authButton.onclick = signOut;
             const userInfo = document.getElementById('user-info');
-            const teamName = (authState.profile?.team && teamsMap) ? (teamsMap[authState.profile.team]?.name || authState.profile.team) : '';
+            const profile = authState.profile || {};
+            const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
             const teamInfo = teamName ? ` | Team: ${teamName}` : '';
-            const role = authState.isAdmin ? 'Admin' : authState.isEventMod ? 'Event Mod' : isCaptain ? 'Captain' : 'Player';
-            userInfo.textContent = `${authState.profile.displayName} (${role})${teamInfo}`;
+            const role = authState.isAdmin ? 'Admin' : 'Event Mod';
+            userInfo.textContent = `${profile.displayName} (${role})${teamInfo}`;
+        } else {
+            authButton.textContent = 'Login';
+            authButton.onclick = signInWithGoogle;
+            document.getElementById('user-info').textContent = '';
+        }
 
+        if (authState.isEventMod) {
             document.getElementById('access-denied').style.display = 'none';
-            document.getElementById('admin-view').style.display = 'block';
-            document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
+            document.getElementById('admin-view').style.display = 'flex';
+            document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';            
+            document.getElementById('user-assignment-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
+            document.getElementById('user-permissions-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
             initializeApp(authState);
         } else {
             document.getElementById('access-denied').style.display = 'block';
             document.getElementById('admin-view').style.display = 'none';
-            // If user is logged in but not an admin, show a different message
             if (authState.isLoggedIn) {
-                document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Captain, Event Mod, or Admin) to view this page.';
+                document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Event Mod or Admin) to view this page.';
             }
             hideGlobalLoader();
         }
@@ -246,33 +322,23 @@
  
     function initializeApp(authState) {
         // Detach old listeners if they exist
-        if (unsubscribeUsers) unsubscribeUsers();
         if (unsubscribeConfig) unsubscribeConfig();
         if (unsubscribeTeams) unsubscribeTeams();
         if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
 
-        let initialDataLoaded = { users: false, config: false, teams: false, tiles: false, submissions: !authState.isEventMod }; // submissions not needed if not mod
+        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false };
         const checkAllLoaded = () => {
             if (Object.values(initialDataLoaded).every(Boolean)) {
                 hideGlobalLoader();
             }
         };
 
-        // Listener for users
-        const usersQuery = fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'));
-        unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
-            console.log("Admin: Users updated in real-time.");
-            allUsers = snapshot.docs.map(doc => ({...doc.data(), uid: doc.id}));
-            renderUserManagement(authState);
-            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error listening to users:", error); hideGlobalLoader(); });
-
         // Listener for config
         unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
             console.log("Admin: Config updated in real-time.");
             const config = doc.data() || {};
-            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'block' : 'none';
+            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
             
             if (authState.isEventMod) {
                 populateFilters();
@@ -286,7 +352,7 @@
             console.log("Admin: Teams updated in real-time.");
             allTeams = {};
             snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
-            renderUserManagement(authState);
+            populateFilters();
             if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
 
@@ -317,66 +383,6 @@
         }
     }
 
-    function renderUserManagement(authState) {
-        const tbody = document.querySelector('#user-management-table tbody');
-        tbody.innerHTML = allUsers.map(user => {
-            const teamOptions = Object.entries(allTeams).map(([id, data]) => `<option value="${id}" ${user.team === id ? 'selected' : ''}>${data.name}</option>`).join('');
-
-            // Determine edit permissions based on the logged-in user's role
-            const canEditRoles = authState.isAdmin || (authState.isEventMod && !user.isAdmin);
-            const canEditAdmin = authState.isAdmin;
-            const canEditTeam = authState.isEventMod; // Captain logic is handled by security rules
-            const canEditName = authState.isEventMod;
-
-            return `
-                <tr>
-                    <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${!canEditName ? 'disabled' : ''}></td>
-                    <td>
-                        <select class="user-field" data-uid="${user.uid}" data-field="team" ${!canEditTeam ? 'disabled' : ''}>
-                            <option value="">--None--</option>
-                            ${teamOptions}
-                        </select>
-                    </td>
-                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles ? 'disabled' : ''}></td>
-                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
-                    <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
-                </tr>`;
-        }).join('');
-
-        // Add event listeners to update Firestore on change
-        document.querySelectorAll('.user-field').forEach(input => {
-            const eventType = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
-            const handler = async (e) => {
-                if(e.target.disabled) return;
-                const uid = e.target.dataset.uid;
-                const field = e.target.dataset.field;
-                const value = e.target.type === 'checkbox' ? e.target.checked : (e.target.value || null);
-                try {
-                    showGlobalLoader();
-                    await fb.updateDoc(fb.doc(db, 'users', uid), { [field]: value });
-                } catch (error) {
-                    console.error(`Failed to update user ${uid}:`, error);
-                    alert(`Update failed: ${error.message}`);
-                    // Revert UI on failure (optional, but good UX)
-                    e.target.type === 'checkbox' ? e.target.checked = !value : e.target.value = allUsers.find(u=>u.uid===uid)[field] || '';
-                } finally {
-                    hideGlobalLoader();
-                }
-            };
-
-            if (eventType === 'input') {
-                // Debounce text inputs
-                let timeout;
-                input.addEventListener(eventType, (e) => {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(() => handler(e), 1000);
-                });
-            } else {
-                input.addEventListener(eventType, handler);
-            }
-        });
-    }
-
     function populateFilters() {
         const teamFilter = document.getElementById('team-filter');
         teamFilter.innerHTML = '<option value="all">All Teams</option>';
@@ -387,8 +393,14 @@
 
     function renderSubmissionsTable() {
         const tbody = document.querySelector('#submissions-table tbody');
+        // Get filter values
         const selectedTeam = document.getElementById('team-filter').value;
-        const selectedStatus = document.getElementById('status-filter').value;
+        const searchTerm = document.getElementById('search-filter').value.toLowerCase();
+        const showSubmitted = document.getElementById('status-submitted').checked;
+        const showRequiresAction = document.getElementById('status-requires-action').checked;
+        const showPartiallyComplete = document.getElementById('status-partially-complete').checked;
+        const showVerified = document.getElementById('status-verified').checked;
+        const useUtcTime = document.getElementById('utc-time-toggle').checked;
 
         // Create a map of user-facing IDs to tile data for quick lookups
         const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
@@ -397,20 +409,43 @@
         }, {});
 
         const filteredSubmissions = allSubmissions.filter(sub => {
-            const status = getSubmissionStatus(sub);
+            if (sub.IsArchived) return false;
+
+            // Team filter
             const teamMatch = selectedTeam === 'all' || sub.Team === selectedTeam;
-            const statusMatch = selectedStatus === 'all' || status === selectedStatus;
-            return teamMatch && statusMatch && !sub.IsArchived;
+            if (!teamMatch) return false;
+
+            // Status filter
+            const status = getSubmissionStatus(sub);
+            const statusMatch = (status === 'Submitted' && showSubmitted) ||
+                                (status === 'Requires Action' && showRequiresAction) ||
+                                (status === 'Partially Complete' && showPartiallyComplete) ||
+                                (status === 'Verified' && showVerified);
+            if (!statusMatch) return false;
+
+            // Search filter
+            if (searchTerm) {
+                const tileName = (tilesByVisibleId[sub.id]?.Name || '').toLowerCase();
+                const teamName = (allTeams[sub.Team]?.name || '').toLowerCase();
+                const playerName = (sub.PlayerName || '').toLowerCase();
+                const tileId = (sub.id || '').toLowerCase();
+
+                const searchIn = [teamName, tileId, tileName, playerName];
+                if (!searchIn.some(text => text.includes(searchTerm))) return false;
+            }
+            return true; // If all filters pass
         });
 
         tbody.innerHTML = filteredSubmissions.map(sub => {
             const status = getSubmissionStatus(sub);
             const tileName = tilesByVisibleId[sub.id]?.Name || sub.id; // Use the new map
             const teamName = allTeams[sub.Team]?.name || sub.Team;
-            const timestamp = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
+            const date = sub.Timestamp?.toDate();
+            const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
             return `
                 <tr data-id="${sub.docId}">
                     <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
+                    <td>${sub.id}</td>
                     <td title="${tileName}">${tileName}</td>
                     <td>${teamName}</td>
                     <td title="${sub.PlayerName}">${sub.PlayerName}</td>
@@ -446,9 +481,13 @@
         document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId[sub.id]?.Name || 'Unknown Tile'}`;
         document.getElementById('modal-team').textContent = teamName;
         document.getElementById('modal-players').textContent = sub.PlayerName;
-        document.getElementById('modal-timestamp').textContent = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
-        document.getElementById('modal-completion-timestamp').textContent = sub.CompletionTimestamp?.toDate()?.toLocaleString() || 'N/A';
         document.getElementById('modal-notes').textContent = sub.Notes || 'None';
+
+        const useUtcTime = document.getElementById('utc-time-toggle').checked;
+        const subTimestamp = sub.Timestamp?.toDate();
+        const completionTimestamp = sub.CompletionTimestamp?.toDate();
+        document.getElementById('modal-timestamp').textContent = subTimestamp ? (useUtcTime ? subTimestamp.toUTCString() : subTimestamp.toLocaleString()) : 'N/A';
+        document.getElementById('modal-completion-timestamp').textContent = completionTimestamp ? (useUtcTime ? completionTimestamp.toUTCString() : completionTimestamp.toLocaleString()) : 'N/A';
 
         let evidenceHTML = 'None';
         if (sub.Evidence) {
