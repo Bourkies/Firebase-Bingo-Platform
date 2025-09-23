@@ -4,6 +4,7 @@
 # Firebase
 # IMPORTANT: Never commit your service account keys or web app config!
 *.json
+!firebase.json
 firebase-config.js
 
 # Custom user files

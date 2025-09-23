@@ -157,6 +157,7 @@ These steps must be performed from a local clone of the repository.
         *   For your public directory, enter **`.`** (a single period for the current directory).
         *   Configure as a single-page app? **No**.
         *   Set up automatic builds and deploys with GitHub? **No** (we will do this in the next step).
+        *   When asked `File ./index.html already exists. Overwrite?`, choose **No**. This preserves the project's main HTML file.
 
 4.  **Link Repository to Firebase for GitHub Actions**:
     *   Now that `firebase.json` exists, you can link your repository.
