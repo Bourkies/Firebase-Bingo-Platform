@@ -261,8 +261,8 @@
             console.log("Overview: Submissions updated in real-time.");
             submissions = snapshot.docs.map(doc => ({
                 ...doc.data(),
-                id: doc.id,
-                Timestamp: doc.data().Timestamp?.toDate(),
+                docId: doc.id, // Store the document ID separately
+                Timestamp: doc.data().Timestamp?.toDate(), // Convert Firestore Timestamps to JS Dates
                 CompletionTimestamp: doc.data().CompletionTimestamp?.toDate()
             }));
             processAllData();
