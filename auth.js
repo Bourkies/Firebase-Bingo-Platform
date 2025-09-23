@@ -31,8 +31,10 @@ export async function signInWithGoogle() {
                 uid: result.user.uid,
                 email: result.user.email,
                 displayName: result.user.displayName,
-                role: 'Player', // Default role for new users
-                team: null
+                team: null,
+                isAdmin: false,
+                isEventMod: false,
+                hasSetDisplayName: false
             });
         }
     } catch (error) {
@@ -57,16 +59,14 @@ async function fetchUserProfile(uid) {
 
 export function getAuthState() {
     const profile = userProfile || {};
-    const isAdmin = profile.role === 'Admin';
-    const isEventMod = isAdmin || profile.role === 'Event Mod';
-    const isCaptain = isEventMod || profile.role === 'Captain';
+    const isAdmin = profile.isAdmin === true;
+    const isEventMod = isAdmin || profile.isEventMod === true;
 
     return {
         isLoggedIn: !!currentUser,
         user: currentUser,
         profile: userProfile,
-        isAdmin,
-        isEventMod,
-        isCaptain,
+        isAdmin: isAdmin,
+        isEventMod: isEventMod,
     };
 }

@@ -1,12 +1,17 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 // All necessary storage functions, including deleteObject
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 
-// TODO: Replace with your web app's Firebase configuration
+// =================================================================
+// TODO: 
+// Create a copy and rename to firebase-config.js
+// Replace the entire object below with the `firebaseConfig`
+// object from your Firebase project's settings.
+
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_AUTH_DOMAIN",
@@ -15,6 +20,8 @@ const firebaseConfig = {
   messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
   appId: "YOUR_APP_ID"
 };
+
+// =================================================================
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -28,7 +35,7 @@ export const auth = getAuth(app);
 // Export specific Firebase functions for convenience, organized by service.
 export const fb = {
     // Firestore
-    doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where,
+    doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc,
     // Storage
     ref, uploadBytes, getDownloadURL, deleteObject,
     // Auth

@@ -1,16 +1,21 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // By default, allow public read access for all files.
-    // This is suitable for board images, stamps, etc. that need to be displayed publicly.
-    match /{allPaths=**} {
+    // Matches any file in the 'config' directory, which is used for board assets.
+    match /config/{allPaths=**} {
+      // Allow anyone to read config images (e.g., board background, stamps).
+      // This is necessary for players and the public to see the board correctly.
       allow read: if true;
+
+      // Only allow authenticated users who are admins to write or delete files.
+      // This rule performs a check against the 'users' collection in Firestore
+      // to verify the 'isAdmin' flag for the person making the request.
+      allow write, delete: if request.auth != null &&
+                             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
     }
 
-    // Restrict write access to the 'config' folder to Admins only.
-    // This is where the setup page uploads the board background and stamps.
-    match /config/{allPaths=**} {
-      allow write: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'Admin';
-    }
+    // By default, deny access to all other paths. You can add more specific
+    // rules for other parts of your storage bucket if needed.
   }
 }

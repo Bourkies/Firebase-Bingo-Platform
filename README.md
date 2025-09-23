@@ -33,21 +33,46 @@ The repository is organized into the following key files:
 
 ### Step 1: Create and Configure Firebase Project
 
-1.  **Create a Firebase Project**: Go to the Firebase Console and create a new project.
-2.  **Add a Web App**: In your project's dashboard, click the `</>` (Web) icon to register a new web app. Give it a nickname and click "Register app".
-3.  **Copy Config**: After registering, Firebase will display a `firebaseConfig` object. Copy this entire object.
-4.  **Enable Services**:
-    *   **Authentication**: Go to `Build > Authentication`, click "Get started," and enable **Google** as a sign-in provider.
-    *   **Firestore**: Go to `Build > Firestore Database`, create a database in **Production mode**. You will be asked for a location; choose one that is geographically close to your users.
-    *   **Storage**: Go to `Build > Storage` and get it started.
-5.  **Update Project Config**:
-    *   Create a copy of the `firebase-config.example.js` file and rename it to `firebase-config.js`.
-    *   Open the new `firebase-config.js` file.
-    *   Replace the entire placeholder `firebaseConfig` object with the one you copied from the Firebase console. This file is ignored by Git to keep your keys secure.
+1.  **Create Firebase Project**: Go to the Firebase Console and create a new project.
+2.  **Prepare Local Config File**:
+    *   In your project folder, create a copy of `firebase-config.example.js` and rename it to `firebase-config.js`. This file will hold your project keys and is already listed in `.gitignore` to keep them secure.
+3.  **Add a Web App & Get Keys**:
+    *   In your project's dashboard, click the `</>` (Web) icon to register a new web app. Give it an easy-to-type nickname (e.g., `bingo-app`). This is for your reference in the console and is not user-facing.
+    *   Leave "Also set up Firebase Hosting for this app." unchecked. This will be handled later during deployment.
+    *   After registering, you will see an "Add Firebase SDK" section with two options: **npm** and **`<script>`**. This project uses direct imports, so select the **`<script>`** tab to see your configuration keys.
+    *   Open your local `firebase-config.js` file and replace the placeholder `firebaseConfig` object with the one from the console.
+        > **Important:** Copy only the object itself (from `const firebaseConfig = {` to the closing `};`), not the entire script with `import` statements.
+4.  **Enable Backend Services**:
+    *   **Authentication**:
+        *   Go to `Build > Authentication` and click "Get started."
+        *   On the "Sign-in method" tab, select **Google** from the list of providers.
+        *   Enable the Google provider by flipping the switch.
+        *   The "Public-facing name" will be pre-filled (e.g., `project-12345`). It's recommended to change this to your event's name (e.g., "Community Bingo").
+        *   Select a "Project support email" from the dropdown.
+        *   Click "Save". You can leave all other settings (like Authorized Domains) as they are.
+    *   **Firestore**:
+        *   Go to `Build > Firestore Database` and click "Create database".
+        *   If prompted to select an edition, choose **Standard** (this project uses Firestore in Native Mode).
+        *   You will be asked to choose a Cloud Firestore location. This is a critical step.
+            > **Important:** The location you choose for Firestore will also be the default location for Firebase Storage. For the free "Spark" plan, they **must** be in the same location.
+        *   A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
+        *   Select **Production mode** and click "Next".
+        *   Click "Enable".
+    *   **Storage**:
+        *   Go to `Build > Storage` and click "Get started".
+        *   You will likely be prompted to upgrade your project to the **Blaze (pay-as-you-go) plan**. This is required for Cloud Storage but still includes a generous free tier. You will need to add a billing account to proceed.
+        *   **Recommended: Set a Budget Alert**: To prevent accidental charges, it's highly recommended to set a budget alert immediately after enabling billing.
+            1.  Go to the Google Cloud Console Budgets page.
+            2.  Click **Create Budget**.
+            3.  Give it a name (e.g., "Firebase Zero Spend Alert") and ensure it's applied to your project.
+            4.  Under "Budget amount", select "Specified amount" and enter `1` as the target amount (the lowest possible).
+            5.  Under "Actions", set an alert threshold for **100%** of the budget for "Actual" cost. This will email you if your spending exceeds $1, giving you peace of mind.
+        *   **Finalize Storage Setup**:
+            *   Return to the Firebase Storage page and click "Get started" again if needed.
+            *   You will be asked for a Cloud Storage location. To stay within the free tier allowances and ensure compatibility with your Firestore location (`nam5`), choose a US-based location like **`us-central1`**.
+            *   Click "Done". You can accept the default security rules for now, as they will be updated in the next step.
 
 ### Step 2: Set Security Rules
-
-This project includes `firestore.rules` and `storage.rules`, which are essential for protecting your data and ensuring the role-based permission system works correctly.
 
 1.  **Firestore Rules**:
     *   In the Firebase Console, navigate to `Build > Firestore Database > Rules`.
@@ -61,67 +86,62 @@ This project includes `firestore.rules` and `storage.rules`, which are essential
     *   Copy the entire contents of the file and paste it into the rules editor, replacing any existing rules.
     *   Click "Publish".
 
-### Step 3: Assign Your First Admin (Crucial Step)
+## Part 2: Local Development & Deployment
 
-After setting up your project, you need to assign an `Admin` role to your own user account to access the `admin.html` and `setup.html` pages.
+You cannot open the `index.html` file directly in your browser. This project uses JavaScript modules, which require the files to be served by a web server. You can either run a local server for testing or deploy the site to Firebase Hosting.
 
-1.  **Open the App**: Open `index.html` in your browser (or your deployed site URL).
-2.  **Log In**: Click the "Login" button and sign in with the Google account you want to be the administrator. This action creates your user profile in the Firestore database.
-3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database`.
-4.  **Find Your User**: You should see a `users` collection. Click on it. Find the document that has an `email` field matching your email address.
-5.  **Update Your Role**:
-    *   Click on your user document to view its fields.
-    *   Find the `role` field, which is currently set to `"Player"`.
-    *   Change the value from `"Player"` to `"Admin"` (case-sensitive) and click "Update".
-6.  **Refresh the App**: Go back to the application and refresh the page. You should now see the "Admin" and "Setup" links in the navigation bar.
+> **Prerequisite: Node.js**
+> The following steps require Node.js and its package manager, npm.
+> *   Download and install the **LTS** (Long-Term Support) version from nodejs.org.
+> *   **Important**: During installation, ensure the option to "Add to PATH" is selected. This allows you to run `npm` commands from any terminal, including the one inside VS Code.
+> *   After installation, close and reopen your terminal (or VS Code entirely) for the changes to take effect.
 
-## **Part 2: Data Migration (One-Time Step)**
+### Local Development (Recommended for Setup)
+To test the application on your local machine, you can use a simple web server like `serve`.
+1.  **Install `serve`**: In your terminal, run `npm install -g serve`.
+2.  **Run the server**: From your project's root directory, run `serve .`
+3.  **Open the App**: The terminal will provide a local URL (e.g., `http://localhost:3000`). Open this URL in your browser.
 
-This is an **optional step** only for users migrating data from a previous Google Sheets-based system. For new events, you can configure everything through the `setup.html` page.
+### Deployment to Firebase Hosting
+You can deploy the site manually for quick tests or set up automated deployments from GitHub for a seamless workflow.
 
-1.  **Export Sheets to CSV**: From your old Google Sheet, export the `Config` and `Tiles` sheets as separate CSV files (e.g., `config.csv`, `tiles.csv`) and place them in your project folder.
-2.  **Run Migration Script**: A migration script (`migration-script.js`) is included to upload this data to Firestore. You will need to have Node.js installed.
-    *   **Install Dependencies**: In your terminal, run `npm install firebase-admin csv-parser`.
-    *   **Get Service Account Key**: In the Firebase Console, go to `Project Settings > Service Accounts`, and click "Generate new private key". Save the downloaded JSON file in your project folder.
-    *   **Run the Script**: Execute the script from your terminal, pointing it to your service key file: `node migration-script.js`.
+First, install the Firebase CLI: `npm install -g firebase-tools` and log in with `firebase login`.
 
-## **Part 3: Development & Deployment Workflow**
-
-Your project's code (HTML, JS, CSS) lives in a Git repository, while your event's data (tiles, teams, submissions) lives in Firebase. The following workflow allows you to host your code and have it automatically update whenever you push changes to Git.
-
-This project is designed to be managed in Git and deployed to Firebase Hosting.
-
-### **Local Development**
-To test the application on your local machine, you can use any simple web server. A popular choice is `serve`.
-1.  Install `serve`: `npm install -g serve`
-2.  Run the server from your project's root directory: `serve .`
-3.  Open the provided local URL (e.g., `http://localhost:3000`) in your browser.
-
-### **Deployment Options**
-You can deploy the site manually for quick tests or set up automated deployments from GitHub for a seamless workflow. First, install the Firebase CLI: `npm install -g firebase-tools` and log in with `firebase login`.
-
-#### **1. Manual Deployment (for testing)**
+#### Option 1: Manual Deployment
 1.  **Initialize Project**: In your project's root directory, run `firebase init hosting`.
     *   Select "Use an existing project" and choose the Firebase project you created.
-    *   What do you want to use as your public directory? Enter **`.`** (a single period for the current directory).
+    *   For your public directory, enter **`.`** (a single period for the current directory).
     *   Configure as a single-page app? **No**.
-    *   Set up automatic builds and deploys with GitHub? **No** (we'll do this next).
-2.  **Deploy**: Run `firebase deploy`. After a moment, the CLI will give you your live Hosting URL.
+    *   Set up automatic builds and deploys with GitHub? **No**.
+2.  **Deploy**: Run `firebase deploy`. The CLI will give you your live Hosting URL.
 
-#### **2. Automated Deployment with GitHub (Recommended)**
+#### Option 2: Automated Deployment with GitHub (Production Workflow)
 This is the ideal workflow for a live event. Every time you push a change to your main branch on GitHub, it will automatically deploy to Firebase Hosting.
 
 1.  **Push to GitHub**: Make sure your project is pushed to a GitHub repository.
 2.  **Run Init Command**: In your project's root directory, run `firebase init hosting:github`.
 3.  **Follow Prompts**:
-    *   The CLI will ask you to authorize with GitHub.
-    *   It will ask for your repository (`username/repo-name`).
-    *   When asked "What script should be run before every deploy?", you can leave it blank and press Enter.
-    *   It will ask to set up a workflow to deploy on push. Say **Yes**.
-    *   It will ask which branch to deploy from. The default is `main`.
-4.  **Done!**: The CLI will create a service account, add it as a secret to your GitHub repository, and create a `.github/workflows` directory with the deployment script. Now, any `git push` to your main branch will automatically update your live bingo site.
+    *   Authorize with GitHub and select your repository (`username/repo-name`).
+    *   When asked "What script should be run before every deploy?", leave it blank and press Enter.
+    *   Set up a workflow to deploy on push? **Yes**.
+    *   Choose the branch to deploy from (e.g., `main`).
+4.  **Done!**: The CLI creates a `.github/workflows` directory. Now, any `git push` to your main branch will automatically update your live site.
 
-## **Part 4: How to Use**
+## Part 3: Initial Admin Setup (Crucial Step)
+
+After setting up your Firebase project and serving the application (either locally or by deploying it), you must assign an `Admin` role to your own user account to access the `admin.html` and `setup.html` pages.
+
+1.  **Open the App**: Open the application using your local server URL (e.g., `http://localhost:3000`) or your deployed Firebase Hosting URL.
+2.  **Log In**: Click the "Login with Google" button and sign in with the account you want to be the administrator. This action creates your user profile in the Firestore database.
+3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database`.
+4.  **Find Your User**: You should see a `users` collection. Click on it, then find the document that has an `email` field matching your email address.
+5.  **Update Your Role**:
+    *   Click on your user document to view its fields.
+    *   Find the `isAdmin` field (it should be a boolean set to `false`).
+    *   Change the value from `false` to `true` and click "Update".
+6.  **Refresh the App**: Go back to the application tab and refresh the page. You should now see the "Admin" and "Setup" links in the navigation bar.
+
+## Part 4: How to Use
 
 All pages contain a navigation bar at the top to easily switch between the Player, Overview, and Admin views.
 
@@ -157,7 +177,17 @@ This page is for managing user roles and verifying submissions. Access is restri
 
 All data management is done through the web interface; editing external spreadsheets is no longer part of the workflow.
 
-## **Note on AI Generation**
+## Part 5: Data Migration (Optional)
+
+This is a one-time step only for users migrating data from a previous Google Sheets-based system. For new events, you can configure everything through the `setup.html` page.
+
+1.  **Export Sheets to CSV**: From your old Google Sheet, export the `Config` and `Tiles` sheets as separate CSV files and place them in your project folder.
+2.  **Run Migration Script**: A migration script (`migration-script.js`) is included to upload this data to Firestore. You will need to have Node.js installed.
+    *   **Install Dependencies**: In your terminal, run `npm install firebase-admin csv-parser`.
+    *   **Get Service Account Key**: In the Firebase Console, go to `Project Settings > Service Accounts`, and click "Generate new private key". Save the downloaded JSON file in your project folder.
+    *   **Run the Script**: Execute the script from your terminal, pointing it to your service key file: `node migration-script.js`.
+
+## Note on AI Generation
 
 This project was created collaboratively with Google's Gemini. While the logic and functionality have been guided and tested by a human developer, much of the boilerplate code and documentation was AI-generated.
 

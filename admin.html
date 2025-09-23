@@ -90,8 +90,8 @@
     .card h2 { margin-top: 0; }
     #user-management-table { width: 100%; border-collapse: collapse; }
     #user-management-table td, #user-management-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
-    #user-management-table th { font-weight: bold; }
-    #user-management-table select { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; }
+    #user-management-table th { font-weight: bold; white-space: nowrap; }
+    #user-management-table select, #user-management-table input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; box-sizing: border-box; }
     #user-management-table select:disabled { background-color: #333; color: #888; cursor: not-allowed; }
 
     /* Submission Table Styles */
@@ -150,8 +150,8 @@
         <div class="container dashboard-grid">
             <div id="user-management-card" class="card">
                 <h2>User Management</h2>
-                <table id="user-management-table">
-                    <thead><tr><th>User</th><th>Role</th><th>Team</th></tr></thead>
+                <table id="user-management-table" style="table-layout: fixed;">
+                    <thead><tr><th style="width: 30%;">Display Name</th><th style="width: 25%;">Team</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th><th style="width: 15%;">Email</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
@@ -205,21 +205,33 @@
   <script type="module">
     import { db, fb } from './firebase-config.js';
     import { initAuth, signOut } from './auth.js';
+ 
+    let allUsers = [], allTeams = {}, allTiles = {}, allSubmissions = [];
+    let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
+ 
+    document.addEventListener('DOMContentLoaded', () => {
+        initAuth(onAuthStateChanged);
+        document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
+        document.getElementById('status-filter').addEventListener('change', renderSubmissionsTable);
+        document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
+        document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
+    });
+    
+    async function onAuthStateChanged(authState) {
+        const teamsMap = allTeams || {}; // Use the globally populated allTeams map
+        const isCaptain = authState.isLoggedIn && Object.values(teamsMap).some(team => team.captainId === authState.user.uid);
 
-    let allUsers = [], allTeams = [], allTiles = {}, allSubmissions = [];
-
-    document.addEventListener('DOMContentLoaded', () => initAuth(onAuthStateChanged));
-
-    function onAuthStateChanged(authState) {
-        if (authState.isCaptain) { // Captains, Mods, and Admins can access this page
+        if (authState.isEventMod || isCaptain) { // Mods, Admins, or Captains can access this page
             document.getElementById('auth-button').onclick = signOut;
             const userInfo = document.getElementById('user-info');
-            const teamInfo = authState.profile?.team ? ` | Team: ${authState.profile.team}` : '';
-            userInfo.textContent = `${authState.profile?.role || 'Player'}${teamInfo}`;
+            const teamName = (authState.profile?.team && teamsMap) ? (teamsMap[authState.profile.team]?.name || authState.profile.team) : '';
+            const teamInfo = teamName ? ` | Team: ${teamName}` : '';
+            const role = authState.isAdmin ? 'Admin' : authState.isEventMod ? 'Event Mod' : isCaptain ? 'Captain' : 'Player';
+            userInfo.textContent = `${authState.profile.displayName} (${role})${teamInfo}`;
 
             document.getElementById('access-denied').style.display = 'none';
             document.getElementById('admin-view').style.display = 'block';
-            document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'block' : 'none';
+            document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
             initializeApp(authState);
         } else {
             document.getElementById('access-denied').style.display = 'block';
@@ -231,143 +243,145 @@
             hideGlobalLoader();
         }
     }
+ 
+    function initializeApp(authState) {
+        // Detach old listeners if they exist
+        if (unsubscribeUsers) unsubscribeUsers();
+        if (unsubscribeConfig) unsubscribeConfig();
+        if (unsubscribeTeams) unsubscribeTeams();
+        if (unsubscribeTiles) unsubscribeTiles();
+        if (unsubscribeSubmissions) unsubscribeSubmissions();
 
-    async function initializeApp(authState) {
-        try {
-            const [usersSnap, configSnap, tilesSnap] = await Promise.all([
-                fb.getDocs(fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'))),
-                fb.getDoc(fb.doc(db, 'config', 'main')),
-                fb.getDocs(fb.collection(db, 'tiles')),
-            ]);
-
-            allUsers = usersSnap.docs.map(doc => ({...doc.data(), uid: doc.id}));
-            const config = configSnap.data() || {};
-            allTeams = config.teams || [];
-            document.getElementById('overview-nav-link').style.display = String(config.enableOverviewPage).toUpperCase() === 'TRUE' ? 'block' : 'none';
-            tilesSnap.forEach(doc => { allTiles[doc.id] = doc.data(); });
-
-            renderUserManagement(authState);
-            // Only show submission manager to Mods/Admins
-            if (authState.isEventMod) {
-                document.getElementById('submissions-card').style.display = 'block';
-                setupSubmissionsListener(authState);
-            } else {
-                document.getElementById('submissions-card').style.display = 'none';
+        let initialDataLoaded = { users: false, config: false, teams: false, tiles: false, submissions: !authState.isEventMod }; // submissions not needed if not mod
+        const checkAllLoaded = () => {
+            if (Object.values(initialDataLoaded).every(Boolean)) {
+                hideGlobalLoader();
             }
-            hideGlobalLoader();
-        } catch (error) {
-            console.error("Initialization failed:", error);
-            hideGlobalLoader();
+        };
+
+        // Listener for users
+        const usersQuery = fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'));
+        unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
+            console.log("Admin: Users updated in real-time.");
+            allUsers = snapshot.docs.map(doc => ({...doc.data(), uid: doc.id}));
+            renderUserManagement(authState);
+            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to users:", error); hideGlobalLoader(); });
+
+        // Listener for config
+        unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+            console.log("Admin: Config updated in real-time.");
+            const config = doc.data() || {};
+            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'block' : 'none';
+            
+            if (authState.isEventMod) {
+                populateFilters();
+            }
+            if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to config:", error); hideGlobalLoader(); });
+
+        // Listener for the new teams collection
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            console.log("Admin: Teams updated in real-time.");
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            renderUserManagement(authState);
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
+
+        // Listener for tiles
+        unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+            console.log("Admin: Tiles updated in real-time.");
+            // Key by docId, value is the tile data object
+            const newTiles = {};
+            snapshot.forEach(doc => { newTiles[doc.id] = { ...doc.data(), docId: doc.id }; });
+            allTiles = newTiles;
+            
+            if (authState.isEventMod) renderSubmissionsTable();
+            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to tiles:", error); hideGlobalLoader(); });
+
+        // Listener for submissions
+        if (authState.isEventMod) {
+            document.getElementById('submissions-card').style.display = 'block';
+            const submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.orderBy('Timestamp', 'desc'));
+            unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+                console.log("Admin: Submissions updated in real-time.");
+                allSubmissions = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+                renderSubmissionsTable();
+                if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
+            });
+        } else {
+            document.getElementById('submissions-card').style.display = 'none';
         }
     }
 
     function renderUserManagement(authState) {
         const tbody = document.querySelector('#user-management-table tbody');
-        let usersToDisplay = allUsers;
+        tbody.innerHTML = allUsers.map(user => {
+            const teamOptions = Object.entries(allTeams).map(([id, data]) => `<option value="${id}" ${user.team === id ? 'selected' : ''}>${data.name}</option>`).join('');
 
-        // Captains can only see their own team members and unassigned players
-        if (authState.isCaptain && !authState.isEventMod) {
-            usersToDisplay = allUsers.filter(user => !user.team || user.team === authState.profile.team);
-        }
-
-        tbody.innerHTML = usersToDisplay.map(user => {
-            const canEditUser = authState.isAdmin || (authState.isEventMod && user.role !== 'Admin');
-            
-            let teamOptions;
-            if (authState.isCaptain && !authState.isEventMod) {
-                // Captains can only assign to their own team
-                teamOptions = `<option value="${authState.profile.team}" ${user.team === authState.profile.team ? 'selected' : ''}>${authState.profile.team}</option>`;
-            } else {
-                // Admins/Mods can assign to any team
-                teamOptions = allTeams.map(team => `<option value="${team.name}" ${user.team === team.name ? 'selected' : ''}>${team.name}</option>`).join('');
-            }
-
-            const roleSelectorHTML = (() => {
-                // Captains cannot change roles at all
-                if (authState.isCaptain && !authState.isEventMod) {
-                    return `<select disabled><option selected>${user.role || 'Player'}</option></select>`;
-                }
-
-                // Admins can assign any role
-                if (authState.isAdmin) {
-                    return `
-                        <select class="role-select" data-uid="${user.uid}">
-                            <option value="Player" ${user.role === 'Player' ? 'selected' : ''}>Player</option>
-                            <option value="Captain" ${user.role === 'Captain' ? 'selected' : ''}>Captain</option>
-                            <option value="Event Mod" ${user.role === 'Event Mod' ? 'selected' : ''}>Event Mod</option>
-                            <option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option>
-                        </select>`;
-                }
-                // Event Mods cannot assign Admin role or edit other Admins/Mods
-                if (user.role === 'Admin') return `<select disabled><option selected>Admin</option></select>`;
-                if (user.role === 'Event Mod' && user.uid !== authState.user.uid) return `<select disabled><option selected>Event Mod</option></select>`;
-                return `
-                    <select class="role-select" data-uid="${user.uid}" ${!canEditUser ? 'disabled' : ''}>
-                        <option value="Player" ${user.role === 'Player' ? 'selected' : ''}>Player</option>
-                        <option value="Captain" ${user.role === 'Captain' ? 'selected' : ''}>Captain</option>
-                        <option value="Event Mod" ${user.role === 'Event Mod' ? 'selected' : ''}>Event Mod</option>
-                    </select>`;
-            })();
-
-            const teamSelectorDisabled = (() => {
-                if (authState.isCaptain && !authState.isEventMod) return false; // Captains can edit teams
-                if (!canEditUser) return true;
-                return false;
-            })();
-
+            // Determine edit permissions based on the logged-in user's role
+            const canEditRoles = authState.isAdmin || (authState.isEventMod && !user.isAdmin);
+            const canEditAdmin = authState.isAdmin;
+            const canEditTeam = authState.isEventMod; // Captain logic is handled by security rules
+            const canEditName = authState.isEventMod;
 
             return `
                 <tr>
-                    <td>${user.displayName || user.email}</td>
-                    <td>${roleSelectorHTML}</td>
+                    <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${!canEditName ? 'disabled' : ''}></td>
                     <td>
-                        <select class="team-select" data-uid="${user.uid}" ${teamSelectorDisabled ? 'disabled' : ''}>
+                        <select class="user-field" data-uid="${user.uid}" data-field="team" ${!canEditTeam ? 'disabled' : ''}>
                             <option value="">--None--</option>
                             ${teamOptions}
                         </select>
                     </td>
+                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles ? 'disabled' : ''}></td>
+                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
+                    <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
                 </tr>`;
         }).join('');
 
         // Add event listeners to update Firestore on change
-        document.querySelectorAll('.role-select, .team-select').forEach(select => {
-            select.addEventListener('change', async (e) => {
+        document.querySelectorAll('.user-field').forEach(input => {
+            const eventType = input.type === 'checkbox' || input.tagName === 'SELECT' ? 'change' : 'input';
+            const handler = async (e) => {
                 if(e.target.disabled) return;
                 const uid = e.target.dataset.uid;
-                const field = e.target.classList.contains('role-select') ? 'role' : 'team';
-                const value = e.target.value || null;
+                const field = e.target.dataset.field;
+                const value = e.target.type === 'checkbox' ? e.target.checked : (e.target.value || null);
                 try {
                     showGlobalLoader();
                     await fb.updateDoc(fb.doc(db, 'users', uid), { [field]: value });
                 } catch (error) {
                     console.error(`Failed to update user ${uid}:`, error);
-                    // Optionally show an error message to the user
+                    alert(`Update failed: ${error.message}`);
+                    // Revert UI on failure (optional, but good UX)
+                    e.target.type === 'checkbox' ? e.target.checked = !value : e.target.value = allUsers.find(u=>u.uid===uid)[field] || '';
                 } finally {
                     hideGlobalLoader();
                 }
-            });
-        });
-    }
+            };
 
-    function setupSubmissionsListener(authState) {
-        const q = fb.query(fb.collection(db, 'submissions'), fb.orderBy('Timestamp', 'desc'));
-        fb.onSnapshot(q, (snapshot) => {
-            allSubmissions = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
-            populateFilters();
-            renderSubmissionsTable();
+            if (eventType === 'input') {
+                // Debounce text inputs
+                let timeout;
+                input.addEventListener(eventType, (e) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => handler(e), 1000);
+                });
+            } else {
+                input.addEventListener(eventType, handler);
+            }
         });
-
-        document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
-        document.getElementById('status-filter').addEventListener('change', renderSubmissionsTable);
-        document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
-        document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
     }
 
     function populateFilters() {
         const teamFilter = document.getElementById('team-filter');
         teamFilter.innerHTML = '<option value="all">All Teams</option>';
-        allTeams.forEach(team => {
-            teamFilter.innerHTML += `<option value="${team.name}">${team.name}</option>`;
+        Object.entries(allTeams).forEach(([id, data]) => {
+            teamFilter.innerHTML += `<option value="${id}">${data.name}</option>`;
         });
     }
 
@@ -375,6 +389,12 @@
         const tbody = document.querySelector('#submissions-table tbody');
         const selectedTeam = document.getElementById('team-filter').value;
         const selectedStatus = document.getElementById('status-filter').value;
+
+        // Create a map of user-facing IDs to tile data for quick lookups
+        const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
+            if (tile.id) acc[tile.id] = tile;
+            return acc;
+        }, {});
 
         const filteredSubmissions = allSubmissions.filter(sub => {
             const status = getSubmissionStatus(sub);
@@ -385,13 +405,14 @@
 
         tbody.innerHTML = filteredSubmissions.map(sub => {
             const status = getSubmissionStatus(sub);
-            const tileName = allTiles[sub.TileID]?.Name || sub.TileID;
+            const tileName = tilesByVisibleId[sub.id]?.Name || sub.id; // Use the new map
+            const teamName = allTeams[sub.Team]?.name || sub.Team;
             const timestamp = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
             return `
                 <tr data-id="${sub.id}">
                     <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
                     <td title="${tileName}">${tileName}</td>
-                    <td>${sub.Team}</td>
+                    <td>${teamName}</td>
                     <td title="${sub.PlayerName}">${sub.PlayerName}</td>
                     <td>${timestamp}</td>
                 </tr>
@@ -414,9 +435,16 @@
         const sub = allSubmissions.find(s => s.id === submissionId);
         if (!sub) return;
 
+        // Create a map of user-facing IDs to tile data for quick lookups
+        const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
+            if (tile.id) acc[tile.id] = tile;
+            return acc;
+        }, {});
+
         document.getElementById('modal-submission-id').value = sub.id;
-        document.getElementById('modal-tile-name').textContent = `${sub.TileID}: ${allTiles[sub.TileID]?.Name || 'Unknown Tile'}`;
-        document.getElementById('modal-team').textContent = sub.Team;
+        const teamName = allTeams[sub.Team]?.name || sub.Team;
+        document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId[sub.id]?.Name || 'Unknown Tile'}`;
+        document.getElementById('modal-team').textContent = teamName;
         document.getElementById('modal-players').textContent = sub.PlayerName;
         document.getElementById('modal-timestamp').textContent = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
         document.getElementById('modal-completion-timestamp').textContent = sub.CompletionTimestamp?.toDate()?.toLocaleString() || 'N/A';

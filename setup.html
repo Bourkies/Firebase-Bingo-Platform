@@ -246,13 +246,24 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
+            gap: 15px;
         }
         .details-header h2 {
             margin: 0;
+            flex-shrink: 0;
         }
         #add-new-tile-btn {
             margin-top: 0;
             background-color: #28a745;
+        }
+        #tile-selector-dropdown {
+            flex-grow: 1;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 8px;
+            max-width: 400px;
         }
         #delete-tile-btn {
             margin-top: 0;
@@ -324,13 +335,24 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            margin-bottom: 10px;
         }
         .override-item {
             display: grid;
-            grid-template-columns: 1fr 2fr 40px;
+            grid-template-columns: 150px 1fr 1fr 40px;
             gap: 10px;
             align-items: center;
+        }
+        #overrides-json-textarea {
+            width: 100%;
+            min-height: 100px;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-bottom: 10px;
         }
         #add-override-btn {
             background-color: #007bff;
@@ -378,6 +400,20 @@
             /* Give text inputs in compound fields a fixed width */
             width: 80px;
         }
+        .button-like-label {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: center;
+            white-space: nowrap;
+            transition: background-color 0.2s;
+        }
+        .button-like-label:hover {
+            background-color: #0088cc; /* A darker shade of the accent */
+        }
         #teams-container {
             display: flex;
             flex-direction: column;
@@ -403,14 +439,57 @@
             margin-top: 10px;
             width: fit-content;
         }
-
-        /* --- Prerequisite Editor Styles --- */
-        #prereq-editor-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+        .remove-team-btn {
+            background-color: #c0392b;
         }
-        #prereq-ui-container {
+        .team-item-header {
+            display: grid;
+            grid-template-columns: 100px 1fr 1fr 80px;
+            gap: 10px;
+            padding-bottom: 8px;
+            font-weight: bold;
+            color: #aaa;
+            border-bottom: 1px solid #444;
+        }
+        /* New layout for the tile details form */
+        #details-form {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr); /* 10 columns for flexible layout */
+            gap: 15px;
+        }
+        /* Assign fields to grid columns/rows */
+        .form-field[data-key="docId"]        { grid-column: span 2; }
+        .form-field[data-key="id"]           { grid-column: span 2; }
+        .form-field[data-key="Name"]         { grid-column: span 3; }
+        .form-field[data-key="Points"]       { grid-column: span 3; }
+
+        .form-field[data-key="Description"]  { grid-column: 1 / -1; } /* Full width */
+
+        /* 5 position fields on one row */
+        .form-field[data-key="Left (%)"]     { grid-column: span 2; }
+        .form-field[data-key="Top (%)"]      { grid-column: span 2; }
+        .form-field[data-key="Width (%)"]    { grid-column: span 2; }
+        .form-field[data-key="Height (%)"]   { grid-column: span 2; }
+        .form-field[data-key="Rotation"]     { grid-column: span 2; }
+
+        .form-field[data-key="Prerequisites"] { grid-column: 1 / -1; } /* Full width */
+        
+
+        .team-item {
+            display: grid;
+            grid-template-columns: 100px 1fr 1fr 80px;
+            gap: 10px;
+            align-items: center;
+        }
+        .team-id-display {
+            background-color: #1a1a1a;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #aaa;
+            text-align: center;
+        }
+        .prereq-or-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -419,14 +498,15 @@
             border-radius: 4px;
             background-color: #1a1a1a;
         }
-        .prereq-or-group {
+        #prereq-ui-container {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .prereq-or-label {
-            font-weight: bold;
-            color: var(--accent-color);
+        #prereq-editor-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
         .prereq-and-input {
             flex-grow: 1;
@@ -435,6 +515,27 @@
         .image-upload-preview {
             max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px;
             border: 1px solid #444; background-color: #111; border-radius: 4px;
+        }
+        .prereq-or-label {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        .error-message {
+            padding: 2rem; background-color: #4d2a2a; border: 2px dashed #c0392b;
+            border-radius: 8px; text-align: center; width: 80%; word-wrap: break-word;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .tooltip-icon {
+            margin-left: 8px; color: #888; cursor: help; font-size: 0.8em;
+            font-weight: normal; border-bottom: 1px dotted #888; display: inline-block;
+        }
+        .stamp-fieldset legend label {
+            margin-bottom: 0; /* Override default form-field margin */
+        }
+        .prereq-validation-msg, .validation-msg {
+            font-size: 0.8em; color: #e57373; margin-top: 4px;
+            display: block; min-height: 1.2em;
         }
 
     </style>
@@ -446,7 +547,7 @@
 <div id="main-content" style="display: block; width: 100%; display: flex; flex-direction: column; align-items: center;">
     <div id="access-denied" style="display: block;">
         <h1>Access Denied</h1>
-        <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
+        <p>You must be an Admin to view this page. Please log in with an authorized account.</p>
     </div>
     <div id="setup-view" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
     <div class="navbar">
@@ -457,14 +558,10 @@
             <a href="./setup.html" target="_top" class="active">Board Setup</a>
         </div>
     </div>
-    <h1>Bingo Board Setup</h1>
-    <p>Live editor for the bingo board configuration. Load the current settings from Firebase, make your changes to tiles, styles, and security, then save everything back. Remember to save your changes!</p>
+    <h1>Bingo Board Live Editor</h1>
+    <p>This is a live editor for the bingo board configuration. All changes to tiles, styles, and settings are saved to Firebase automatically.</p>
 
     <div class="controls">
-        <div class="main-actions">
-            <button id="load-data-btn" onclick="initializeApp()">Refresh Data</button>
-            <button id="save-data-btn" onclick="saveDataToFirebase()">Save All Changes to Firebase</button>
-        </div>
         <div class="zoom-control">
             <label for="zoom-slider">Zoom:</label>
             <input type="range" id="zoom-slider" min="1" max="5" value="1" step="0.1">
@@ -491,13 +588,19 @@
                 </div>
             </div>
         </div>
-        <div id="security-editor-box" class="details-panel">
+        <div id="teams-editor-box" class="details-panel">
             <div class="details-header">
-                <h2>Security & Teams</h2>
-                <button id="toggle-security-btn" title="Toggle Visibility">-</button>
+                <h2>Event Teams</h2>
+                <button id="toggle-teams-btn" title="Toggle Visibility">-</button>
             </div>
-            <form id="security-form">
-                <fieldset class="overrides-fieldset"><legend>Event Teams</legend><div id="teams-container" class="fieldset-content" style="display: flex;"></div><button type="button" id="add-team-btn">+ Add Team</button></fieldset>
+            <form id="teams-form">
+                <div class="team-item-header">
+                    <span>Team ID</span>
+                    <span>Team Name</span>
+                    <span>Captain</span>
+                    <span>Action</span>
+                </div>
+                <div id="teams-container"></div><button type="button" id="add-team-btn">+ Add New Team</button>
             </form>
         </div>
         <div id="global-style-editor-box" class="details-panel">
@@ -513,28 +616,11 @@
         <div id="tile-editor-box" class="details-panel">
             <div class="details-header">
                 <h2>Edit Tile Details</h2>
+                <select id="tile-selector-dropdown"></select>
                 <button id="delete-tile-btn" disabled>Delete Selected Tile</button>
                 <button id="add-new-tile-btn">Add New Tile</button>
             </div>
             <form id="details-form"></form>
-        </div>
-        <div class="outputs-container">
-            <div class="output-panel">
-                <h2>Generated Tile Position CSV</h2>
-                <textarea id="csv-output" readonly placeholder="Load a tile position CSV to see the output..."></textarea>
-                <div class="output-buttons">
-                    <button id="copy-button">Copy Tile CSV</button>
-                    <button id="download-button">Download Tile CSV</button>
-                </div>
-            </div>
-            <div class="output-panel">
-                <h2>Generated Config &amp; Style CSV</h2>
-                <textarea id="style-csv-output" readonly placeholder="Load or edit config &amp; styles to see the output..."></textarea>
-                <div class="output-buttons">
-                    <button id="copy-style-button">Copy Config CSV</button>
-                    <button id="download-style-button">Download Config CSV</button>
-                </div>
-            </div>
         </div>
     </div>
     </div>
@@ -544,17 +630,36 @@
         import { db, storage, fb } from './firebase-config.js';
         import { initAuth } from './auth.js';
 
-        let tilesData = [];
+        let tilesData = [], allUsers = [], allTeams = {};
         let config = {}; // NEW: Central object for global config/styles
-        let csvHeader = [];
-        let csvSeparator = ',';
+        let allStyles = {}; // NEW: Central object for status-specific styles
         let newTileCounter = 1;
         let lastSelectedTileIndex = null;
         let currentPreviewStatus = null;
         const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
         let prereqVisMode = 'hide';
 
+        // NEW: Real-time listener unsubscribe functions
+        let unsubscribeConfig = null;
+        let unsubscribeTiles = null;
+        let unsubscribeUsers = null;
+        let unsubscribeTeams = null, unsubscribeStyles = null; // NEW
+
         // NEW: Schema-driven configuration
+        const TILE_FIELDS = ['docId', 'id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Prerequisites'];
+        const TILE_FIELD_DESCRIPTIONS = {
+            'docId': 'The internal, unique, non-editable Firestore document ID.',
+            'id': 'The user-facing "Tile ID" used for display and prerequisites (e.g., "B1"). Must be unique across all tiles.',
+            'Name': 'The display name of the tile, shown on the board and in modals.',
+            'Description': 'A longer description of the tile task, shown in the submission modal.',
+            'Prerequisites': 'The requirements to unlock this tile. Use the UI below to define AND/OR logic. Raw format: a comma-separated list for a single AND group (e.g., "A1,A2"), or a JSON array for complex OR groups (e.g., [["A1","A2"],["B1"]]).',
+            'Points': 'The number of points this tile is worth when completed.',
+            'Rotation': 'The rotation of the tile on the board (e.g., "15deg").',
+            'Top (%)': 'The position of the tile\'s top edge as a percentage of the board\'s height.',
+            'Left (%)': 'The position of the tile\'s left edge as a percentage of the board\'s width.',
+            'Width (%)': 'The width of the tile as a percentage of the board\'s width.',
+            'Height (%)': 'The height of the tile as a percentage of the board\'s height.'
+        };
         const configSchema = {
             // General
             pageTitle: { label: 'Page Title', type: 'text', description: 'The title displayed at the top of the bingo page and in the browser tab.' },
@@ -569,46 +674,42 @@
             boardVisibility: { label: 'Board Visibility', type: 'select', options: ['public', 'private'], description: 'If "private", players can only see their own team\'s board state unless they are an admin.' },
             evidenceFieldLabel: { label: 'Evidence Field Label', type: 'text', description: 'The text label displayed above the evidence submission inputs in the modal.' },
             loadFirstTeamByDefault: { label: 'Load First Team by Default', type: 'boolean', description: 'Set to TRUE to automatically load the first team in the list on the player page, instead of showing "Select a Team...".' },
-            // Default Tile Styling
-            defaultTileShape: { label: 'Default Tile Shape', type: 'select', options: ['Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'], description: 'The overall shape of the tiles.' },
-            defaultTileBorderWidth: { label: 'Default Tile Border Width', type: 'text', description: 'The thickness of the border on all tiles (e.g., 2px).' },
-            defaultTileBorderColor: { label: 'Default Tile Border Color', type: 'color', description: 'The color of the border on all tiles.' },
-            hoverTileBorderWidth: { label: 'Hover Tile Border Width', type: 'text', description: 'The thickness of the border when a user hovers over a tile.' },
-            hoverTileBorderColor: { label: 'Hover Tile Border Color', type: 'color', description: 'The color of the border when a user hovers over a tile.' },
+            promptForDisplayNameOnLogin: { label: 'Prompt for Display Name', type: 'boolean', description: 'Set to TRUE to show a welcome modal on first login, prompting users to set a custom display name.' },
+            welcomeMessage: { label: 'Welcome Message', type: 'textarea', description: 'The message shown in the welcome modal. Use {displayName} as a placeholder for the user\'s current name.' },
         };
 
-        STATUSES.forEach(status => {
-            const statusKey = status.replace(/\s+/g, ''); // e.g., 'PartiallyComplete'
-            configSchema[`tileColor${statusKey}`] = { label: `Tile ${status} Color`, type: 'color', description: `Background color for tiles that are "${status}".` };
-            configSchema[`tileOpacity${statusKey}`] = { label: `${status} Opacity`, type: 'range', min: 0, max: 1, step: 0.01, description: `Opacity (transparency) for "${status}" tiles. 0 is fully transparent, 1 is fully opaque.` };
-            configSchema[`useStampByDefault${statusKey}`] = { label: `Use Stamp (${status})`, type: 'boolean', description: `Set to TRUE to show the stamp image on "${status}" tiles.` };
-            configSchema[`stampImageUrl${statusKey}`] = { label: `Stamp Image (${status})`, type: 'image', path: `config/stamps/${status.replace(/\s+/g, '_').toLowerCase()}`, description: `URL for the stamp image to display on "${status}" tiles. You can also upload a file.` };
-            configSchema[`stampScale${statusKey}`] = { label: `Stamp Scale (${status})`, type: 'range', min: 0, max: 3, step: 0.05, description: `Size multiplier for the stamp on "${status}" tiles (e.g., 1 is 100%, 0.5 is 50%).` };
-            configSchema[`stampRotation${statusKey}`] = { label: `Stamp Rotation (${status})`, type: 'text', description: `Rotation of the stamp on "${status}" tiles (e.g., 45deg).` };
-            configSchema[`stampPosition${statusKey}`] = { label: `Stamp Position (${status})`, type: 'text', description: `Position of the stamp within the tile for "${status}" status (e.g., center, top left).` };
-        });
+        // NEW: Schema for properties within each style document
+        const styleSchema = {
+            // Appearance
+            shape: { label: 'Tile Shape', type: 'select', options: ['Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'], description: 'The overall shape of the tiles.' },
+            fill: { label: 'Tile Fill', type: 'colorAndOpacity', description: 'The background color and opacity for the tile.' },
+            // Border
+            border: { label: 'Border', type: 'widthAndColor', keys: { width: 'borderWidth', color: 'borderColor' }, unit: 'px', description: 'The tile\'s border width and color.' },
+            // Hover Border
+            hoverBorder: { label: 'Hover Border', type: 'widthAndColor', keys: { width: 'hoverBorderWidth', color: 'hoverBorderColor' }, unit: 'px', description: 'The border width and color on hover.' },
+            // Stamp
+            useStampByDefault: { label: 'Use Stamp', type: 'boolean', description: 'Toggles the use of a stamp image for this status. When enabled, the settings below will apply.' },
+            stampImageUrl: { label: 'Stamp Image', type: 'image', path: 'styles/stamps/', description: 'URL for the stamp image to display on tiles. You can also upload a file.' },
+            stampScale: { label: `Stamp Scale`, type: 'range', min: 0, max: 3, step: 0.05, description: `Size multiplier for the stamp (e.g., 1 is 100%, 0.5 is 50%).` },
+            stampRotation: { label: `Stamp Rotation`, type: 'text', description: 'Rotation of the stamp (e.g., "45deg").' },
+            stampPosition: { label: `Stamp Position`, type: 'text', description: 'CSS background-position value for the stamp (e.g., "center", "top left", "50% 50%").' }
+        };
 
         const configGroups = {
             'Board Configuration': ['pageTitle', 'boardImageUrl', 'maxPageWidth', 'showTileNames', 'evidenceFieldLabel', 'loadFirstTeamByDefault'],
+            'User Experience': ['promptForDisplayNameOnLogin', 'welcomeMessage'],
             'Rules & Visibility': ['unlockOnVerifiedOnly', 'scoreOnVerifiedOnly', 'showScoreboard', 'enableOverviewPage', 'boardVisibility'],
-            'Default Tile Styles': ['defaultTileShape', 'defaultTileBorderWidth', 'defaultTileBorderColor', 'hoverTileBorderWidth', 'hoverTileBorderColor'],
         };
-        // Dynamically create property groups for each status
-        STATUSES.forEach(status => {
-            const statusKey = status.replace(/\s+/g, '');
-            configGroups[`Status Styles (${status})`] = Object.keys(configSchema).filter(k => k.endsWith(statusKey));
-        });
 
         // END NEW: Schema-driven configuration
 
         // Generate valid override properties from the schema, excluding general page config
-        const VALID_OVERRIDE_PROPERTIES = Object.keys(configSchema).filter(key => 
-            key.startsWith('tile') || 
-            key.startsWith('default') || 
-            key.startsWith('hover') ||
-            key.startsWith('stamp') ||
-            key.startsWith('useStamp')
-        ).sort();
+        const VALID_OVERRIDE_PROPERTIES = [
+            'shape', 'color', 'opacity',
+            'borderWidth', 'borderColor',
+            'hoverBorderWidth', 'hoverBorderColor',
+            'useStampByDefault', 'stampImageUrl', 'stampScale', 'stampRotation', 'stampPosition'
+        ].sort();
 
 
         let currentScale = 1;
@@ -618,28 +719,34 @@
         const boardContainer = document.getElementById('board-container');
         const boardContent = document.getElementById('board-content'); // The new pannable/zoomable element
         const boardImage = document.getElementById('board-image');
-        const csvOutput = document.getElementById('csv-output');
         const zoomSlider = document.getElementById('zoom-slider');
         const zoomValue = document.getElementById('zoom-value');
         const resetZoomBtn = document.getElementById('reset-zoom');
-        const copyButton = document.getElementById('copy-button');
-        const downloadButton = document.getElementById('download-button');
-        const copyStyleButton = document.getElementById('copy-style-button');
-        const downloadStyleButton = document.getElementById('download-style-button');
         const detailsPanel = document.getElementById('tile-editor-box');
         const detailsForm = document.getElementById('details-form');
         const addNewTileBtn = document.getElementById('add-new-tile-btn');
         const deleteTileBtn = document.getElementById('delete-tile-btn');
         const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
-        const toggleSecurityBtn = document.getElementById('toggle-security-btn');
+        const toggleTeamsBtn = document.getElementById('toggle-teams-btn');
         const prereqVisModeSelect = document.getElementById('prereq-vis-mode');
         const prereqLinesSvg = document.getElementById('prereq-lines-svg');
 
         document.addEventListener('DOMContentLoaded', () => {
             initAuth(onAuthStateChanged);
             createStylePreviewButtons();
-            toggleSecurity(); // Start with the security panel minimized
+            toggleTeams(); // Start with the teams panel minimized
             toggleGlobalStyles(); // Start with the panel minimized
+
+            document.getElementById('tile-selector-dropdown').addEventListener('change', (event) => {
+                const selectedIndex = event.target.value;
+                const newIndex = selectedIndex !== '' ? parseInt(selectedIndex, 10) : null;
+                
+                // Only update if the selection actually changed
+                if (newIndex !== lastSelectedTileIndex) {
+                    updateEditorPanel(newIndex);
+                    renderTiles(); // To highlight the new selection on the board
+                }
+            });
         });
 
         function onAuthStateChanged(authState) {
@@ -655,60 +762,10 @@
             }
         }
 
-        // A more robust CSV/TSV parser
-        function parseCsvLine(line, separator) {
-            const values = [];
-            let current = '';
-            let inQuotes = false;
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                if (char === '"') {
-                    if (inQuotes && line[i + 1] === '"') {
-                        current += '"';
-                        i++; // Skip next quote
-                    } else {
-                        inQuotes = !inQuotes;
-                    }
-                } else if (char === separator && !inQuotes) {
-                    values.push(current);
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            values.push(current);
-            return values;
-        }
-
-        function parseCSV(text) {
-            const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
-            if (lines.length < 2) return [];
-            
-            csvSeparator = lines[0].includes('\t') ? '\t' : ',';
-            csvHeader = parseCsvLine(lines.shift(), csvSeparator).map(h => h.trim());
-            
-            return lines.map(line => {
-                if (!line.trim()) return null;
-                const values = parseCsvLine(line, csvSeparator);
-                const row = {};
-                csvHeader.forEach((key, index) => {
-                    row[key] = values[index] || '';
-                });
-
-                // Map to internal format, preserving all original columns
-                const internalRow = { ...row };
-                internalRow.id = row['TileID'];
-                internalRow.x_pct = parseFloat(row['Left (%)']) || 0;
-                internalRow.y_pct = parseFloat(row['Top (%)']) || 0;
-                internalRow.width_pct = parseFloat(row['Width (%)']) || 0;
-                internalRow.height_pct = parseFloat(row['Height (%)']) || 0;
-                return internalRow;
-            }).filter(Boolean); // Remove empty lines
-        }
-
         function renderTiles() {
             boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
             if (!tilesData) return;
+            const duplicateIds = getDuplicateIds(tilesData);
             tilesData.forEach((tile, index) => {
                 const tileEl = document.createElement('div');
                 tileEl.classList.add('draggable-tile');
@@ -720,48 +777,63 @@
                 }
                 tileEl.dataset.index = index;
 
-                const showTileNames = String(config.showTileNames).toUpperCase() === 'TRUE';
-                tileEl.textContent = showTileNames ? (tile.Name || tile.id) : tile.id;
+                // NEW: Add conflict styling
+                if (duplicateIds.has(tile.id)) {
+                    tileEl.style.outline = '3px solid #e57373';
+                    tileEl.style.outlineOffset = '2px';
+                } else {
+                    tileEl.style.outline = '';
+                }
+
+                tileEl.textContent = tile.id;
 
                 // --- NEW: Dynamic Styling ---
                 const status = currentPreviewStatus || 'Unlocked'; // Default to unlocked for preview
-                const getProp = (propName) => {
+                const getProp = (propName, status) => {
+                    // 1. Check tile-specific overrides for the given status
                     if (tile['Overrides (JSON)']) {
                         try {
                             const overrides = JSON.parse(tile['Overrides (JSON)']);
-                            if (overrides[propName] !== undefined) return overrides[propName];
+                            if (overrides[status] && overrides[status][propName] !== undefined) {
+                                return overrides[status][propName];
+                            }
                         } catch (e) {}
                     }
+                    // 2. Check status-specific styles
+                    const statusStyle = allStyles[status];
+                    if (statusStyle && statusStyle[propName] !== undefined) {
+                        return statusStyle[propName];
+                    }
+                    // 3. Fallback to global config defaults
                     return config[propName];
                 };
 
-                tileEl.style.left = `${tile.x_pct || 10}%`;
-                tileEl.style.top = `${tile.y_pct || 10}%`;
-                tileEl.style.width = `${tile.width_pct || 10}%`;
-                tileEl.style.height = `${tile.height_pct || 10}%`;
+                tileEl.style.left = `${tile['Left (%)'] || 10}%`;
+                tileEl.style.top = `${tile['Top (%)'] || 10}%`;
+                tileEl.style.width = `${tile['Width (%)'] || 10}%`;
+                tileEl.style.height = `${tile['Height (%)'] || 10}%`;
                 tileEl.style.transform = `rotate(${tile['Rotation'] || '0deg'})`;
                 
-                const statusKey = status.replace(/\s+/g, '');
-                const color = getProp(`tileColor${statusKey}`) || '#888888';
-                const opacity = getProp(`tileOpacity${statusKey}`) || 0.5;
+                const color = getProp('color', status) || '#888888';
+                const opacity = getProp('opacity', status) || 0.5;
                 tileEl.style.backgroundColor = hexToRgba(color, opacity);
 
-                const borderWidth = getProp('defaultTileBorderWidth') || '2px';
-                const borderColor = getProp('defaultTileBorderColor') || 'transparent';
+                const borderWidth = getProp('borderWidth', status) || '2px';
+                const borderColor = getProp('borderColor', status) || 'transparent';
                 tileEl.style.border = `${borderWidth} solid ${borderColor}`;
 
-                const shape = (getProp('defaultTileShape') || 'Square').toLowerCase();
+                const shape = (getProp('shape', status) || 'Square').toLowerCase();
                 const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
                 if (clipPaths[shape]) tileEl.style.clipPath = clipPaths[shape];
 
                 // --- Stamp Logic ---
-                const useStamp = String(getProp(`useStampByDefault${statusKey}`)).toUpperCase() === 'TRUE';
-                const stampUrl = getProp(`stampImageUrl${statusKey}`);
+                const useStamp = getProp('useStampByDefault', status) === true;
+                const stampUrl = getProp('stampImageUrl', status);
 
                 if (useStamp && stampUrl) {
-                    const scale = getProp(`stampScale${statusKey}`) || '1';
-                    const rotation = getProp(`stampRotation${statusKey}`) || '0deg';
-                    const position = getProp(`stampPosition${statusKey}`) || 'center';
+                    const scale = getProp('stampScale', status) || '1';
+                    const rotation = getProp('stampRotation', status) || '0deg';
+                    const position = getProp('stampPosition', status) || 'center';
 
                     tileEl.textContent = ''; // Clear ID/Name text when stamp is shown
                     const stampEl = document.createElement('div'); // Use a DIV for more reliable background positioning
@@ -783,8 +855,8 @@
                 }
 
                 tileEl.addEventListener('mouseover', () => {
-                    const hoverWidth = getProp('hoverTileBorderWidth') || '3px';
-                    const hoverColor = getProp('hoverTileBorderColor') || '#00d9f5';
+                    const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
+                    const hoverColor = getProp('hoverBorderColor', status) || '#00d9f5';
                     tileEl.style.border = `${hoverWidth} solid ${hoverColor}`;
                 });
                 tileEl.addEventListener('mouseout', () => {
@@ -794,67 +866,6 @@
                 boardContent.appendChild(tileEl); // Append to the content div
             });
             renderPrereqLines(); // Re-render lines whenever tiles are re-rendered
-        }
-
-        function generateCSV(header, data) {
-            const headerString = header.join(csvSeparator);
-            const rows = data.map(tile => {
-                // Map internal format back to CSV format for writing
-                const outputTile = { ...tile };
-                outputTile['Left (%)'] = (outputTile.x_pct || 0).toFixed(2);
-                outputTile['Top (%)'] = (outputTile.y_pct || 0).toFixed(2);
-                outputTile['Width (%)'] = (outputTile.width_pct || 0).toFixed(2);
-                outputTile['Height (%)'] = (outputTile.height_pct || 0).toFixed(2);
-
-                return header.map(key => {
-                    const value = outputTile[key];
-                    const stringValue = String(value === undefined || value === null ? '' : value);
-                    
-                    // Quote if it contains the separator, a quote, or a newline
-                    if (stringValue.includes(csvSeparator) || stringValue.includes('"') || stringValue.includes('\n')) {
-                        return `"${stringValue.replace(/"/g, '""')}"`;
-                    }
-                    return stringValue;
-                }).join(csvSeparator);
-            });
-            return [headerString, ...rows].join('\n');
-        }
-
-        function updateCsvOutput() {
-            if (tilesData.length === 0) return;
-            const csvString = generateCSV(csvHeader, tilesData);
-            csvOutput.value = csvString;
-        }
-
-        function parseStyleCSV(text) {
-            const styles = {};
-            const lines = text.trim().replace(/\r\n/g, '\n').split('\n');
-            const header = lines.shift(); // Assume header is "Property,Value"
-            lines.forEach(line => {
-                if (!line.trim()) return;
-                const parts = parseCsvLine(line, ',');
-                if (parts.length >= 2) {
-                    const key = parts[0].trim();
-                    const value = parts[1].trim();
-                    styles[key] = value;
-                }
-            });
-            return styles;
-        }
-
-        function generateStyleCSV() {
-            const header = 'Property,Value';
-            const rows = Object.entries(globalStyles).map(([key, value]) => {
-                const keyStr = `"${key.replace(/"/g, '""')}"`;
-                const valStr = `"${String(value).replace(/"/g, '""')}"`;
-                return `${keyStr},${valStr}`;
-            });
-            return [header, ...rows].join('\n');
-        }
-
-        function updateStyleCsvOutput() {
-            const csvString = generateStyleCSV();
-            document.getElementById('style-csv-output').value = csvString;
         }
 
 
@@ -917,14 +928,16 @@
 
                         const x_pct_val = parseFloat(x_pct.toFixed(2));
                         const y_pct_val = parseFloat(y_pct.toFixed(2));
-                        tilesData[index].x_pct = x_pct_val;
-                        tilesData[index].y_pct = y_pct_val;
-                        tilesData[index]['Left (%)'] = x_pct_val.toFixed(2);
-                        tilesData[index]['Top (%)'] = y_pct_val.toFixed(2);
+                        const dataToSave = {
+                            'Left (%)': x_pct_val.toFixed(2),
+                            'Top (%)': y_pct_val.toFixed(2)
+                        };
+                        tilesData[index]['Left (%)'] = dataToSave['Left (%)'];
+                        tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
+                        debouncedSaveTile(tilesData[index].docId, dataToSave, null, null);
                         updateEditorPanel(index);
                         
-                        requestAnimationFrame(updateCsvOutput);
-                        requestAnimationFrame(renderPrereqLines);
+                        renderPrereqLines();
                     }
                 }
             })
@@ -959,71 +972,23 @@
                         const y_pct_val = parseFloat(y_pct.toFixed(2));
                         const width_pct_val = parseFloat(width_pct.toFixed(2));
                         const height_pct_val = parseFloat(height_pct.toFixed(2));
-
-                        tilesData[index].x_pct = x_pct_val;
-                        tilesData[index].y_pct = y_pct_val;
-                        tilesData[index].width_pct = width_pct_val;
-                        tilesData[index].height_pct = height_pct_val;
-                        tilesData[index]['Left (%)'] = x_pct_val.toFixed(2);
-                        tilesData[index]['Top (%)'] = y_pct_val.toFixed(2);
-                        tilesData[index]['Width (%)'] = width_pct_val.toFixed(2);
-                        tilesData[index]['Height (%)'] = height_pct_val.toFixed(2);
+                        const dataToSave = {
+                            'Left (%)': x_pct_val.toFixed(2),
+                            'Top (%)': y_pct_val.toFixed(2),
+                            'Width (%)': width_pct_val.toFixed(2),
+                            'Height (%)': height_pct_val.toFixed(2)
+                        };
+                        tilesData[index]['Left (%)'] = dataToSave['Left (%)'];
+                        tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
+                        tilesData[index]['Width (%)'] = dataToSave['Width (%)'];
+                        tilesData[index]['Height (%)'] = dataToSave['Height (%)'];
+                        debouncedSaveTile(tilesData[index].docId, dataToSave, null, null);
                         updateEditorPanel(index);
                         
-                        requestAnimationFrame(updateCsvOutput);
-                        requestAnimationFrame(renderPrereqLines);
+                        renderPrereqLines();
                     }
                 }
             });
-
-        copyButton.addEventListener('click', () => {
-            if(!csvOutput.value) return;
-            csvOutput.select();
-            document.execCommand('copy');
-            const originalText = copyButton.textContent;
-            copyButton.textContent = 'Copied!';
-            setTimeout(() => {
-                copyButton.textContent = originalText;
-            }, 1500);
-        });
-
-        downloadButton.addEventListener('click', () => {
-            if (!csvOutput.value) return;
-
-            const blob = new Blob([csvOutput.value], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'tile_positions.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
-
-        copyStyleButton.addEventListener('click', () => {
-            const output = document.getElementById('style-csv-output');
-            if(!output.value) return;
-            output.select();
-            document.execCommand('copy');
-            const originalText = copyStyleButton.textContent;
-            copyStyleButton.textContent = 'Copied!';
-            setTimeout(() => { copyStyleButton.textContent = originalText; }, 1500);
-        });
-
-        downloadStyleButton.addEventListener('click', () => {
-            const output = document.getElementById('style-csv-output');
-            if (!output.value) return;
-            const blob = new Blob([output.value], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'tile_styles.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
 
         function hexToRgba(colorStr, alpha) {
             if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
@@ -1043,16 +1008,31 @@
         // --- Tile Selection & Editor Panel Logic ---
 
         
-        function createEditorForm(header) {
+        function createEditorForm() {
             detailsForm.innerHTML = ''; // Clear previous form
-            header.forEach(key => {
+            TILE_FIELDS.forEach(key => {
                 const fieldContainer = document.createElement('div');
                 fieldContainer.className = 'form-field';
+                fieldContainer.dataset.key = key; // Add data-key for CSS grid targeting
 
                 const label = document.createElement('label');
                 label.htmlFor = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
-                label.title = key; // Add tooltip with full name
-                label.textContent = key;
+                
+                // Use more descriptive labels
+                const fieldLabels = {
+                    'docId': 'Document ID',
+                    'id': 'Tile ID'
+                };
+                label.textContent = fieldLabels[key] || key;
+
+                const description = TILE_FIELD_DESCRIPTIONS[key];
+                if (description) {
+                    const tooltipSpan = document.createElement('span');
+                    tooltipSpan.className = 'tooltip-icon';
+                    tooltipSpan.textContent = '(?)';
+                    tooltipSpan.title = description;
+                    label.appendChild(tooltipSpan);
+                }
 
                 // Skip creating a direct field for Overrides (JSON)
                 if (key === 'Overrides (JSON)') return;
@@ -1091,28 +1071,34 @@
                     textarea.title = key;
                     fieldContainer.appendChild(textarea);
                 } else {
-                    if (key === 'Prerequisites') {
-                        const prereqContainer = document.createElement('div');
-                        prereqContainer.id = 'prereq-editor-container';
-
+                    if (key === 'Prerequisites') { // Make prerequisites a collapsible fieldset
+                        const prereqFieldset = document.createElement('fieldset');
+                        prereqFieldset.className = 'overrides-fieldset minimized';
+                        prereqFieldset.id = 'prereq-editor-container';
+                        const prereqLegend = document.createElement('legend');
+                        prereqLegend.innerHTML = `<span class="legend-toggle">[+]</span>Prerequisites`;
+                        prereqLegend.style.cursor = 'pointer';
+                        prereqLegend.onclick = () => {
+                            prereqFieldset.classList.toggle('minimized');
+                            prereqLegend.querySelector('.legend-toggle').textContent = prereqFieldset.classList.contains('minimized') ? '[+]' : '[-]';
+                        };
+                        prereqFieldset.appendChild(prereqLegend);
+                        const prereqContent = document.createElement('div');
+                        prereqContent.className = 'fieldset-content';
                         const textarea = document.createElement('textarea');
                         textarea.id = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
                         textarea.name = key;
                         textarea.title = key;
                         textarea.style.display = 'none'; // Hide the raw textarea, UI will populate it
-
                         const uiContainer = document.createElement('div');
                         uiContainer.id = 'prereq-ui-container';
-
                         const addGroupBtn = document.createElement('button');
                         addGroupBtn.type = 'button';
                         addGroupBtn.textContent = '+ Add OR Group';
                         addGroupBtn.onclick = () => { addPrereqOrGroup(); updatePrereqJson(); };
-
-                        prereqContainer.appendChild(textarea);
-                        prereqContainer.appendChild(uiContainer);
-                        prereqContainer.appendChild(addGroupBtn);
-                        fieldContainer.appendChild(prereqContainer);
+                        prereqContent.append(textarea, uiContainer, addGroupBtn);
+                        prereqFieldset.appendChild(prereqContent);
+                        fieldContainer.appendChild(prereqFieldset);
                         fieldContainer.prepend(label);
                         detailsForm.appendChild(fieldContainer);
                         return; // Skip default input creation
@@ -1122,6 +1108,9 @@
                     input.id = `edit-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
                     input.name = key;
                     input.title = key;
+                    if (key === 'docId') {
+                        input.disabled = true; // Make Document ID read-only
+                    }
                     fieldContainer.appendChild(input);
                 }
 
@@ -1132,9 +1121,15 @@
             // Create a dedicated section for overrides
             const fieldset = document.createElement('fieldset');
             fieldset.className = 'overrides-fieldset';
+            fieldset.style.gridColumn = '1 / -1'; // Ensure it spans full width
+
             const legend = document.createElement('legend');
             legend.textContent = 'Overrides';
             
+            const rawJsonTextarea = document.createElement('textarea');
+            rawJsonTextarea.id = 'overrides-json-textarea';
+            rawJsonTextarea.placeholder = 'Manually edit overrides as a nested JSON object here. Changes will reflect in the UI below.';
+
             const overridesContainer = document.createElement('div');
             overridesContainer.id = 'overrides-container';
 
@@ -1143,16 +1138,38 @@
             addOverrideBtn.id = 'add-override-btn';
             addOverrideBtn.textContent = '+ Add Override';
             addOverrideBtn.disabled = true;
-            addOverrideBtn.addEventListener('click', () => addOverrideRow());
 
-            fieldset.appendChild(legend);
-            fieldset.appendChild(overridesContainer);
-            fieldset.appendChild(addOverrideBtn);
-
+            fieldset.append(legend, rawJsonTextarea, overridesContainer, addOverrideBtn);
             detailsForm.appendChild(fieldset);
+
+            // Add listeners after appending
+            addOverrideBtn.addEventListener('click', () => addOverrideRow());
+            rawJsonTextarea.addEventListener('input', handleRawJsonOverrideChange);
         }
 
         function updateEditorPanel(index) {
+            const activeElement = document.activeElement;
+            const overridesContainer = document.getElementById('overrides-container');
+
+            // --- Capture state for overrides section before it's rebuilt ---
+            let activeOverrideState = null;
+            if (activeElement && overridesContainer.contains(activeElement)) {
+                const overrideItem = activeElement.closest('.override-item');
+                if (overrideItem) {
+                    // Find the index of this item to use as a stable identifier
+                    const itemIndex = Array.from(overridesContainer.children).indexOf(overrideItem);
+                    activeOverrideState = {
+                        itemIndex: itemIndex,
+                        isKeyField: activeElement.classList.contains('override-key'),
+                        isValueField: activeElement.classList.contains('override-value'),
+                        value: activeElement.value,
+                        selectionStart: activeElement.selectionStart,
+                        selectionEnd: activeElement.selectionEnd
+                    };
+                }
+            }
+
+
             if (index === null || !tilesData[index]) {
                 lastSelectedTileIndex = null;
                 deleteTileBtn.disabled = true;
@@ -1161,6 +1178,13 @@
                     el.disabled = true;
                     el.value = '';
                 });
+                // Clear validation message when no tile is selected
+                const idInput = detailsForm.querySelector('input[name="id"]');
+                if (idInput) {
+                    idInput.style.borderColor = '';
+                    const validationMessage = idInput.closest('.form-field')?.querySelector('.validation-msg');
+                    if (validationMessage) validationMessage.textContent = '';
+                }
                 renderPrereqLines();
                 return;
             }
@@ -1168,17 +1192,31 @@
             lastSelectedTileIndex = index;
             const tile = tilesData[index];
 
-            Array.from(detailsForm.elements).forEach(el => el.disabled = false);
+            Array.from(detailsForm.elements).forEach(el => {
+                // Keep the docId field disabled, as it should never be edited.
+                if (el.name !== 'docId') {
+                    el.disabled = false;
+                }
+            });
             document.getElementById('add-override-btn').disabled = false;
             deleteTileBtn.disabled = false;
 
             // Populate the form
-            csvHeader.forEach(key => {
+            TILE_FIELDS.forEach(key => {
                 // Skip the raw overrides field
                 if (key === 'Overrides (JSON)') return;
 
                 const input = detailsForm.elements[key];
                 const syncElements = detailsForm.querySelectorAll(`[data-sync="${key}"]`);
+
+                // --- Prevent overwriting a field the user is actively editing ---
+                let isEditingThisField = (input === activeElement);
+                syncElements.forEach(el => { if (el === activeElement) isEditingThisField = true; });
+                if (isEditingThisField) {
+                    return; // Skip populating this field
+                }
+                // --- End prevention logic ---
+
                 if (syncElements.length > 0) {
                     const value = tile[key] || '';
                     syncElements.forEach(el => {
@@ -1209,12 +1247,83 @@
                 }
             } catch (e) { /* Ignore invalid JSON */ }
 
-            // Clear and populate override rows
-            document.getElementById('overrides-container').innerHTML = '';
-            for (const [key, value] of Object.entries(overrides)) {
-                addOverrideRow(key, value);
+            // Update the raw JSON textarea
+            const rawJsonTextarea = document.getElementById('overrides-json-textarea');
+            if (rawJsonTextarea) {
+                rawJsonTextarea.value = tile['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
+                rawJsonTextarea.style.borderColor = ''; // Reset validation on load
             }
+            // Populate the UI from the parsed JSON
+            populateOverridesUI(overrides);
+
+            // --- Restore state for overrides section ---
+            if (activeOverrideState) {
+                const allOverrideItems = overridesContainer.querySelectorAll('.override-item');
+                const targetItem = allOverrideItems[activeOverrideState.itemIndex];
+                if (targetItem) {
+                    let elementToFocus = null;
+                    if (activeOverrideState.isKeyField) {
+                        elementToFocus = targetItem.querySelector('.override-key');
+                    } else if (activeOverrideState.isValueField) {
+                        elementToFocus = targetItem.querySelector('.override-value');
+                    }
+
+                    if (elementToFocus) {
+                        elementToFocus.value = activeOverrideState.value;
+                        elementToFocus.focus();
+                        try {
+                            elementToFocus.setSelectionRange(activeOverrideState.selectionStart, activeOverrideState.selectionEnd);
+                        } catch (e) { /* no-op */ }
+                    }
+                }
+            }
+
+            // Sync the tile selector dropdown
+            const selector = document.getElementById('tile-selector-dropdown');
+            if (selector) {
+                selector.value = index !== null ? index : '';
+            }
+
+            validateTileId();
             renderPrereqLines();
+        }
+
+        function populateTileSelector() {
+            const selector = document.getElementById('tile-selector-dropdown');
+            if (!selector) return;
+
+            // Sort tiles by ID for a consistent order
+            const sortedTiles = [...tilesData].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+
+            selector.innerHTML = '<option value="">-- Select a Tile by ID --</option>';
+            sortedTiles.forEach(tile => {
+                const originalIndex = tilesData.findIndex(t => t.docId === tile.docId);
+                const option = document.createElement('option');
+                option.value = originalIndex;
+                option.textContent = `${tile.id || '[No ID]'} - ${tile.Name || '[No Name]'}`;
+                selector.appendChild(option);
+            });
+
+            // Set the selected option based on the currently selected tile
+            if (lastSelectedTileIndex !== null) {
+                selector.value = lastSelectedTileIndex;
+            } else {
+                selector.value = '';
+            }
+        }
+
+        function populateOverridesUI(overrides) {
+            const container = document.getElementById('overrides-container');
+            container.innerHTML = '';
+            if (typeof overrides !== 'object' || overrides === null) return;
+
+            for (const [status, properties] of Object.entries(overrides)) {
+                if (typeof properties === 'object' && properties !== null) {
+                    for (const [key, value] of Object.entries(properties)) {
+                        addOverrideRow(status, key, value);
+                    }
+                }
+            }
         }
 
         function populatePrereqUI(prereqString) {
@@ -1258,6 +1367,9 @@
             andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
             andInput.oninput = updatePrereqJson;
 
+            const validationSpan = document.createElement('span');
+            validationSpan.className = 'prereq-validation-msg';
+
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.textContent = '−';
@@ -1277,8 +1389,41 @@
             label.className = 'prereq-or-label';
             if (uiContainer.children.length === 0) label.style.display = 'none';
 
-            groupDiv.append(label, andInput, removeBtn);
+            groupDiv.append(label, andInput, validationSpan, removeBtn);
             uiContainer.appendChild(groupDiv);
+        }
+
+        function getDuplicateIds(tiles) {
+            if (!tiles) return new Set();
+            const ids = tiles.map(t => t.id).filter(id => id); // Filter out empty/null IDs
+            const duplicates = ids.filter((item, index) => ids.indexOf(item) !== index);
+            return new Set(duplicates);
+        }
+
+        function validateTileId() {
+            if (lastSelectedTileIndex === null) return;
+            const tile = tilesData[lastSelectedTileIndex];
+            const duplicateIds = getDuplicateIds(tilesData);
+            const idInput = detailsForm.querySelector('input[name="id"]');
+            if (!idInput) return;
+
+            const parentField = idInput.closest('.form-field');
+            if (!parentField) return;
+
+            let validationMessage = parentField.querySelector('.validation-msg');
+            if (!validationMessage) {
+                validationMessage = document.createElement('span');
+                validationMessage.className = 'validation-msg';
+                parentField.appendChild(validationMessage);
+            }
+
+            if (duplicateIds.has(tile.id)) {
+                idInput.style.borderColor = '#e57373';
+                validationMessage.textContent = 'This Tile ID is not unique!';
+            } else {
+                idInput.style.borderColor = ''; // Reset
+                validationMessage.textContent = '';
+            }
         }
 
         function updatePrereqJson() {
@@ -1286,63 +1431,86 @@
             const prereqTextarea = detailsForm.elements['Prerequisites'];
             if (!uiContainer || !prereqTextarea) return;
 
+            const validIds = new Set(tilesData.map(t => t.id));
+
             const orGroups = Array.from(uiContainer.querySelectorAll('.prereq-or-group')).map(groupDiv => {
                 const input = groupDiv.querySelector('.prereq-and-input');
-                return input.value.split(',').map(s => s.trim()).filter(Boolean);
+                const validationSpan = groupDiv.querySelector('.prereq-validation-msg');
+                const ids = input.value.split(',').map(s => s.trim()).filter(Boolean);
+
+                const invalidIds = ids.filter(id => !validIds.has(id));
+                if (invalidIds.length > 0) {
+                    validationSpan.textContent = `Invalid IDs: ${invalidIds.join(', ')}`;
+                    input.style.borderColor = '#e57373';
+                } else {
+                    validationSpan.textContent = '';
+                    input.style.borderColor = '';
+                }
+
+                return ids;
             }).filter(group => group.length > 0);
 
             if (orGroups.length === 0) prereqTextarea.value = '';
             else if (orGroups.length === 1) prereqTextarea.value = orGroups[0].join(',');
             else prereqTextarea.value = JSON.stringify(orGroups);
             prereqTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+            // Also re-render the lines to show live feedback
+            renderPrereqLines();
         }
 
-        function addOverrideRow(key = '', value = '') {
+        function addOverrideRow(status = '', key = '', value = '') {
             const container = document.getElementById('overrides-container');
             const item = document.createElement('div');
             item.className = 'override-item';
 
-            const valueContainer = document.createElement('div');
-            valueContainer.className = 'override-value-container';
+            // 1. Status Dropdown
+            const statusSelect = document.createElement('select');
+            statusSelect.className = 'override-status-select';
+            statusSelect.innerHTML = `<option value="">Select Status</option>`;
+            STATUSES.forEach(s => {
+                statusSelect.innerHTML += `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`;
+            });
 
+            // 2. Property Dropdown
             const keySelect = document.createElement('select');
             keySelect.className = 'override-key';
-
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = 'Select a property...';
-            keySelect.appendChild(placeholder); // The key here is the camelCase key
-
+            keySelect.innerHTML = `<option value="">Select Property</option>`;
             VALID_OVERRIDE_PROPERTIES.forEach(prop => {
                 const option = document.createElement('option');
                 option.value = prop;
                 option.textContent = prop;
                 keySelect.appendChild(option);
             });
-
             keySelect.value = key;
 
+            // 3. Value Input Container
+            const valueContainer = document.createElement('div');
+            valueContainer.className = 'override-value-container';
+
+            // 4. Remove Button
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'remove-override-btn';
             removeBtn.textContent = '−';
 
-            item.append(keySelect, valueContainer, removeBtn);
+            item.append(statusSelect, keySelect, valueContainer, removeBtn);
             container.appendChild(item);
 
+            // Add listeners
+            const updateCallback = () => updateOverridesJsonFromCurrentTile();
+            statusSelect.addEventListener('change', updateCallback);
             keySelect.addEventListener('change', () => {
                 populateValueContainer(valueContainer, keySelect.value, '');
-                // Manually trigger an input event on the form to update the JSON
-                keySelect.dispatchEvent(new Event('input', { bubbles: true }));
+                updateCallback();
             });
+            valueContainer.addEventListener('input', updateCallback);
 
             populateValueContainer(valueContainer, key, value);
 
             removeBtn.addEventListener('click', () => {
                 item.remove();
-                updateOverridesJsonForCurrentTile();
-                renderTiles();
-                requestAnimationFrame(updateCsvOutput);
+                updateCallback();
             });
         }
 
@@ -1350,80 +1518,97 @@
             container.innerHTML = ''; // Clear previous input
 
             const isColor = propertyName.toLowerCase().includes('color');
-            const isOpacity = propertyName.toLowerCase().includes('opacity');
-            const isBoolean = propertyName.startsWith('useStampByDefault') || propertyName === 'showTileNames' || propertyName.endsWith('Only') || propertyName === 'showScoreboard' || propertyName === 'enableOverviewPage' || propertyName === 'loadFirstTeamByDefault';
-            const isShape = propertyName === 'defaultTileShape';
+            const isOpacity = propertyName === 'opacity';
+            const isShape = propertyName === 'shape';
+            const isBoolean = propertyName === 'useStampByDefault';
+            const isWidth = propertyName.toLowerCase().includes('width');
+            const isScale = propertyName === 'stampScale';
+            const isImage = propertyName === 'stampImageUrl';
 
-            if (isColor) {
-                const compound = document.createElement('div');
-                compound.className = 'form-field-compound';
-                const colorInput = document.createElement('input');
-                colorInput.type = 'color';
-                const textInput = document.createElement('input');
-                textInput.type = 'text';
-                textInput.className = 'override-value';
-                
-                colorInput.value = value;
-                textInput.value = value;
+            let inputHtml = '';
 
-                colorInput.addEventListener('input', () => { textInput.value = colorInput.value; textInput.dispatchEvent(new Event('input', { bubbles: true })); });
-                textInput.addEventListener('input', () => { try { colorInput.value = textInput.value; } catch(e) {} });
-
-                compound.append(colorInput, textInput);
-                container.appendChild(compound);
-            } else if (isOpacity) {
-                const compound = document.createElement('div');
-                compound.className = 'form-field-compound';
-                const rangeInput = document.createElement('input');
-                rangeInput.type = 'range';
-                rangeInput.min = 0; rangeInput.max = 1; rangeInput.step = 0.01;
-                const textInput = document.createElement('input');
-                textInput.type = 'text';
-                textInput.className = 'override-value';
-                textInput.style.maxWidth = '60px';
-
-                rangeInput.value = value;
-                textInput.value = value;
-
-                rangeInput.addEventListener('input', () => { textInput.value = rangeInput.value; textInput.dispatchEvent(new Event('input', { bubbles: true })); });
-                textInput.addEventListener('input', () => { rangeInput.value = textInput.value; });
-
-                compound.append(rangeInput, textInput);
-                container.appendChild(compound);
+            if (isShape) {
+                const options = styleSchema.shape.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+                inputHtml = `<select class="override-value"><option value="">Default</option>${options}</select>`;
+            } else if (isColor) {
+                inputHtml = `<input type="color" class="override-value" value="${value || '#000000'}">`;
+            } else if (isWidth) {
+                inputHtml = `<div class="form-field-compound">
+                                <input type="number" class="override-value" value="${parseFloat(value) || 0}" data-unit="px" min="0" max="20" step="1">
+                                <span style="margin-left: 5px;">px</span>
+                             </div>`;
+            } else if (isOpacity || isScale) {
+                const schema = isOpacity ? { min: 0, max: 1, step: 0.01 } : styleSchema.stampScale;
+                inputHtml = `<div class="form-field-compound">
+                                <input type="range" class="override-value" value="${value || schema.min}" min="${schema.min}" max="${schema.max}" step="${schema.step}">
+                                <span style="width: 40px; text-align: left;">${value || schema.min}</span>
+                             </div>`;
             } else if (isBoolean) {
-                const select = document.createElement('select');
-                select.className = 'override-value';
-                ['', 'TRUE', 'FALSE'].forEach(val => {
-                    const option = document.createElement('option');
-                    option.value = val; option.textContent = val === '' ? 'Default' : val;
-                    select.appendChild(option);
-                });
-                // Handle both boolean and string "true"/"false" from JSON
-                if (typeof value === 'boolean') {
-                    select.value = value ? 'TRUE' : 'FALSE';
-                } else {
-                    select.value = String(value).toUpperCase();
-                }
-                if (value === '') select.value = '';
+                const isTrue = value === true || String(value).toLowerCase() === 'true';
+                const isFalse = value === false || String(value).toLowerCase() === 'false';
+                inputHtml = `<select class="override-value">
+                                <option value="">Default</option>
+                                <option value="true" ${isTrue ? 'selected' : ''}>True</option>
+                                <option value="false" ${isFalse ? 'selected' : ''}>False</option>
+                             </select>`;
+            } else if (isImage) {
+                // For this case, we build the DOM directly to attach the event listener
+                const compoundDiv = document.createElement('div');
+                compoundDiv.className = 'form-field-compound';
 
-                container.appendChild(select);
-            } else if (isShape) {
-                const select = document.createElement('select');
-                select.className = 'override-value';
-                ['', 'Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'].forEach(shape => {
-                    const option = document.createElement('option');
-                    option.value = shape; option.textContent = shape === '' ? 'Default' : shape;
-                    select.appendChild(option);
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.className = 'override-value';
+                textInput.placeholder = 'Image URL';
+                textInput.value = value || '';
+                textInput.style.flexGrow = '1';
+
+                const fileInputId = `override-upload-${Date.now()}-${Math.random()}`;
+                const uploadLabel = document.createElement('label');
+                uploadLabel.htmlFor = fileInputId;
+                uploadLabel.className = 'button-like-label';
+                uploadLabel.textContent = 'Upload';
+
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.id = fileInputId;
+                fileInput.style.display = 'none';
+                fileInput.dataset.path = 'overrides/stamps/';
+                fileInput.addEventListener('change', (e) => handleOverrideImageUpload(e.target, textInput));
+
+                compoundDiv.append(textInput, uploadLabel, fileInput);
+                container.appendChild(compoundDiv);
+                return; // Exit early
+            } else { // Default text input for things like stampRotation, stampPosition
+                inputHtml = `<input type="text" class="override-value" value="${value || ''}">`;
+            }
+
+            container.innerHTML = inputHtml;
+
+            const rangeInput = container.querySelector('input[type="range"]');
+            if (rangeInput) {
+                rangeInput.addEventListener('input', (e) => {
+                    e.target.nextElementSibling.textContent = e.target.value;
                 });
-                select.value = value;
-                container.appendChild(select);
-            } else {
-                const valueInput = document.createElement('input');
-                valueInput.type = 'text';
-                valueInput.className = 'override-value';
-                valueInput.placeholder = 'Value';
-                valueInput.value = value;
-                container.appendChild(valueInput);
+            }
+        }
+
+        function handleRawJsonOverrideChange(event) {
+            const textarea = event.target;
+            try {
+                const jsonString = textarea.value;
+                if (jsonString.trim() === '') {
+                    populateOverridesUI({});
+                    updateOverridesJsonFromCurrentTile(); // This will save the empty string
+                    textarea.style.borderColor = '';
+                    return;
+                }
+                const parsedOverrides = JSON.parse(jsonString);
+                populateOverridesUI(parsedOverrides);
+                updateOverridesJsonFromCurrentTile(); // This will re-format and save
+                textarea.style.borderColor = ''; // Valid JSON
+            } catch (e) {
+                textarea.style.borderColor = '#e57373'; // Invalid JSON
             }
         }
 
@@ -1431,21 +1616,9 @@
             if (lastSelectedTileIndex === null) return;
 
             const input = event.target;
-            // Check if the input is part of an override item
-            if (input.closest('#prereq-editor-container')) {
-                // The updatePrereqJson function already handles updating the hidden textarea and firing the event.
-            }
-            if (input.closest('.override-item')) {
-                updateOverridesJsonForCurrentTile();
-                renderTiles(); // Re-render to apply style overrides
-            } else {
+            if (!input.closest('.override-item') && !input.closest('#prereq-editor-container')) {
                 updateMainTileData(input);
             }
-            if (input.name === 'Prerequisites') {
-                renderPrereqLines();
-            }
-            
-            requestAnimationFrame(updateCsvOutput);
         }
 
         function updateMainTileData(input) {
@@ -1453,6 +1626,7 @@
             if (index === null) return;
             const tile = tilesData[index];
             const key = input.dataset.sync || input.name;
+            const oldValue = tile[key]; // Get old value before any changes
             let value = input.value;
 
             // Handle Rotation slider specifically to add 'deg'
@@ -1476,90 +1650,106 @@
             }
             
             tile[key] = value;
-
-            // If a position/size/ID/Rotation field was changed, update the visual tile
-            const tileEl = boardContent.querySelector(`[data-index="${index}"]`);
-            if (!tileEl) return;
-
-            if (key === 'TileID') {
-                tileEl.textContent = value;
-            } else if (key === 'Rotation') {
-                tileEl.style.transform = `rotate(${value || '0deg'})`;
-            }
             
-            const posKeys = {'Left (%)': 'x_pct', 'Top (%)': 'y_pct', 'Width (%)': 'width_pct', 'Height (%)': 'height_pct'};
-            if (posKeys[key]) {
-                const floatValue = parseFloat(value) || 0;
-                tile[posKeys[key]] = floatValue;
-                if (key === 'Left (%)') tileEl.style.left = `${floatValue}%`;
-                if (key === 'Top (%)') tileEl.style.top = `${floatValue}%`;
-                if (key === 'Width (%)') tileEl.style.width = `${floatValue}%`;
-                if (key === 'Height (%)') tileEl.style.height = `${floatValue}%`;
+            // Auto-save the change
+            debouncedSaveTile(tile.docId, { [key]: value }, input, oldValue);
+            
+            // If a visual property was changed, update the visual tile
+            const visualKeys = ['id', 'Name', 'Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
+            if (visualKeys.includes(key)) {
+                renderTiles();
+            }
+            if (key === 'Prerequisites') {
+                renderPrereqLines();
+            }
+            // NEW: Validate ID on change
+            if (key === 'id') {
+                validateTileId();
             }
         }
 
-        function updateOverridesJsonForCurrentTile() {
+        const debouncedUpdateOverrides = debounce(() => {
             if (lastSelectedTileIndex === null) return;
             const index = lastSelectedTileIndex;
 
             const overrides = {};
             document.querySelectorAll('#overrides-container .override-item').forEach(item => {
+                const status = item.querySelector('.override-status-select').value;
                 const key = item.querySelector('.override-key').value;
-                const valueInput = item.querySelector('.override-value');
-                if (key && valueInput) {
-                    let value = valueInput.value;
-                    if (value !== '') {
-                        if (value === 'TRUE') {
-                            overrides[key] = true;
-                        } else if (value === 'FALSE') {
-                            overrides[key] = false;
-                        } else {
-                            overrides[key] = value;
-                        }
+                const valueContainer = item.querySelector('.override-value-container');
+
+                if (status && key && valueContainer.hasChildNodes()) {
+                    const inputElement = valueContainer.querySelector('.override-value');
+                    if (!inputElement) return;
+
+                    let value;
+                    if (inputElement.type === 'checkbox') { value = inputElement.checked; }
+                    else { value = inputElement.value; }
+
+                    if (inputElement.dataset.unit) {
+                        value += inputElement.dataset.unit;
                     }
+
+                    if (inputElement.tagName === 'SELECT' && value === '') return;
+
+                    if (!overrides[status]) overrides[status] = {};
+
+                    if (value === 'true') { overrides[status][key] = true; }
+                    else if (value === 'false') { overrides[status][key] = false; }
+                    else { overrides[status][key] = value; }
                 }
             });
-            if (Object.keys(overrides).length > 0) {
-                tilesData[index]['Overrides (JSON)'] = JSON.stringify(overrides);
-            } else {
-                tilesData[index]['Overrides (JSON)'] = '';
-            }
+
+            const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
+            document.getElementById('overrides-json-textarea').value = newOverridesJson;
+            tilesData[index]['Overrides (JSON)'] = newOverridesJson;
+            debouncedSaveTile(tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson });
+            renderTiles();
+        }, 500);
+
+        function updateOverridesJsonFromCurrentTile() {
+            debouncedUpdateOverrides();
         }
 
         function addNewTile() {
-            const newTile = {};
-            csvHeader.forEach(key => newTile[key] = '');
+            // Find the highest existing numeric docId to create the next one.
+            const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
+            const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+            const newDocId = String(maxNumber + 1).padStart(5, '0');
 
-            const newId = `NewTile_${newTileCounter++}`;
-            newTile['TileID'] = newId;
-            newTile['Name'] = 'New Tile';
-            newTile['Left (%)'] = '45.00';
-            newTile['Top (%)'] = '45.00';
-            newTile['Width (%)'] = '10.00';
-            newTile['Height (%)'] = '10.00';
+            const newTileData = {
+                id: newDocId, // The visible ID defaults to the doc ID
+                Name: 'New Tile',
+                'Left (%)': '45.00',
+                'Top (%)': '45.00',
+                'Width (%)': '10.00',
+                'Height (%)': '10.00',
+                // Initialize other fields to empty strings to avoid 'undefined' issues
+                Points: '',
+                Description: '',
+                Prerequisites: '',
+                Rotation: '',
+                'Overrides (JSON)': ''
+            };
 
-            // Map to internal format
-            newTile.id = newId;
-            newTile.x_pct = 45.0;
-            newTile.y_pct = 45.0;
-            newTile.width_pct = 10.0;
-            newTile.height_pct = 10.0;
-
-            const newIndex = tilesData.push(newTile) - 1;
-            renderTiles(); // Redraws all tiles including the new one
-            updateEditorPanel(newIndex); // Selects the new tile
-            updateCsvOutput();
+            // Save the new tile to Firestore
+            fb.setDoc(fb.doc(db, 'tiles', newDocId), newTileData)
+                .then(() => {
+                    showMessage(`Tile ${newDocId} created successfully.`, false);
+                    // The onSnapshot listener will automatically add the new tile to the UI.
+                })
+                .catch(err => showMessage(`Failed to create tile: ${err.message}`, true));
         }
 
         function deleteSelectedTile() {
             if (lastSelectedTileIndex === null) return;
-            if (confirm(`Are you sure you want to delete tile "${tilesData[lastSelectedTileIndex].TileID}"?`)) {
-                tilesData.splice(lastSelectedTileIndex, 1);
-                lastSelectedTileIndex = null;
-                renderTiles();
-                updateEditorPanel(null); // Explicitly clear the editor panel
-                updateCsvOutput();
-                renderPrereqLines();
+            const tileToDelete = tilesData[lastSelectedTileIndex];
+            if (confirm(`Are you sure you want to delete tile "${tileToDelete.id}"?`)) {
+                fb.deleteDoc(fb.doc(db, 'tiles', tileToDelete.docId)).then(() => {
+                    showMessage(`Tile ${tileToDelete.id} deleted.`, false);
+                    // The onSnapshot listener will automatically handle removing the tile
+                    // from the UI and clearing the editor panel if it was selected.
+                }).catch(err => showMessage(`Failed to delete tile: ${err.message}`, true));
             }
         }
 
@@ -1567,7 +1757,7 @@
         document.getElementById('global-style-form').addEventListener('input', handleGlobalStyleInputChange);
         addNewTileBtn.addEventListener('click', addNewTile);
         deleteTileBtn.addEventListener('click', deleteSelectedTile);
-        toggleSecurityBtn.addEventListener('click', toggleSecurity);
+        toggleTeamsBtn.addEventListener('click', toggleTeams);
         toggleGlobalStylesBtn.addEventListener('click', toggleGlobalStyles);
 
         prereqVisModeSelect.addEventListener('change', (event) => {
@@ -1594,34 +1784,62 @@
             toggleGlobalStylesBtn.textContent = isHidden ? '-' : '+';
         }
 
-        function toggleSecurity() {
-            const form = document.getElementById('security-form');
+        function toggleTeams() {
+            const form = document.getElementById('teams-form');
             const isHidden = form.style.display === 'none';
             form.style.display = isHidden ? '' : 'none';
-            toggleSecurityBtn.textContent = isHidden ? '-' : '+';
+            toggleTeamsBtn.textContent = isHidden ? '-' : '+';
         }
         // --- Global Style Editor Logic ---
         function renderGlobalConfig() {
             const form = document.getElementById('global-style-form');
-            form.innerHTML = ''; // Clear existing
+
+            // Preserve focus and value of the active input to prevent losing work during live updates.
+            let activeElementKey = null;
+            let activeElementValue = null;
+            let selectionStart = null;
+            let selectionEnd = null;
+            const activeElement = document.activeElement;
+            if (activeElement && form.contains(activeElement) && activeElement.dataset.key) {
+                activeElementKey = activeElement.dataset.key;
+                activeElementValue = activeElement.value;
+                selectionStart = activeElement.selectionStart;
+                selectionEnd = activeElement.selectionEnd;
+            }
+
+
+            // Preserve the expansion state of each fieldset before clearing the form
+            const expansionStates = {};
+            form.querySelectorAll('fieldset').forEach(fs => {
+                const legend = fs.querySelector('legend');
+                if (legend) {
+                    // Use the group name as a stable key
+                    const groupName = legend.textContent.replace(/\[[+-]\]\s*/, '').trim();
+                    expansionStates[groupName] = !fs.classList.contains('minimized');
+                }
+            });
+
+            form.innerHTML = ''; // Now clear existing content
 
             Object.entries(configGroups).forEach(([groupName, properties]) => {
                 const fieldset = document.createElement('fieldset');
-                fieldset.className = 'overrides-fieldset minimized';
+                const isExpanded = expansionStates[groupName] === true;
+                fieldset.className = `overrides-fieldset ${isExpanded ? '' : 'minimized'}`;
+
                 const legend = document.createElement('legend');
-                legend.innerHTML = `<span class="legend-toggle">[+]</span>${groupName}`;
+                legend.innerHTML = `<span class="legend-toggle">[${isExpanded ? '-' : '+'}]</span>${groupName}`;
                 fieldset.appendChild(legend);
 
                 legend.addEventListener('click', () => {
                     fieldset.classList.toggle('minimized');
                     const toggle = legend.querySelector('.legend-toggle');
                     toggle.textContent = fieldset.classList.contains('minimized') ? '[+]' : '[-]';
-                });
+                }); 
 
                 const fieldsetContent = document.createElement('div');
                 fieldsetContent.className = 'fieldset-content config-grid';
 
-                properties.forEach(prop => {
+                properties.forEach(prop => { 
                     const schema = configSchema[prop];
                     if (!schema) return;
 
@@ -1631,17 +1849,33 @@
                     fieldContainer.className = 'form-field';
                     const label = document.createElement('label');
                     label.textContent = schema.label;
-                    label.title = schema.description || '';
                     fieldContainer.appendChild(label);
+
+                    if (schema.description) {
+                        const tooltipSpan = document.createElement('span');
+                        tooltipSpan.className = 'tooltip-icon';
+                        tooltipSpan.textContent = '(?)';
+                        tooltipSpan.title = schema.description;
+                        label.appendChild(tooltipSpan);
+                    }
+
 
                     let inputHtml = '';
                     switch(schema.type) {
                         case 'image':
-                            inputHtml = `<input type="file" class="config-input" data-key="${prop}" data-path="${schema.path}">
-                                         <img src="${value}" class="image-upload-preview" style="${!value ? 'display:none' : ''}">`;
+                            const fileInputId_global = `file-upload-${prop}-global`;
+                            inputHtml = `<div class="form-field-compound">
+                                            <input type="text" class="config-input" data-key="${prop}" value="${value}" placeholder="Image URL" style="flex-grow: 1;">
+                                            <label for="${fileInputId_global}" class="button-like-label">Upload</label>
+                                            <input type="file" id="${fileInputId_global}" data-key="${prop}" data-path="${schema.path}" style="display: none;">
+                                         </div>
+                                         <img src="${value}" class="image-upload-preview" style="${!value ? 'display:none;' : ''}">`;
+                            break;
+                        case 'textarea':
+                            inputHtml = `<textarea class="config-input" data-key="${prop}">${value}</textarea>`;
                             break;
                         case 'boolean':
-                            const checked = String(value).toUpperCase() === 'TRUE';
+                            const checked = value === true;
                             inputHtml = `<input type="checkbox" class="config-input" data-key="${prop}" ${checked ? 'checked' : ''}>`;
                             break;
                         case 'select':
@@ -1668,9 +1902,91 @@
                 form.appendChild(fieldset);
             });
 
+            // NEW: Render fieldsets for each status style
+            STATUSES.forEach(status => {
+                const groupName = `Status Styles (${status})`;
+                const fieldset = document.createElement('fieldset');
+                const isExpanded = expansionStates[groupName] === true;
+                fieldset.className = `overrides-fieldset ${isExpanded ? '' : 'minimized'}`;
+
+                const legend = document.createElement('legend');
+                legend.innerHTML = `<span class="legend-toggle">[${isExpanded ? '-' : '+'}]</span>${groupName}`;
+                fieldset.appendChild(legend);
+
+                legend.addEventListener('click', () => {
+                    fieldset.classList.toggle('minimized');
+                    const toggle = legend.querySelector('.legend-toggle');
+                    toggle.textContent = fieldset.classList.contains('minimized') ? '[+]' : '[-]';
+                });
+
+                const fieldsetContent = document.createElement('div');
+                fieldsetContent.className = 'fieldset-content config-grid';
+
+                // Render non-stamp properties
+                Object.entries(styleSchema).forEach(([prop, schema]) => {
+                    if (prop.startsWith('stamp')) return; // Skip stamp properties for now
+                    renderStyleProperty(fieldsetContent, status, prop, schema);
+                });
+
+                // --- Create the collapsible stamp fieldset ---
+                const useStampValue = allStyles[status]?.useStampByDefault === true;
+                const stampFieldset = document.createElement('fieldset');
+                stampFieldset.className = `overrides-fieldset stamp-fieldset ${useStampValue ? '' : 'minimized'}`;
+
+                const stampLegend = document.createElement('legend');
+                const useStampSchema = styleSchema.useStampByDefault;
+                const useStampLabel = document.createElement('label');
+                const useStampCheckbox = document.createElement('input');
+                useStampCheckbox.type = 'checkbox';
+                useStampCheckbox.className = 'config-input';
+                useStampCheckbox.dataset.status = status;
+                useStampCheckbox.dataset.key = 'useStampByDefault';
+                useStampCheckbox.checked = useStampValue;
+                const useStampLabelText = document.createTextNode(` ${useStampSchema.label}`);
+                useStampLabel.append(useStampCheckbox, useStampLabelText);
+                if (useStampSchema.description) {
+                    const tooltip = Object.assign(document.createElement('span'), { className: 'tooltip-icon', textContent: '(?)', title: useStampSchema.description });
+                    useStampLabel.appendChild(tooltip);
+                }
+                stampLegend.appendChild(useStampLabel);
+                stampFieldset.appendChild(stampLegend);
+
+                const stampFieldsetContent = document.createElement('div');
+                stampFieldsetContent.className = 'fieldset-content';
+                Object.entries(styleSchema).forEach(([prop, schema]) => {
+                    if (prop.startsWith('stamp') && prop !== 'useStampByDefault') {
+                        renderStyleProperty(stampFieldsetContent, status, prop, schema);
+                    }
+                });
+                stampFieldset.appendChild(stampFieldsetContent);
+                useStampCheckbox.addEventListener('change', e => stampFieldset.classList.toggle('minimized', !e.target.checked));
+                fieldsetContent.appendChild(stampFieldset);
+                // --- End stamp fieldset ---
+
+                fieldset.appendChild(fieldsetContent);
+                form.appendChild(fieldset);
+            });
+
+            // Restore focus and value to the previously active element
+            if (activeElementKey) {
+                const newActiveElement = form.querySelector(`[data-key="${activeElementKey}"]`);
+                if (newActiveElement) {
+                    newActiveElement.value = activeElementValue; // Restore the unsaved value the user was typing
+                    newActiveElement.focus();
+                    try { // Setting selection can fail on some input types (e.g., color)
+                        newActiveElement.setSelectionRange(selectionStart, selectionEnd);
+                    } catch (e) { /* no-op */ }
+                }
+            }
+
             // Add event listeners for image uploads and range sliders
-            form.querySelectorAll('input[type="file"]').forEach(input => {
-                input.addEventListener('change', (e) => handleImageUpload(e.target));
+            form.querySelectorAll('input[type="file"]').forEach(input => { // This now targets the hidden file inputs
+                input.addEventListener('change', (e) => {
+                    // Stop the event from bubbling up to the form's 'input' listener,
+                    // which prevents a race condition where the 'fakepath' gets saved.
+                    e.stopPropagation();
+                    handleImageUpload(e.target);
+                });
             });
             form.querySelectorAll('input[type="range"]').forEach(input => {
                 input.addEventListener('input', (e) => {
@@ -1679,24 +1995,140 @@
             });
         }
 
+        function renderStyleProperty(parentContainer, status, prop, schema) {
+            const value = allStyles[status]?.[prop] ?? (schema.type === 'boolean' ? false : '');
+
+            const fieldContainer = document.createElement('div');
+            fieldContainer.className = 'form-field';
+            const label = document.createElement('label');
+            label.textContent = schema.label;
+            if (schema.description) {
+                const tooltip = Object.assign(document.createElement('span'), { className: 'tooltip-icon', textContent: '(?)', title: schema.description });
+                label.appendChild(tooltip);
+            }
+            fieldContainer.appendChild(label);
+
+            let inputHtml = '';
+            const dynamicPath = `${schema.path}${status.replace(/\s+/g, '_').toLowerCase()}`;
+
+            switch(schema.type) {
+                case 'image':
+                    const fileInputId_style = `file-upload-${prop}-${status}`;
+                    inputHtml = `<div class="form-field-compound">
+                                    <input type="text" class="config-input" data-status="${status}" data-key="${prop}" value="${value}" placeholder="Image URL" style="flex-grow: 1;">
+                                    <label for="${fileInputId_style}" class="button-like-label">Upload</label>
+                                    <input type="file" id="${fileInputId_style}" data-status="${status}" data-key="${prop}" data-path="${dynamicPath}" style="display: none;">
+                                 </div>
+                                 <img src="${value}" class="image-upload-preview" style="${!value ? 'display:none;' : ''}">`;
+                    break;
+                case 'boolean':
+                    inputHtml = `<input type="checkbox" class="config-input" data-status="${status}" data-key="${prop}" ${value ? 'checked' : ''}>`;
+                    break;
+                case 'range':
+                        inputHtml = `<input type="range" class="config-input" data-status="${status}" data-key="${prop}" value="${value}" min="${schema.min}" max="${schema.max}" step="${schema.step}">
+                                    <span>${value}</span>`;
+                    break;
+                case 'select':
+                {
+                    const options = schema.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+                    inputHtml = `<select class="config-input" data-status="${status}" data-key="${prop}">${options}</select>`;
+                    break;
+                }
+                case 'numberWithUnit':
+                {
+                    const unit = schema.unit || '';
+                    const currentValue = parseFloat(value) || 0;
+                    inputHtml = `<div class="form-field-compound">
+                                    <input type="number" class="config-input" data-status="${status}" data-key="${prop}" value="${currentValue}" min="${schema.min ?? 0}" max="${schema.max ?? 100}" step="${schema.step ?? 1}" data-unit="${unit}">
+                                    <span style="width: 30px; text-align: left; margin-left: 5px;">${unit}</span>
+                                    </div>`;
+                    break;
+                }
+                case 'colorAndOpacity':
+                {
+                    const colorVal = allStyles[status]?.color ?? '#ffffff';
+                    const opacityVal = allStyles[status]?.opacity ?? 0.5;
+                    inputHtml = `<div class="form-field-compound" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                                    <div class="form-field-compound">
+                                        <input type="color" class="config-input" data-status="${status}" data-key="color" value="${colorVal}">
+                                        <span style="margin-left: 10px; flex-grow: 1;">Color</span>
+                                    </div>
+                                    <div class="form-field-compound">
+                                        <input type="range" class="config-input" data-status="${status}" data-key="opacity" value="${opacityVal}" min="0" max="1" step="0.01">
+                                        <span style="width: 40px; text-align: left; margin-left: 10px;">${opacityVal}</span>
+                                    </div>
+                                    </div>`;
+                    break;
+                }
+                case 'widthAndColor':
+                {
+                    const widthKey = schema.keys.width;
+                    const colorKey = schema.keys.color;
+                    const unit = schema.unit || '';
+                    const widthVal = parseFloat(allStyles[status]?.[widthKey]) || 0;
+                    const colorVal = allStyles[status]?.[colorKey] ?? '#000000';
+                    inputHtml = `<div class="form-field-compound">
+                                    <input type="number" class="config-input" data-status="${status}" data-key="${widthKey}" value="${widthVal}" min="0" max="20" step="1" data-unit="${unit}" style="max-width: 70px;">
+                                    <span style="width: 30px; text-align: left; margin-left: 5px;">${unit}</span>
+                                    <input type="color" class="config-input" data-status="${status}" data-key="${colorKey}" value="${colorVal}">
+                                    </div>`;
+                    break;
+                }
+                default: // text, color, etc.
+                    inputHtml = `<input type="${schema.type}" class="config-input" data-status="${status}" data-key="${prop}" value="${value}">`;
+                    break;
+            }
+            fieldContainer.innerHTML += inputHtml;
+            parentContainer.appendChild(fieldContainer);
+        }
+
         function handleGlobalStyleInputChange(event) {
             const input = event.target;
             const key = input.dataset.key;
             if (!key) return;
 
+            // File inputs are handled by a separate 'change' listener that calls handleImageUpload.
+            // This prevents the 'fakepath' from being saved to the database.
+            if (input.type === 'file') return;
+
+            const status = input.dataset.status; // NEW: Check for status
+            let newValue;
+
             if (input.type === 'checkbox') {
-                config[key] = input.checked ? 'TRUE' : 'FALSE';
+                newValue = input.checked;
             } else {
-                config[key] = input.value;
+                newValue = input.value;
+                if (input.dataset.unit) { // Check for the unit from numberWithUnit
+                    newValue += input.dataset.unit;
+                }
             }
 
-            if (key === 'Bingo Board Image') {
-                const imageUrl = input.value || '';
-                boardImage.src = imageUrl;
-                boardContent.style.backgroundImage = imageUrl ? `url('${imageUrl}')` : 'none';
+            // NEW: Update image preview when URL is typed manually
+            if (input.type === 'text' && (key === 'boardImageUrl' || key === 'stampImageUrl')) {
+                const fieldContainer = input.closest('.form-field');
+                if (fieldContainer) {
+                    const previewImg = fieldContainer.querySelector('.image-upload-preview');
+                    if (previewImg) {
+                        previewImg.src = input.value;
+                        previewImg.style.display = input.value ? 'block' : 'none';
+                    }
+                }
             }
-            updateStyleCsvOutput();
-            renderTiles();
+
+            if (status) { // This is a style property
+                const oldValue = allStyles[status]?.[key] ?? '';
+                if (!allStyles[status]) allStyles[status] = {};
+                allStyles[status][key] = newValue; // Optimistic update
+                debouncedSaveStyle(status, { [key]: newValue }, input, oldValue);
+            } else { // This is a config property
+                const oldValue = config[key] ?? '';
+                config[key] = newValue; // Optimistic update
+                if (key === 'boardImageUrl') {
+                    loadBoardImage(newValue);
+                }
+                debouncedSaveConfig({ [key]: newValue }, input, oldValue);
+            }
+            renderTiles(); // Optimistically re-render
         }
 
         // --- Style Preview Logic ---
@@ -1748,8 +2180,8 @@
             if (orGroups.length === 0) return;
 
             const destCenter = {
-                x: destTileData.x_pct + destTileData.width_pct / 2,
-                y: destTileData.y_pct + destTileData.height_pct / 2
+                x: parseFloat(destTileData['Left (%)']) + parseFloat(destTileData['Width (%)']) / 2,
+                y: parseFloat(destTileData['Top (%)']) + parseFloat(destTileData['Height (%)']) / 2
             };
 
             const totalGroups = orGroups.length;
@@ -1772,12 +2204,12 @@
                 const fillsFragment = document.createDocumentFragment();
 
                 andGroup.forEach(tileId => {
-                    const sourceTileData = tilesData.find(t => t.TileID === tileId);
+                    const sourceTileData = tilesData.find(t => t.id === tileId);
                     if (!sourceTileData) return;
 
                     const sourceCenter = {
-                        x: sourceTileData.x_pct + sourceTileData.width_pct / 2,
-                        y: sourceTileData.y_pct + sourceTileData.height_pct / 2
+                        x: parseFloat(sourceTileData['Left (%)']) + parseFloat(sourceTileData['Width (%)']) / 2,
+                        y: parseFloat(sourceTileData['Top (%)']) + parseFloat(sourceTileData['Height (%)']) / 2
                     };
 
                     const p1 = { ...sourceCenter };
@@ -1815,15 +2247,22 @@
             const file = input.files[0];
             if (!file) return;
             const key = input.dataset.key;
+            const status = input.dataset.status; // NEW
             const storagePath = input.dataset.path;
-            const previewImg = input.nextElementSibling;
+
+            // Find the corresponding text input and preview image
+            const compoundDiv = input.closest('.form-field-compound');
+            const textInput = compoundDiv.querySelector('input[type="text"]');
+            const fieldContainer = input.closest('.form-field');
+            const previewImg = fieldContainer.querySelector('.image-upload-preview');
             
             showGlobalLoader();
 
             // If there's an old image URL, delete the old file from storage
-            if (config[key] && config[key].includes('firebasestorage')) {
+            const oldUrl = textInput.value; // Get URL from the text input
+            if (oldUrl && oldUrl.includes('firebasestorage')) {
                 try {
-                    const oldRef = fb.ref(storage, config[key]);
+                    const oldRef = fb.ref(storage, oldUrl);
                     await fb.deleteObject(oldRef);
                 } catch (error) {
                     if (error.code !== 'storage/object-not-found') console.error("Could not delete old file:", error);
@@ -1835,8 +2274,12 @@
                 await fb.uploadBytes(newFileRef, file);
                 const url = await fb.getDownloadURL(newFileRef);
 
-                // Update the config object in memory and the UI
-                config[key] = url;
+                // Update the text input with the new URL
+                textInput.value = url;
+                
+                // Manually trigger an input event on the text field to save the new URL
+                textInput.dispatchEvent(new Event('input', { bubbles: true }));
+
                 previewImg.src = url;
                 previewImg.style.display = 'block';
                 showMessage(`Uploaded ${file.name}`, false);
@@ -1847,164 +2290,429 @@
             }
         }
 
-        async function initializeApp() {
-            console.log("Loading configuration from Firebase...");
-            document.getElementById('load-data-btn').disabled = true;
-            document.getElementById('save-data-btn').disabled = true;
+        async function handleOverrideImageUpload(fileInput, textInput) {
+            const file = fileInput.files[0];
+            if (!file) return;
+            const storagePath = fileInput.dataset.path;
+
             showGlobalLoader();
 
-            try {
-                const configRef = fb.doc(db, 'config', 'main');
-                const configSnap = await fb.getDoc(configRef);
-                const loadedConfig = configSnap.exists() ? configSnap.data() : {};
-
-                const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
-                const tilesList = tilesSnap.docs.map(doc => ({ ...doc.data(), TileID: doc.id, id: doc.id }));
-
-                onDataLoaded({ tiles: tilesList, config: loadedConfig });
-            } catch (err) {
-                showMessage('Failed to load data: ' + err.message, true);
-                hideGlobalLoader();
-                document.getElementById('load-data-btn').disabled = false;
-                document.getElementById('save-data-btn').disabled = false;
+            const oldUrl = textInput.value;
+            if (oldUrl && oldUrl.includes('firebasestorage')) {
+                try {
+                    const oldRef = fb.ref(storage, oldUrl);
+                    await fb.deleteObject(oldRef);
+                } catch (error) {
+                    if (error.code !== 'storage/object-not-found') console.error("Could not delete old file:", error);
+                }
             }
-        }
 
-        function onDataLoaded(data) {
             try {
-                console.log("Data loaded successfully.", data);
-                // 1. Load Tiles
-                tilesData = data.tiles || [];
-                // Re-create header from the first tile if it exists
-                if (tilesData.length > 0) {
-                    csvHeader = Object.keys(tilesData[0]);
-                } else {
-                    // Fallback to a default header if no tiles exist
-                    csvHeader = ['TileID', 'Name', 'Description', 'Prerequisites', 'Top (%)', 'Left (%)', 'Width (%)', 'Height (%)', 'Points', 'Rotation', 'Overrides (JSON)'];
-                }
+                const newFileRef = fb.ref(storage, `${storagePath}/${file.name}`);
+                await fb.uploadBytes(newFileRef, file);
+                const url = await fb.getDownloadURL(newFileRef);
 
-                if (csvHeader.length > 0) {
-                    createEditorForm(csvHeader);
-                    updateEditorPanel(null);
-                }
-                
-                // 2. Load Global Styles
-                config = data.config || {};
-                renderGlobalConfig();
-                const imageUrl = config.boardImageUrl || '';
-                boardImage.src = imageUrl;
-                boardContent.style.backgroundImage = imageUrl ? `url('${imageUrl}')` : 'none';
+                textInput.value = url;
+                textInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-                // 3. Load Security & Teams
-                // This is now handled by the security panel directly
-                populateSecurityEditor();
-
-                // 4. Render and Update UI
-                renderTiles();
-                updateCsvOutput();
-                updateStyleCsvOutput();
-                showMessage('Data loaded successfully!', false);
-            } catch (e) {
-                showMessage('Error processing loaded data: ' + e.message, true);
-                console.error("Error in onDataLoaded: ", e);
+                showMessage(`Uploaded ${file.name}`, false);
+            } catch (error) {
+                showMessage(`Upload failed: ${error.message}`, true);
             } finally {
-                // This block runs whether the try succeeded or failed, ensuring UI is restored.
                 hideGlobalLoader();
-                document.getElementById('load-data-btn').disabled = false;
-                document.getElementById('save-data-btn').disabled = false;
             }
         }
 
-        async function saveDataToFirebase() {
-            document.getElementById('save-data-btn').disabled = true;
-            document.getElementById('load-data-btn').disabled = true;
+        function initializeApp() {
+            console.log("Setting up real-time data listeners...");
             showGlobalLoader();
 
-            try {
-                const batch = fb.writeBatch(db);
+            // Detach old listeners if they exist, to prevent memory leaks on re-initialization
+            if (unsubscribeConfig) unsubscribeConfig();
+            if (unsubscribeTiles) unsubscribeTiles();
+            if (unsubscribeUsers) unsubscribeUsers();
+            if (unsubscribeTeams) unsubscribeTeams();
+            if (unsubscribeStyles) unsubscribeStyles();
 
-                // 1. Save all tiles
-                tilesData.forEach(tile => {
-                    const tileId = tile.TileID;
-                    if (!tileId) {
-                        console.warn("Skipping tile with no TileID:", tile);
-                        return;
+            let initialDataLoaded = { config: false, tiles: false, users: false, teams: false, styles: false };
+            const checkAllLoaded = () => {
+                if (Object.values(initialDataLoaded).every(Boolean)) {
+                    hideGlobalLoader();
+                    showMessage('Live editor initialized and synced!', false);
+                }
+            };
+
+            // Listener for the main configuration document (excluding teams)
+            unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+                console.log("Config updated in real-time.");
+                config = doc.exists() ? doc.data() : {};
+                renderGlobalConfig();
+                loadBoardImage(config.boardImageUrl || '');
+                renderTiles(); // Re-render tiles as global styles may have changed
+
+                if (!initialDataLoaded.config) {
+                    initialDataLoaded.config = true;
+                    checkAllLoaded();
+                }
+            }, (error) => {
+                showMessage('Error loading config: ' + error.message, true);
+                hideGlobalLoader();
+            });
+
+            // Listener for the tiles collection
+            unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+                console.log("Tiles updated in real-time.");
+                let needsRender = false;
+                let selectedTileUpdated = false;
+
+                snapshot.docChanges().forEach(change => {
+                    needsRender = true;
+                    const changedDoc = { ...change.doc.data(), docId: change.doc.id }; // Add the docId to the object
+                    const index = tilesData.findIndex(t => t.docId === changedDoc.docId);
+
+                    if (change.type === "added") {
+                        if (index === -1) tilesData.push(changedDoc);
                     }
-                    // Create a clean object to save, removing internal properties if any
-                    const tileDataToSave = { ...tile };
-                    delete tileDataToSave.id; // Remove any temporary internal IDs
-
-                    const tileRef = fb.doc(db, 'tiles', tileId);
-                    batch.set(tileRef, tileDataToSave);
+                    if (change.type === "modified") {
+                        if (index > -1) {
+                            tilesData[index] = changedDoc;
+                            if (lastSelectedTileIndex === index) {
+                                selectedTileUpdated = true;
+                            }
+                        }
+                    }
+                    if (change.type === "removed") {
+                        if (index > -1) {
+                            tilesData.splice(index, 1);
+                            if (lastSelectedTileIndex === index) {
+                                lastSelectedTileIndex = null;
+                                selectedTileUpdated = true; // Will clear the editor
+                            } else if (lastSelectedTileIndex > index) {
+                                lastSelectedTileIndex--; // Adjust index
+                            }
+                        }
+                    }
                 });
 
-                // 2. Save config, styles, and security
-                const securityData = collectSecurityData();
-                const configRef = fb.doc(db, 'config', 'main');
-                // 'config' object is the source of truth for styles, updated by the form listener.
-                const configPayload = {
-                    ...config,
-                    teams: securityData.teams, // Now just an array of {name: '...'}
-                };
-                batch.set(configRef, configPayload, { merge: true });
+                // After all changes are processed, update the selector
+                populateTileSelector();
 
-                await batch.commit();
-                showMessage('All changes saved successfully!', false);
+                if (needsRender) {
+                    renderTiles();
+                    if (selectedTileUpdated) {
+                        updateEditorPanel(lastSelectedTileIndex);
+                    }
+                }
 
-            } catch (e) {
-                showMessage('Error preparing data to save: ' + e.message, true);
-                console.error("Error in saveDataToSheet: ", e);
-            } finally {
+                if (!initialDataLoaded.tiles) {
+                    initialDataLoaded.tiles = true;
+                    checkAllLoaded();
+                }
+            }, (error) => {
+                showMessage('Error loading tiles: ' + error.message, true);
                 hideGlobalLoader();
-                document.getElementById('save-data-btn').disabled = false;
-                document.getElementById('load-data-btn').disabled = false;
-            }
+            });
+
+            // Listener for the users collection
+            unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
+                console.log("Users updated in real-time.");
+                allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+                // Only re-render the teams list if it has already been populated.
+                // This prevents a race condition where an empty list is rendered
+                // if user data arrives before team data.
+                if (initialDataLoaded.teams) renderTeamsList();
+                if (!initialDataLoaded.users) {
+                    initialDataLoaded.users = true;
+                    checkAllLoaded();
+                }
+            }, (error) => {
+                showMessage('Error loading users: ' + error.message, true);
+                hideGlobalLoader();
+            });
+
+            // Listener for the new teams collection
+            const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+            unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+                console.log("Teams updated in real-time.");
+
+                // Rebuild the teams object, consistent with other pages (admin, overview).
+                allTeams = {};
+                snapshot.docs.forEach(doc => {
+                    allTeams[doc.id] = doc.data();
+                });
+                renderTeamsList();
+
+                if (!initialDataLoaded.teams) {
+                    initialDataLoaded.teams = true;
+                    checkAllLoaded();
+                }
+            }, (error) => { showMessage('Error loading teams: ' + error.message, true); hideGlobalLoader(); });
+
+            // Listener for the new styles collection
+            unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
+                console.log("Styles updated in real-time.");
+                allStyles = {};
+                snapshot.docs.forEach(doc => {
+                    allStyles[doc.id] = doc.data();
+                });
+                renderGlobalConfig(); // Re-render config form which now includes styles
+                renderTiles(); // Re-render tiles as styles may have changed
+
+                if (!initialDataLoaded.styles) {
+                    initialDataLoaded.styles = true;
+                    checkAllLoaded();
+                }
+            }, (error) => {
+                showMessage('Error loading styles: ' + error.message, true);
+            });
+
+            // Initial UI setup that doesn't depend on data
+            createEditorForm();
+            updateEditorPanel(null);
         }
 
-        function populateSecurityEditor() {
+        function loadBoardImage(imageUrl) {
+            // Clear previous error messages if any
+            const existingError = boardContent.querySelector('.error-message');
+            if (existingError) existingError.remove();
+
+            if (!imageUrl) {
+                boardImage.src = '';
+                boardContent.style.backgroundImage = 'none';
+                // Add a placeholder aspect ratio if no image
+                boardContent.style.aspectRatio = '1 / 1';
+                return;
+            }
+
+            // Use the existing hidden img tag to load and get aspect ratio
+            boardImage.onload = () => {
+                boardContent.style.aspectRatio = `${boardImage.naturalWidth} / ${boardImage.naturalHeight}`;
+                boardContent.style.backgroundImage = `url('${imageUrl}')`;
+            };
+            boardImage.onerror = () => {
+                boardContent.style.backgroundImage = 'none';
+                boardContent.style.aspectRatio = '1 / 1';
+                boardContent.appendChild(Object.assign(document.createElement('div'), { className: 'error-message', innerHTML: `<strong>Board Image Failed to Load</strong><br><small>Check the URL in the config or try re-uploading.</small>` }));
+            };
+            boardImage.src = imageUrl;
+        }
+
+        function renderTeamsList() {
             const teamsContainer = document.getElementById('teams-container');
-            teamsContainer.innerHTML = '';
-            // config object holds the teams array
-            if (config.teams) {
-                config.teams.forEach(team => addTeamRow(team.name));
+
+            // Preserve focus and value of the active input.
+            let activeElement = document.activeElement;
+            let activeTeamId = null;
+            let activeFieldClass = null;
+            let activeValue = null;
+            let selectionStart = null;
+            let selectionEnd = null;
+
+            if (activeElement && teamsContainer.contains(activeElement)) {
+                const teamItem = activeElement.closest('.team-item');
+                if (teamItem && teamItem.dataset.teamId) {
+                    activeTeamId = teamItem.dataset.teamId;
+                    activeValue = activeElement.value;
+                    selectionStart = activeElement.selectionStart;
+                    selectionEnd = activeElement.selectionEnd;
+                    // Determine which field it is by class
+                    if (activeElement.classList.contains('team-name')) {
+                        activeFieldClass = 'team-name';
+                    } else if (activeElement.classList.contains('team-captain')) {
+                        activeFieldClass = 'team-captain';
+                    }
+                }
+            }
+
+            teamsContainer.innerHTML = ''; // Now clear the container
+            if (!allTeams || Object.keys(allTeams).length === 0) return;
+
+            // Sort by ID to maintain consistent order, as iterating object keys is not guaranteed.
+            const sortedTeamIds = Object.keys(allTeams).sort();
+            sortedTeamIds.forEach(teamId => {
+                const team = allTeams[teamId];
+                addTeamRow(teamId, team.name || '', team.captainId || '');
+            });
+
+            // Restore focus and value.
+            if (activeTeamId && activeFieldClass) {
+                const newTeamItem = teamsContainer.querySelector(`.team-item[data-team-id="${activeTeamId}"]`);
+                if (newTeamItem) {
+                    const newActiveElement = newTeamItem.querySelector(`.${activeFieldClass}`);
+                    if (newActiveElement) {
+                        newActiveElement.value = activeValue;
+                        newActiveElement.focus();
+                        try {
+                            newActiveElement.setSelectionRange(selectionStart, selectionEnd);
+                        } catch (e) { /* no-op for select */ }
+                    }
+                }
             }
         }
 
-        function addTeamRow(name = '') {
+        function addTeamRow(teamId, name = '', captainId = '') {
             const container = document.getElementById('teams-container');
             const item = document.createElement('div');
             item.className = 'team-item';
+            item.dataset.teamId = teamId;
+
+            const idDisplay = document.createElement('span');
+            idDisplay.className = 'team-id-display';
+            idDisplay.textContent = teamId;
+            idDisplay.title = 'Team ID (fixed)';
 
             const nameInput = document.createElement('input');
             nameInput.type = 'text';
-            nameInput.className = 'team-name';
+            nameInput.className = 'team-field team-name';
             nameInput.placeholder = 'Team Name';
             nameInput.value = name;
+
+            const captainSelect = document.createElement('select');
+            captainSelect.className = 'team-field team-captain';
+            captainSelect.innerHTML = `<option value="">-- No Captain --</option>`;
+            allUsers.forEach(user => {
+                captainSelect.innerHTML += `<option value="${user.uid}" ${user.uid === captainId ? 'selected' : ''}>${user.displayName || user.email}</option>`;
+            });
 
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'remove-team-btn';
             removeBtn.textContent = 'Remove';
-            removeBtn.onclick = () => item.remove();
+            removeBtn.style.marginTop = 0; // Override default button margin
+            
+            item.append(idDisplay, nameInput, captainSelect, removeBtn); container.appendChild(item);
 
-            item.append(nameInput, removeBtn);
-            container.appendChild(item);
-        }
-
-        function collectSecurityData() {
-            const teams = [];
-            document.querySelectorAll('.team-item').forEach(item => {
-                const name = item.querySelector('.team-name').value.trim();
-                if (name) {
-                    teams.push({ name });
+            // Add listeners after appending
+            nameInput.oninput = (e) => debouncedUpdateTeam(teamId, 'name', e.target.value);
+            captainSelect.onchange = (e) => debouncedUpdateTeam(teamId, 'captainId', e.target.value || null);
+            removeBtn.onclick = () => {
+                if (confirm(`Are you sure you want to delete team "${name || teamId}"?`)) {
+                    deleteTeam(teamId);
                 }
-            });
-            return {
-                teams: teams
             };
         }
 
-        document.getElementById('add-team-btn').addEventListener('click', () => addTeamRow());
+        document.getElementById('add-team-btn').addEventListener('click', () => {
+            // Find the highest existing team number to create the next one.
+            // We do not reuse IDs from deleted teams to maintain data integrity,
+            // as old submissions may still reference the old ID.
+            if (!allTeams) allTeams = {};
+            const existingNumbers = Object.keys(allTeams).map(id => parseInt(id.replace('team', ''), 10)).filter(n => !isNaN(n));
+            const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+            const newId = `team${String(maxNumber + 1).padStart(2, '0')}`;
+
+            fb.setDoc(fb.doc(db, 'teams', newId), { name: 'New Team', captainId: null })
+                .then(() => showMessage(`Team ${newId} created.`, false))
+                .catch(err => showMessage(`Error creating team: ${err.message}`, true));
+            // The onSnapshot listener will automatically add the new row to the UI.
+        });
+
+        // --- NEW: Auto-saving logic ---
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) { 
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        const debouncedSaveTile = debounce(async (docId, data, inputElement, oldValue) => {
+            if (!docId) return;
+            const tileRef = fb.doc(db, 'tiles', docId);
+            const key = Object.keys(data)[0];
+            const tileIndex = tilesData.findIndex(t => t.docId === docId);
+
+            return fb.updateDoc(tileRef, data).then(() => {
+                console.log(`Tile ${docId} auto-saved.`);
+            }).catch(err => {
+                showMessage(`Error saving tile: ${err.message}`, true);
+                // Revert the data and UI on failure
+                if (tileIndex !== -1) {
+                    console.warn(`Reverting tile field '${key}' to '${oldValue}' due to save error.`);
+                    // 1. Revert the data model
+                    tilesData[tileIndex][key] = oldValue;
+
+                    // 2. Revert the input UI
+                    const syncName = inputElement.dataset.sync;
+                    if (syncName) {
+                        detailsForm.querySelectorAll(`[data-sync="${syncName}"]`).forEach(el => {
+                            if (syncName === 'Rotation' && el.type === 'range') {
+                                el.value = parseFloat(oldValue) || 0;
+                            } else {
+                                el.value = oldValue;
+                            }
+                        });
+                    } else {
+                        inputElement.value = oldValue;
+                    }
+
+                    // 3. Re-render all tiles to revert visual state (e.g., position, size)
+                    renderTiles();
+                }
+            });
+        }, 1000);
+
+        const debouncedSaveConfig = debounce((data, inputElement, oldValue) => {
+            const configRef = fb.doc(db, 'config', 'main');
+            const key = Object.keys(data)[0];
+
+            // Use setDoc with merge: true. This will create the document if it doesn't exist,
+            // and update it if it does, which is perfect for initial setup.
+            fb.setDoc(configRef, data, { merge: true }).then(() => {
+                console.log('Config auto-saved.');
+            }).catch(err => {
+                showMessage(`Error saving config: ${err.message}`, true);
+                if (inputElement) {
+                    console.warn(`Reverting config field '${key}' to '${oldValue}' due to save error.`);
+                    config[key] = oldValue; // Revert data model
+                    if (inputElement.type === 'checkbox') {
+                        inputElement.checked = String(oldValue).toUpperCase() === 'TRUE';
+                    } else {
+                        inputElement.value = oldValue;
+                    }
+                    if (inputElement.type === 'range' && inputElement.nextElementSibling) {
+                        inputElement.nextElementSibling.textContent = oldValue;
+                    }
+                    renderTiles(); // Re-render to show reverted state
+                }
+            });
+        }, 1000);
+
+        const debouncedUpdateTeam = debounce((teamId, field, value) => {
+            const teamRef = fb.doc(db, 'teams', teamId);
+            fb.updateDoc(teamRef, { [field]: value })
+                .then(() => console.log(`Team ${teamId} field '${field}' auto-saved.`))
+                .catch(err => {
+                    showMessage(`Error saving team ${teamId}: ${err.message}`, true);
+                    renderTeamsList(); // Re-render to revert UI change
+                });
+        }, 1500);
+
+        const debouncedSaveStyle = debounce((styleId, data, inputElement, oldValue) => {
+            const styleRef = fb.doc(db, 'styles', styleId);
+            const key = Object.keys(data)[0];
+
+            fb.setDoc(styleRef, data, { merge: true }).then(() => {
+                console.log(`Style ${styleId} auto-saved.`);
+            }).catch(err => {
+                showMessage(`Error saving style: ${err.message}`, true);
+                if (inputElement) {
+                    console.warn(`Reverting style field '${key}' for ${styleId} to '${oldValue}' due to save error.`);
+                    allStyles[styleId][key] = oldValue; // Revert data model
+                    // Re-render the whole config section to revert the UI
+                    renderGlobalConfig();
+                }
+            });
+        }, 1000);
+
+        function deleteTeam(teamId) {
+            fb.deleteDoc(fb.doc(db, 'teams', teamId))
+                .catch(err => showMessage(`Error deleting team: ${err.message}`, true));
+        }
 
         // --- NEW: Global Loader & Message Box Functions ---
         function showGlobalLoader() {
@@ -2021,8 +2729,6 @@
             setTimeout(() => box.classList.remove('show'), 4000);
         }
 
-        window.initializeApp = initializeApp;
-        window.saveDataToFirebase = saveDataToFirebase;
 
     </script>
 </body>
