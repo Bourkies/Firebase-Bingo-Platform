@@ -146,8 +146,21 @@ These steps must be performed from a local clone of the repository.
     *   **Value**: Copy the *entire contents* of your local `firebase-config.js` file and paste it here.
     *   Click "Add secret".
 
-3.  **Link Repository to Firebase Hosting**:
-    *   In your terminal, from the project's root directory, run the Firebase CLI command:
+3.  **Initialize Firebase Hosting Locally**:
+    *   This step creates the `firebase.json` configuration file required for deployment.
+    *   In your terminal, from the project's root directory, run:
+        ```bash
+        firebase init hosting
+        ```
+    *   **Follow the prompts:**
+        *   Select "Use an existing project" and choose your Firebase project.
+        *   For your public directory, enter **`.`** (a single period for the current directory).
+        *   Configure as a single-page app? **No**.
+        *   Set up automatic builds and deploys with GitHub? **No** (we will do this in the next step).
+
+4.  **Link Repository to Firebase for GitHub Actions**:
+    *   Now that `firebase.json` exists, you can link your repository.
+    *   In your terminal, from the project's root directory, run:
         ```bash
         firebase init hosting:github
         ```
@@ -156,9 +169,9 @@ These steps must be performed from a local clone of the repository.
         *   When asked "What script should be run before every deploy?", leave it blank and press Enter.
         *   Set up a workflow to deploy on push? **Yes**.
         *   Choose the branch to deploy from (e.g., `main`).
-    *   This command is critical: it overwrites any existing workflow file with one configured for *your* project and creates the necessary `FIREBASE_SERVICE_ACCOUNT_...` secret in *your* repository.
+    *   This command is critical: it creates/overwrites the workflow file and creates the necessary `FIREBASE_SERVICE_ACCOUNT_...` secret in *your* repository.
 
-4.  **Modify the Generated Workflow File**:
+5.  **Modify the Generated Workflow File**:
     *   The previous step created/updated a file at `.github/workflows/firebase-hosting-merge.yml`. Open this file.
     *   Find the `steps:` section. Just before the deployment step (`- uses: FirebaseExtended/action-hosting-deploy@...`), add a new step to create the config file from your secret:
         ```yaml
@@ -170,7 +183,7 @@ These steps must be performed from a local clone of the repository.
         steps:
           - uses: actions/checkout@v4
           - name: Create Firebase Config
-            run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
+            run: echo "${{ secrets.FIREBEASE_CONFIG_JS }}" > firebase-config.js
           - uses: FirebaseExtended/action-hosting-deploy@v0
             with:
               repoToken: '${{ secrets.GITHUB_TOKEN }}'
@@ -179,9 +192,9 @@ These steps must be performed from a local clone of the repository.
               projectId: your-project-id # This is your project ID
         ```
 
-5.  **Commit and Push**: Commit the updated workflow file to your repository.
+6.  **Commit and Push**: Commit the updated workflow file and the new Firebase config files to your repository.
     ```bash
-    git add .github/workflows/firebase-hosting-merge.yml
+    git add .github/workflows/firebase-hosting-merge.yml firebase.json .firebaserc
     git commit -m "Configure GitHub Actions for Firebase deployment"
     git push
     ```
