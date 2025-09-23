@@ -106,7 +106,7 @@
     .scoreboard-item:nth-child(odd) { background-color: rgba(0,0,0,0.2); }
     .scoreboard-rank, .scoreboard-score { font-weight: bold; }
     .scoreboard-score { text-align: right; }
-    #submission-modal {
+    #submission-modal, #welcome-modal {
       display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
       background-color: var(--modal-bg); backdrop-filter: blur(5px); justify-content: center; align-items: center;
       padding: 1rem; box-sizing: border-box;
@@ -191,6 +191,33 @@
         margin: 0;
         color: #ccc;
     }
+    /* --- NEW: Welcome Modal Styles --- */
+    #welcome-modal .modal-content p {
+        white-space: pre-wrap;
+        text-align: left;
+        margin: 1rem 0 1.5rem 0;
+        color: #ccc;
+    }
+    #welcome-modal .modal-content h2 {
+        margin-top: 0;
+        color: var(--accent-color);
+    }
+    #welcome-form label {
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    #welcome-form input {
+        width: 100%; padding: 0.75rem; background-color: var(--input-bg);
+        border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-light); box-sizing: border-box;
+    }
+    #welcome-form button {
+        width: 100%; padding: 0.75rem; margin-top: 1.5rem; background-color: var(--accent-color);
+        color: var(--text-dark); font-weight: bold; font-size: 1rem; border: none;
+        border-radius: 8px; cursor: pointer; transition: background-color 0.2s;
+    }
+    #welcome-form button:hover {
+        background-color: #00d9f5;
+    }
   </style>
 </head>
 <body>
@@ -249,6 +276,18 @@
       </form>
     </div>
   </div>
+  <!-- NEW: Welcome Modal -->
+  <div id="welcome-modal">
+    <div class="modal-content">
+      <h2>Welcome!</h2>
+      <p id="welcome-modal-message"></p>
+      <form id="welcome-form">
+        <label for="welcome-display-name">Your Display Name:</label>
+        <input type="text" id="welcome-display-name" required>
+        <button type="submit">Save and Continue</button>
+      </form>
+    </div>
+  </div>
   <div id="message-box"></div>
   <!-- NEW: Tooltip element -->
   <div id="tile-tooltip"></div>
@@ -256,71 +295,116 @@
   <script type="module">
     import { db, fb } from './firebase-config.js';
     import { initAuth, signInWithGoogle, signOut, getAuthState } from './auth.js';
-
-    let config = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {};
-    let unsubscribeSubmissions = null;
+    
+    let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {};
+    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('auth-button').onclick = () => authState.isLoggedIn ? signOut() : signInWithGoogle();
+        document.getElementById('welcome-form').addEventListener('submit', handleWelcomeFormSubmit);
         initAuth(onAuthStateChanged);
-        loadStaticData();
+        initializeApp();
     });
 
     async function onAuthStateChanged(newAuthState) {
         authState = newAuthState;
         updateNavbar();
+
+        // NEW: Welcome modal logic
+        // Check if user is logged in, config allows prompting, and user hasn't set their name yet.
+        if (authState.isLoggedIn && authState.profile && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
+            showWelcomeModal();
+        }
+
         renderBoard(); // Re-render to apply new permissions
     }
 
-    async function loadStaticData() {
-        try {
-            const configSnap = await fb.getDoc(fb.doc(db, 'config', 'main'));
-            if (!configSnap.exists()) throw new Error("Configuration not found.");
-            config = configSnap.data();
+    function initializeApp() {
+        showGlobalLoader();
 
-            applyGlobalStyles();
-
-            const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
-            tiles = tilesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-
-            document.getElementById('overview-nav-link').style.display = String(config.enableOverviewPage).toUpperCase() === 'TRUE' ? 'inline-block' : 'none';
-            document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
-
-            const teamNames = config.teams?.map(t => t.name) || [];
-            const loadFirstTeam = String(config.loadFirstTeamByDefault).toUpperCase() === 'TRUE';
-            populateTeamSelector(teamNames, loadFirstTeam);
-
-            if (loadFirstTeam && teamNames.length > 0) {
-                document.getElementById('team-selector').value = teamNames[0];
-                handleTeamChange();
-            }
-
-            renderColorKey();
-
-            setupSubmissionsListener();
-        } catch (error) {
-            const container = document.getElementById('board-container');
-            container.innerHTML = `<div class="error-message">Failed to load board data: ${error.message}</div>`;
-            hideGlobalLoader();
-        }
-    }
-
-    function setupSubmissionsListener() {
+        // Detach old listeners if they exist to prevent memory leaks
+        if (unsubscribeConfig) unsubscribeConfig();
+        if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
+        if (unsubscribeStyles) unsubscribeStyles();
+        let unsubscribeTeams = null; // New listener for teams
 
-        const submissionsQuery = fb.collection(db, 'submissions');
-        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
-            console.log("Player board data updated in real-time.");
-            submissions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false };
+        const checkAllLoaded = () => {
+            if (Object.values(initialDataLoaded).every(Boolean)) {
+                hideGlobalLoader();
+            }
+        };
 
+        // Listener for the main configuration document
+        unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+            console.log("Config updated in real-time.");
+            if (!doc.exists()) {
+                document.getElementById('board-container').innerHTML = `<div class="error-message">Board configuration not found. Please contact an admin.</div>`;
+                hideGlobalLoader();
+                return;
+            }
+            config = doc.data();
+            
+            applyGlobalStyles();
+            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
+            document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
+            renderColorKey();
             processAllData();
             renderBoard();
             renderScoreboard();
-            hideGlobalLoader();
-        }, (error) => {
-            console.error("Error listening to submissions:", error);
-            hideGlobalLoader();
-        });
+
+            if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading config:", error); hideGlobalLoader(); });
+
+        // Listener for the new teams collection
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            console.log("Teams updated in real-time.");
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            const loadFirstTeam = config.loadFirstTeamByDefault === true;
+            const selector = document.getElementById('team-selector');
+            const previouslySelected = selector.value;
+            populateTeamSelector(allTeams, loadFirstTeam);
+            if (Object.keys(allTeams).includes(previouslySelected)) {
+                selector.value = previouslySelected;
+            } else if (loadFirstTeam && Object.keys(allTeams).length > 0) {
+                selector.value = Object.keys(allTeams)[0];
+            }
+            handleTeamChange(); // This will trigger a re-render if the selection changed
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading teams:", error); hideGlobalLoader(); });
+
+        // Listener for the tiles collection
+        unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+            console.log("Tiles updated in real-time.");
+            tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+            processAllData();
+            renderBoard();
+            renderScoreboard();
+            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading tiles:", error); hideGlobalLoader(); });
+
+        // Listener for the submissions collection
+        unsubscribeSubmissions = fb.onSnapshot(fb.collection(db, 'submissions'), (snapshot) => {
+            console.log("Submissions updated in real-time.");
+            submissions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            processAllData();
+            renderBoard();
+            renderScoreboard();
+            if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
+
+        // Listener for the new styles collection
+        unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
+            console.log("Styles updated in real-time.");
+            allStyles = {};
+            snapshot.docs.forEach(doc => { allStyles[doc.id] = doc.data(); });
+            renderColorKey();
+            renderBoard();
+            if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading styles:", error); });
     }
 
     function updateNavbar() {
@@ -329,28 +413,35 @@
 
         if (authState.isLoggedIn) {
             authButton.textContent = 'Logout';
-            const teamInfo = authState.profile?.team ? ` | Team: ${authState.profile.team}` : '';
-            userInfo.textContent = `${authState.profile?.role || 'Player'}${teamInfo}`;
+            const profile = authState.profile || {};
+            const roles = [];
+            if (profile.isAdmin) roles.push('Admin');
+            else if (profile.isEventMod) roles.push('Event Mod');
+            
+            const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
+            const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
+            const teamInfo = teamName ? ` | Team: ${teamName}` : '';
+            userInfo.textContent = `${profile.displayName || ''} ${roleString} ${teamInfo}`;
         } else {
             authButton.textContent = 'Login with Google';
             userInfo.textContent = '';
         }
 
-        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
+        document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'inline-block' : 'none'; // isEventMod now includes Admin
         document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
     }
 
     function processAllData() {
         teamData = {};
         const newScoreboard = [];
-        const teamNames = config.teams?.map(t => t.name) || [];
+        const teamIds = allTeams ? Object.keys(allTeams) : [];
 
-        teamNames.forEach(teamName => {
-            const teamSubmissions = submissions.filter(s => s.Team === teamName && !s.IsArchived);
+        teamIds.forEach(teamId => {
+            const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
             const tileStates = {};
 
-            teamSubmissions.forEach(sub => {
-                const tileId = sub.TileID;
+            teamSubmissions.forEach(sub => { // sub.id is the user-facing tile ID
+                const tileId = sub.id;
                 if (!tileStates[tileId]) {
                     tileStates[tileId] = { hasSubmission: false, complete: false, verified: false, requiresAction: false };
                 }
@@ -359,16 +450,16 @@
                 if (sub.AdminVerified) tileStates[tileId].verified = true;
                 if (sub.RequiresAction) tileStates[tileId].requiresAction = true;
             });
-            teamData[teamName] = { tileStates };
+            teamData[teamId] = { tileStates };
         });
 
         // Calculate scoreboard
-        teamNames.forEach(teamName => {
+        teamIds.forEach(teamId => {
             let score = 0;
             let completedTiles = 0;
             tiles.forEach(tile => {
-                const status = getTileStatus(tile, teamName);
-                const scoreOnVerified = String(config.scoreOnVerifiedOnly).toUpperCase() === 'TRUE';
+                const status = getTileStatus(tile, teamId);
+                const scoreOnVerified = config.scoreOnVerifiedOnly === true;
                 const isScored = scoreOnVerified ? status === 'Verified' : (status === 'Verified' || status === 'Submitted');
 
                 if (isScored) {
@@ -376,7 +467,7 @@
                     completedTiles++;
                 }
             });
-            newScoreboard.push({ team: teamName, score, completedTiles });
+            newScoreboard.push({ teamId: teamId, score, completedTiles });
         });
 
         scoreboard = newScoreboard.sort((a, b) => b.score - a.score);
@@ -389,7 +480,7 @@
         if (maxWidth) elements.forEach(el => el.style.maxWidth = maxWidth);
     }
 
-    function populateTeamSelector(teamNames = [], loadFirstTeam = false) {
+    function populateTeamSelector(teams = {}, loadFirstTeam = false) {
       const selector = document.getElementById('team-selector');
       selector.innerHTML = '';
       if (!loadFirstTeam) {
@@ -400,9 +491,9 @@
         placeholder.selected = true;
         selector.appendChild(placeholder);
       }
-      teamNames.forEach(name => {
+      Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
         const option = document.createElement('option');
-        option.value = name; option.textContent = name;
+        option.value = id; option.textContent = teamData.name;
         selector.appendChild(option);
       });
     }
@@ -416,21 +507,20 @@
 
     function getTileStatus(tile, teamName) {
         const isPublic = config.boardVisibility !== 'private';
-        // IMPROVEMENT: More robust check for visibility
-        if (!isPublic && teamName !== authState.profile?.team && !authState.isEventMod) {
+        // The teamName parameter is now a teamId
+        if (!isPublic && teamName !== authState.profile?.team && !authState.isEventMod) { // authState.profile.team is also a teamId
              return 'Hidden';
         }
 
-        if (!teamName || !teamData[teamName]) return 'Locked';
+        if (!teamName || !teamData[teamName]) return 'Locked'; // teamName is teamId
         const teamTileStates = teamData[teamName].tileStates;
-        const state = teamTileStates[tile.id] || {};
+        const state = teamTileStates[tile.id] || {}; // tile.id is the user-facing ID
         if (state.verified) return 'Verified';
         if (state.requiresAction) return 'Requires Action';
         if (state.complete) return 'Submitted';
         if (state.hasSubmission) return 'Partially Complete';
 
-        const unlockOnVerifiedOnly = String(config.unlockOnVerifiedOnly).toUpperCase() === 'TRUE';
-
+        const unlockOnVerifiedOnly = config.unlockOnVerifiedOnly === true;
         // The server's getBoardData() may split the 'Prerequisites' column by comma.
         // We rejoin it here to reconstruct the original string, which could be a simple list or a JSON array string.
         const prereqString = tile.Prerequisites || '';
@@ -486,13 +576,14 @@
       const container = document.getElementById('board-container');
       container.innerHTML = '';
       const displayTeam = currentTeam;
+      const displayTeamName = (displayTeam && allTeams) ? (allTeams[displayTeam]?.name || displayTeam) : '';
       
       if (displayTeam) {
-        document.title = `${config.pageTitle || 'Bingo'} : ${displayTeam}`;
+        document.title = `${config.pageTitle || 'Bingo'} : ${displayTeamName}`;
       } else {
         document.title = config.pageTitle || 'Bingo';
       }
-      document.getElementById('page-title').textContent = document.title;
+      document.getElementById('page-title').textContent = displayTeam ? displayTeamName : (config.pageTitle || 'Bingo');
       const tooltip = document.getElementById('tile-tooltip');
 
       const renderTiles = () => {
@@ -500,27 +591,44 @@
           if (getTileStatus(tile, displayTeam) === 'Hidden') return;
           const tileDiv = document.createElement('div');
           const status = getTileStatus(tile, displayTeam);
-          const statusClass = status.replace(/\s+/g, '-').toLowerCase();
-          tileDiv.className = `tile-overlay ${statusClass}`; // The key for config is `Tile ${status}`
-          const getProp = (propName) => { const overrides = tile['Overrides (JSON)'] ? JSON.parse(tile['Overrides (JSON)'] || '{}') : {}; return overrides[propName] !== undefined ? overrides[propName] : config[propName]; };
+          tileDiv.className = `tile-overlay ${status.replace(/\s+/g, '-').toLowerCase()}`;
+
+          const getProp = (propName, status) => {
+              // 1. Check tile-specific overrides for the given status
+              if (tile['Overrides (JSON)']) {
+                  try {
+                      const overrides = JSON.parse(tile['Overrides (JSON)']);
+                      if (overrides[status] && overrides[status][propName] !== undefined) {
+                          return overrides[status][propName];
+                      }
+                  } catch (e) {}
+              }
+              // 2. Check status-specific styles
+              const statusStyle = allStyles[status];
+              if (statusStyle && statusStyle[propName] !== undefined) {
+                  return statusStyle[propName];
+              }
+              // 3. Fallback to global config defaults
+              return config[propName];
+          };
+
           tileDiv.style.top = `${tile['Top (%)']}%`; tileDiv.style.left = `${tile['Left (%)']}%`;
           tileDiv.style.width = `${tile['Width (%)']}%`; tileDiv.style.height = `${tile['Height (%)']}%`;
           tileDiv.style.transform = `rotate(${tile.Rotation || '0deg'})`;
           
-          const statusKey = status.replace(/\s+/g, '');
-          const color = getProp(`tileColor${statusKey}`) || '#FFFFFF';
-          const opacity = getProp(`tileOpacity${statusKey}`) || 0.7;
+          const color = getProp('color', status) || '#FFFFFF';
+          const opacity = getProp('opacity', status) || 0.7;
           tileDiv.style.backgroundColor = hexToRgba(color, opacity);
-          const shape = (getProp('defaultTileShape') || 'Square').toLowerCase();
+          const shape = (getProp('shape', status) || 'Square').toLowerCase();
           const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
           if (clipPaths[shape]) tileDiv.style.clipPath = clipPaths[shape];
-          const borderWidth = getProp('defaultTileBorderWidth') || '2px';
-          const borderColor = getProp('defaultTileBorderColor') || 'transparent';
+          const borderWidth = getProp('borderWidth', status) || '2px';
+          const borderColor = getProp('borderColor', status) || 'transparent';
           tileDiv.style.border = `${borderWidth} solid ${borderColor}`;
           
           // --- UPDATED: Tooltip logic ---
           tileDiv.addEventListener('mousemove', (e) => {
-              tooltip.innerHTML = `<h4>${tile.id}: ${tile.Name}</h4><p>${tile.Description}</p>`;
+              tooltip.innerHTML = `<h4>${tile.id}: ${tile.Name}</h4><p>${tile.Description}</p>`; // tile.id is user-facing
               tooltip.style.display = 'block';
               // Position tooltip relative to cursor
               tooltip.style.left = `${e.clientX + 15}px`;
@@ -532,23 +640,23 @@
               tileDiv.style.borderWidth = borderWidth;
           });
           tileDiv.addEventListener('mouseover', () => {
-              const hoverWidth = getProp('hoverTileBorderWidth') || '3px';
-              const hoverColor = getProp('hoverTileBorderColor') || 'var(--accent-color)';
+              const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
+              const hoverColor = getProp('hoverBorderColor', status) || 'var(--accent-color)';
               tileDiv.style.borderColor = hoverColor;
               tileDiv.style.borderWidth = hoverWidth;
           });
 
-          if(String(config.showTileNames).toUpperCase() === 'TRUE' || !config.boardImageUrl) {
+          if(config.showTileNames === true || !config.boardImageUrl) {
             const tileNameSpan = document.createElement('span');
             tileNameSpan.textContent = tile.Name;
             tileDiv.appendChild(tileNameSpan);
           }
-          const useStamp = String(getProp(`useStampByDefault${statusKey}`)).toUpperCase() === 'TRUE';
-          const stampImg = getProp(`stampImageUrl${statusKey}`);
+          const useStamp = getProp('useStampByDefault', status) === true;
+          const stampImg = getProp('stampImageUrl', status);
           if (useStamp && stampImg) {
-              const stampScale = getProp(`stampScale${statusKey}`) || 1;
-              const stampRotation = getProp(`stampRotation${statusKey}`) || '0deg';
-              const stampPosition = getProp(`stampPosition${statusKey}`) || 'center';
+              const stampScale = getProp('stampScale', status) || 1;
+              const stampRotation = getProp('stampRotation', status) || '0deg';
+              const stampPosition = getProp('stampPosition', status) || 'center';
               const stampDiv = document.createElement('div');
               stampDiv.className = 'stamp-image';
               stampDiv.style.backgroundImage = `url('${stampImg}')`;
@@ -594,19 +702,19 @@
         const keyContainer = document.getElementById('color-key-container');
         keyContainer.innerHTML = '';
         const keyOrder = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+
         keyOrder.forEach(status => {
-            const statusKey = status.replace(/\s+/g, '');
-            const color = config[`tileColor${statusKey}`];
-            if (color) {
-                const opacity = config[`tileOpacity${statusKey}`] || 0.7;
+            const style = allStyles[status];
+            if (style && style.color) {
+                const opacity = style.opacity || 0.7;
                 const keyItem = document.createElement('div');
                 keyItem.className = 'key-item';
                 const colorBox = document.createElement('div');
                 colorBox.className = 'key-color-box';
-                colorBox.style.backgroundColor = hexToRgba(color, opacity);
+                colorBox.style.backgroundColor = hexToRgba(style.color, opacity);
 
-                const useStamp = String(config[`useStampByDefault${statusKey}`]).toUpperCase() === 'TRUE';
-                const stampImg = config[`stampImageUrl${statusKey}`];
+                const useStamp = style.useStampByDefault === true;
+                const stampImg = style.stampImageUrl;
                 if (useStamp && stampImg) {
                     colorBox.style.backgroundImage = `url('${stampImg}')`;
                 } else {
@@ -624,7 +732,7 @@
 
     function renderScoreboard() {
         const container = document.getElementById('scoreboard-container');
-        if (!config || String(config.showScoreboard).toUpperCase() !== 'TRUE') {
+        if (!config || config.showScoreboard !== true) {
             container.style.display = 'none';
             return;
         }
@@ -633,7 +741,8 @@
         scoreboard.forEach((team, index) => {
             const item = document.createElement('div');
             item.className = 'scoreboard-item';
-            item.innerHTML = `<div class="scoreboard-rank">${index + 1}.</div><div class="scoreboard-team">${team.team}</div><div class="scoreboard-score">${team.score}</div>`;
+            const teamName = (allTeams && allTeams[team.teamId]) ? allTeams[team.teamId].name : team.teamId;
+            item.innerHTML = `<div class="scoreboard-rank">${index + 1}.</div><div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
             container.appendChild(item);
         });
     }
@@ -678,16 +787,17 @@
       const form = document.getElementById('submission-form');
       form.reset();
 
-      document.getElementById('modal-tile-id').value = tile.id;
-      document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name}`;
-      document.getElementById('modal-team-name').textContent = `Team: ${currentTeam}`;
+      document.getElementById('modal-tile-id').value = tile.id; // The user-facing ID
+      document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name}`; // The user-facing ID
+      const teamName = (allTeams && allTeams[currentTeam]) ? allTeams[currentTeam].name : currentTeam;
+      document.getElementById('modal-team-name').textContent = `Team: ${teamName}`;
       document.getElementById('modal-tile-desc').textContent = tile.Description;
       document.getElementById('evidence-label').textContent = config.evidenceFieldLabel || 'Evidence:';
 
       modal.style.display = 'flex';
       const isEditable = status !== 'Verified';
 
-      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.TileID === tile.id && !s.IsArchived);
+      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
 
       document.getElementById('player-name').value = existingSubmission?.PlayerName || '';
       document.getElementById('notes').value = existingSubmission?.Notes || '';
@@ -751,14 +861,14 @@
       }
       
       const tileId = document.getElementById('modal-tile-id').value;
-      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.TileID === tileId && !s.IsArchived);
+      const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
 
       const dataToSave = {
         PlayerName: document.getElementById('player-name').value,
         Evidence: JSON.stringify(evidenceItems),
         Notes: document.getElementById('notes').value,
         Team: currentTeam,
-        TileID: tileId,
+        id: tileId, // Save the user-facing tile ID
         IsComplete: document.getElementById('mark-as-complete').checked,
         RequiresAction: document.getElementById('requires-action').checked,
       };
@@ -786,6 +896,43 @@
           submitButton.disabled = false;
           hideGlobalLoader();
       }
+    }
+
+    // --- NEW: Welcome Modal Functions ---
+    function showWelcomeModal() {
+        const modal = document.getElementById('welcome-modal');
+        const messageEl = document.getElementById('welcome-modal-message');
+        const nameInput = document.getElementById('welcome-display-name');
+
+        const defaultMessage = 'Welcome! Please set your display name for the event. This will be shown on leaderboards and submissions.';
+        const welcomeMessage = (config.welcomeMessage || defaultMessage).replace('{displayName}', authState.profile.displayName);
+        
+        messageEl.textContent = welcomeMessage;
+        nameInput.value = authState.profile.displayName || '';
+        modal.style.display = 'flex';
+    }
+
+    async function handleWelcomeFormSubmit(event) {
+        event.preventDefault();
+        const newName = document.getElementById('welcome-display-name').value.trim();
+        if (!newName || !authState.isLoggedIn) return;
+
+        showGlobalLoader();
+        const userRef = fb.doc(db, 'users', authState.user.uid);
+        try {
+            await fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
+            // Manually update local state to reflect change immediately
+            authState.profile.displayName = newName;
+            authState.profile.hasSetDisplayName = true;
+            updateNavbar();
+            document.getElementById('welcome-modal').style.display = 'none';
+            showMessage('Display name updated!', false);
+        } catch (error) {
+            showMessage('Failed to update display name: ' + error.message, true);
+            console.error('Display name update error:', error);
+        } finally {
+            hideGlobalLoader();
+        }
     }
 
     function showMessage(text, isError = false) {
@@ -825,6 +972,7 @@
     window.closeModal = closeModal;
     window.handleFormSubmit = handleFormSubmit;
     window.addEvidenceInput = addEvidenceInput;
+    window.handleWelcomeFormSubmit = handleWelcomeFormSubmit;
     window.renumberEvidenceItems = renumberEvidenceItems;
 
   </script>

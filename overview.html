@@ -171,7 +171,7 @@
     import { db, fb } from './firebase-config.js';
     import { initAuth, getAuthState } from './auth.js';
 
-    let config = {};
+    let config = {}, allTeams = {};
     let tiles = {};
     let submissions = [];
 
@@ -179,8 +179,7 @@
     let teamColorMap = {};
     let myScoreChart = null;
     let fullChartData = [];
-    let allTeamNames = [];
-    let unsubscribeSubmissions = null;
+    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       showGlobalLoader();
@@ -193,89 +192,128 @@
         document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'block' : 'none';
     }
 
-    async function initializeApp() {
-      try {
-        const configSnap = await fb.getDoc(fb.doc(db, 'config', 'main'));
-        if (!configSnap.exists()) throw new Error("Config not found.");
-        config = configSnap.data() || {};
+    function initializeApp() {
         const authState = getAuthState();
 
-        if (String(config.enableOverviewPage).toUpperCase() !== 'TRUE' && !authState.isEventMod) {
-            document.getElementById('page-disabled').style.display = 'block';
-            document.getElementById('main-content').style.display = 'none';
-            hideGlobalLoader();
-            return;
-        }
-
-        const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
-        tilesSnap.forEach(doc => {
-            tiles[doc.id] = doc.data();
-        });
-
-        document.title = (config.pageTitle || 'Bingo') + ' | Overview';
-        allTeamNames = config.teams?.map(t => t.name) || [];
-        teamColorMap = generateTeamColors(allTeamNames);
-        populateFeedFilter(allTeamNames);
-
-        setupSubmissionsListener();
-      } catch (error) {
-        document.body.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error-color);">Failed to fetch initial data: ${error.message}</div>`;
-        hideGlobalLoader();
-      }
-    }
-
-    function setupSubmissionsListener() {
+        // Detach old listeners if they exist
+        if (unsubscribeConfig) unsubscribeConfig();
+        if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
+        let unsubscribeTeams = null;
 
-        const submissionsQuery = fb.collection(db, 'submissions');
-        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
-            console.log("Overview data updated in real-time.");
+        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false };
+        const checkAllLoaded = () => {
+            if (Object.values(initialDataLoaded).every(Boolean)) {
+                hideGlobalLoader();
+                document.getElementById('main-content').style.display = 'grid';
+            }
+        };
+
+        // Listener for config
+        unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+            console.log("Overview: Config updated in real-time.");
+            if (!doc.exists()) {
+                document.body.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error-color);">Configuration not found.</div>`;
+                hideGlobalLoader();
+                return;
+            }
+            config = doc.data() || {};
+
+            if (config.enableOverviewPage !== true && !authState.isEventMod) {
+                document.getElementById('page-disabled').style.display = 'block';
+                document.getElementById('main-content').style.display = 'none';
+                hideGlobalLoader();
+                return;
+            }
+
+            document.title = (config.pageTitle || 'Bingo') + ' | Overview';
+            
+            processAllData();
+            if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to config:", error); hideGlobalLoader(); });
+
+        // Listener for the new teams collection
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            console.log("Overview: Teams updated in real-time.");
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            teamColorMap = generateTeamColors(Object.keys(allTeams));
+            populateFeedFilter(allTeams);
+            processAllData();
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
+
+        // Listener for tiles
+        unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+            console.log("Overview: Tiles updated in real-time.");
+            // Key by docId, value is the tile data object
+            const newTiles = {};
+            snapshot.forEach(doc => { newTiles[doc.id] = { ...doc.data(), docId: doc.id }; });
+            tiles = newTiles;
+
+            processAllData();
+            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to tiles:", error); hideGlobalLoader(); });
+
+        // Listener for submissions
+        unsubscribeSubmissions = fb.onSnapshot(fb.collection(db, 'submissions'), (snapshot) => {
+            console.log("Overview: Submissions updated in real-time.");
             submissions = snapshot.docs.map(doc => ({
                 ...doc.data(),
                 id: doc.id,
                 Timestamp: doc.data().Timestamp?.toDate(),
                 CompletionTimestamp: doc.data().CompletionTimestamp?.toDate()
             }));
-
             processAllData();
-            document.getElementById('main-content').style.display = 'grid';
-            hideGlobalLoader();
-        }, (error) => {
-            console.error("Error listening to submissions:", error);
-            hideGlobalLoader();
-        });
+            if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to submissions:", error); hideGlobalLoader(); });
     }
 
     function processAllData() {
+        if (!config || !tiles || !submissions) return; // Don't process until all data is available
+
         // 1. Calculate Leaderboard
-        const scoreOnVerifiedOnly = String(config.scoreOnVerifiedOnly).toUpperCase() === 'TRUE';
-        const leaderboardData = allTeamNames.map(teamName => {
+        const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
+        const allTeamIds = Object.keys(allTeams);
+        const leaderboardData = allTeamIds.map(teamId => {
             let score = 0;
             let completedTiles = 0;
-            const teamSubmissions = submissions.filter(s => s.Team === teamName && !s.IsArchived);
+            const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
 
-            Object.keys(tiles).forEach(tileId => {
-                const sub = teamSubmissions.find(s => s.TileID === tileId);
+            // Create a map of user-facing IDs to tile data for quick lookups
+            const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
+                if (tile.id) acc[tile.id] = tile;
+                return acc;
+            }, {});
+
+            Object.values(tiles).forEach(tile => {
+                const sub = teamSubmissions.find(s => s.id === tile.id);
                 if (!sub) return;
 
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 if (isScored) {
-                    score += parseInt(tiles[tileId].Points) || 0;
+                    score += parseInt(tile.Points) || 0;
                     completedTiles++;
                 }
             });
-            return { team: teamName, score, completedTiles };
+            return { teamId: teamId, score, completedTiles };
         }).sort((a, b) => b.score - a.score);
 
         // 2. Generate Feed
         fullFeedData = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                const tile = tiles[sub.TileID];
+                // Create a map of user-facing IDs to tile data for quick lookups
+                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
+                    if (tile.id) acc[tile.id] = tile;
+                    return acc;
+                }, {});
+                const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
-                    team: sub.Team,
-                    tileId: sub.TileID,
+                    teamId: sub.Team,
+                    tileId: sub.id,
                     tileName: tile ? tile.Name : 'Unknown Tile',
                     timestamp: sub.CompletionTimestamp,
                     isScored: isScored
@@ -287,10 +325,15 @@
         const scoredEvents = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                const tile = tiles[sub.TileID];
+                // Create a map of user-facing IDs to tile data for quick lookups
+                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
+                    if (tile.id) acc[tile.id] = tile;
+                    return acc;
+                }, {});
+                const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
-                    team: sub.Team,
+                    teamId: sub.Team,
                     points: isScored ? (parseInt(tile?.Points) || 0) : 0,
                     timestamp: sub.CompletionTimestamp
                 };
@@ -299,10 +342,10 @@
             .sort((a, b) => a.timestamp - b.timestamp);
 
         const teamScores = {};
-        allTeamNames.forEach(name => teamScores[name] = 0);
+        allTeamIds.forEach(id => teamScores[id] = 0);
 
         fullChartData = scoredEvents.map(event => {
-            teamScores[event.team] += event.points;
+            teamScores[event.teamId] += event.points;
             return {
                 timestamp: event.timestamp,
                 ...teamScores
@@ -323,22 +366,23 @@
       }
       leaderboardData.forEach((team, index) => {
         const row = tbody.insertRow();
+        const teamName = allTeams[team.teamId]?.name || team.teamId;
         row.innerHTML = `
           <td>${index + 1}</td>
-          <td style="color: ${teamColorMap[team.team] || '#fff'}">${team.team}</td>
+          <td style="color: ${teamColorMap[team.teamId] || '#fff'}">${teamName}</td>
           <td>${team.completedTiles}</td>
           <td>${team.score}</td>
         `;
       });
     }
 
-    function populateFeedFilter(teamNames = []) {
+    function populateFeedFilter(teams = {}) {
       const select = document.getElementById('feed-team-filter');
       select.innerHTML = '<option value="all">All Teams</option>';
-      teamNames.forEach(team => {
+      Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
         const option = document.createElement('option');
-        option.value = team;
-        option.textContent = team;
+        option.value = id;
+        option.textContent = teamData.name;
         select.appendChild(option);
       });
     }
@@ -350,7 +394,7 @@
         
         const filteredData = selectedTeam === 'all' 
             ? fullFeedData 
-            : fullFeedData.filter(item => item.team === selectedTeam);
+            : fullFeedData.filter(item => item.teamId === selectedTeam);
 
         const scoredActivity = filteredData.filter(item => item.isScored);
 
@@ -362,11 +406,12 @@
         scoredActivity.forEach(item => {
             const div = document.createElement('div');
             div.className = 'feed-item';
-            const teamColor = teamColorMap[item.team] || 'var(--accent-color)';
+            const teamColor = teamColorMap[item.teamId] || 'var(--accent-color)';
             div.style.borderLeftColor = teamColor;
+            const teamName = allTeams[item.teamId]?.name || item.teamId;
             
             div.innerHTML = `
-            <p class="feed-title">${item.team}: ${item.tileId} ${item.tileName}</p>
+            <p class="feed-title">${teamName}: ${item.tileId} ${item.tileName}</p>
             <p class="feed-meta">${item.timestamp.toUTCString()}</p>
             `;
             container.appendChild(div);
@@ -378,29 +423,28 @@
      * @param {number} count The number of colors to generate.
      * @returns {string[]} An array of HSL color strings.
      */
-    function generateTeamColors(teamNames = []) {
+    function generateTeamColors(teamIds = []) {
         const colors = {};
         // Using the golden angle approximation for hue distribution ensures that
         // colors are maximally distinct, even for a large number of teams.
         const goldenAngle = 137.5; 
-        teamNames.forEach((team, i) => {
+        teamIds.forEach((teamId, i) => {
             const hue = (i * goldenAngle) % 360;
-            colors[team] = `hsl(${hue}, 70%, 55%)`;
+            colors[teamId] = `hsl(${hue}, 70%, 55%)`;
         });
         return colors;
     }
 
-    function renderChart(chartData = [], teamNames = []) {
+    function renderChart(chartData = [], teamIds = []) {
         if (myScoreChart) {
             myScoreChart.destroy();
         }
         const ctx = document.getElementById('score-chart').getContext('2d');
-        
-        const datasets = teamNames.map((team, index) => {
-            const color = teamColorMap[team] || '#ffffff';
+        const datasets = teamIds.map((teamId, index) => {
+            const color = teamColorMap[teamId] || '#ffffff';
             return {
-                label: team,
-                data: chartData.map(point => ({ x: point.timestamp, y: point[team] || null })),
+                label: allTeams[teamId]?.name || teamId,
+                data: chartData.map(point => ({ x: point.timestamp, y: point[teamId] || null })),
                 borderColor: color,
                 backgroundColor: color,
                 fill: false,
@@ -467,8 +511,8 @@
     function handleFilterChange() {
       renderFeed();
       const selectedTeam = document.getElementById('feed-team-filter').value;
-      const filteredTeamNames = selectedTeam === 'all' ? allTeamNames : [selectedTeam];
-      renderChart(fullChartData, filteredTeamNames);
+      const filteredTeamIds = selectedTeam === 'all' ? Object.keys(allTeams) : [selectedTeam];
+      renderChart(fullChartData, filteredTeamIds);
     }
 
     // Make functions available to onclick handlers
