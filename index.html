@@ -17,7 +17,6 @@
       align-items: center; min-height: 100vh; box-sizing: border-box;
     } .navbar {
       width: 100%;
-      max-width: 1400px;
       background-color: var(--input-bg);
       border-radius: 8px;      
       padding: 0.5rem 1rem;
@@ -57,12 +56,11 @@
         display: block;
     }
     @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    .controls { width: 100%; max-width: 1400px; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    .controls { width: 100%; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
     h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
     #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--input-bg); color: var(--text-light); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
     #board-container {
       position: relative; width: 100%;
-      max-width: 1400px;
       background-size: cover; background-position: center;
       border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); overflow: hidden;
       display: flex; justify-content: center; align-items: center;
@@ -139,6 +137,36 @@
     #submission-form button:hover { background-color: #00d9f5; }
     #submission-form button:disabled { background-color: #555; cursor: not-allowed; }
     /* --- NEW: Evidence Input Styling --- */
+    #player-name-container {
+        background-color: var(--input-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    #team-members-checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem; /* row-gap column-gap */
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    .player-checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        white-space: nowrap;
+    }
+    .player-name-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    #manual-player-name {
+        margin-top: 0.25rem;
+    }
     #evidence-container { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem; }
     .evidence-item {
         background-color: var(--input-bg); padding: 1rem; border-radius: 8px;
@@ -257,8 +285,16 @@
         <h3 id="modal-team-name"></h3>
         <p id="modal-tile-desc"></p>
         <input type="hidden" id="modal-tile-id">
-        <label for="player-name">Player Name(s):</label>
-        <input type="text" id="player-name" required>
+        <label for="player-name-container">Player Name(s):</label>
+        <div id="player-name-container">
+            <div id="team-members-checkboxes"></div>
+            <div class="player-name-option">
+                <input type="checkbox" id="team-submission-checkbox">
+                <label for="team-submission-checkbox">Submit for the whole team</label>
+            </div>
+            <input type="text" id="manual-player-name" placeholder="Manually add other players (comma-separated)">
+        </div>
+        <input type="hidden" id="player-name-value" name="player-name-value" required>
         <label id="evidence-label">Evidence:</label>
         <div id="evidence-container"></div>
         <button type="button" id="add-evidence-btn" onclick="addEvidenceInput()">+ Add Evidence Item</button>
@@ -295,9 +331,9 @@
   <script type="module">
     import { db, fb } from './firebase-config.js';
     import { initAuth, signInWithGoogle, signOut, getAuthState } from './auth.js';
-    
-    let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {};
-    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null;
+
+    let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {}, allUsers = [];
+    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('auth-button').onclick = () => authState.isLoggedIn ? signOut() : signInWithGoogle();
@@ -310,13 +346,17 @@
         authState = newAuthState;
         updateNavbar();
 
+        // When auth state changes, the visibility of teams might change (especially for private boards).
+        // We need to re-evaluate and re-populate the team selector.
+        const loadFirstTeam = config.loadFirstTeamByDefault === true;
+        populateTeamSelector(allTeams, loadFirstTeam);
+        handleTeamChange(); // This is crucial to update the board based on the (potentially new) selector state.
+
         // NEW: Welcome modal logic
         // Check if user is logged in, config allows prompting, and user hasn't set their name yet.
         if (authState.isLoggedIn && authState.profile && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
             showWelcomeModal();
         }
-
-        renderBoard(); // Re-render to apply new permissions
     }
 
     function initializeApp() {
@@ -327,9 +367,10 @@
         if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
         if (unsubscribeStyles) unsubscribeStyles();
+        if (unsubscribeUsers) unsubscribeUsers();
         let unsubscribeTeams = null; // New listener for teams
 
-        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false };
+        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false, users: false };
         const checkAllLoaded = () => {
             if (Object.values(initialDataLoaded).every(Boolean)) {
                 hideGlobalLoader();
@@ -345,13 +386,19 @@
                 return;
             }
             config = doc.data();
-            
+
+            // Process data first, as other UI elements depend on it (e.g., scoreboard, tile status).
+            processAllData();
+
             applyGlobalStyles();
+            const loadFirstTeam = config.loadFirstTeamByDefault === true;
+            populateTeamSelector(allTeams, loadFirstTeam);
+            // handleTeamChange also calls renderBoard, ensuring the board reflects the latest config and data.
+            handleTeamChange();
+
             document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
             document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
             renderColorKey();
-            processAllData();
-            renderBoard();
             renderScoreboard();
 
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
@@ -365,12 +412,18 @@
             snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
             const loadFirstTeam = config.loadFirstTeamByDefault === true;
             const selector = document.getElementById('team-selector');
-            const previouslySelected = selector.value;
+            const previouslySelected = selector.value; // Keep this to preserve selection on public boards
+
             populateTeamSelector(allTeams, loadFirstTeam);
-            if (Object.keys(allTeams).includes(previouslySelected)) {
-                selector.value = previouslySelected;
-            } else if (loadFirstTeam && Object.keys(allTeams).length > 0) {
-                selector.value = Object.keys(allTeams)[0];
+
+            // If the selector is now disabled, its value was set correctly inside populateTeamSelector and we should not touch it.
+            // If it's not disabled (public board), try to preserve the previous selection.
+            if (!selector.disabled) {
+                if (Object.keys(allTeams).includes(previouslySelected)) {
+                    selector.value = previouslySelected;
+                } else if (loadFirstTeam && Object.keys(allTeams).length > 0) {
+                    selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
+                }
             }
             handleTeamChange(); // This will trigger a re-render if the selection changed
             if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
@@ -381,7 +434,9 @@
             console.log("Tiles updated in real-time.");
             tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
             processAllData();
-            renderBoard();
+            // Only render if a team is already selected. Otherwise, wait for handleTeamChange to trigger the render.
+            // This prevents a race condition on initial load where tiles render before the team is set.
+            if (currentTeam) renderBoard();
             renderScoreboard();
             if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading tiles:", error); hideGlobalLoader(); });
@@ -389,9 +444,10 @@
         // Listener for the submissions collection
         unsubscribeSubmissions = fb.onSnapshot(fb.collection(db, 'submissions'), (snapshot) => {
             console.log("Submissions updated in real-time.");
-            submissions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            // Keep the user-facing tile ID from `data().id` and store the document ID in `docId`.
+            submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
             processAllData();
-            renderBoard();
+            if (currentTeam) renderBoard();
             renderScoreboard();
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
@@ -402,9 +458,16 @@
             allStyles = {};
             snapshot.docs.forEach(doc => { allStyles[doc.id] = doc.data(); });
             renderColorKey();
-            renderBoard();
+            if (currentTeam) renderBoard();
             if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading styles:", error); });
+
+        // Listener for users collection
+        unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
+            console.log("Users updated in real-time.");
+            allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error loading users:", error); });
     }
 
     function updateNavbar() {
@@ -475,27 +538,74 @@
     
     function applyGlobalStyles() {
         if (!config) return;
-        const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container, #main-content');
-        const maxWidth = config.maxPageWidth;
-        if (maxWidth) elements.forEach(el => el.style.maxWidth = maxWidth);
+        const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container');
+
+        let configValue = config.maxPageWidth;
+        let maxWidth;
+
+        if (configValue && configValue.trim() !== '') {
+            // If a value is provided, process it.
+            // Check if it's a plain number string (e.g., "500").
+            if (/^\d+$/.test(configValue.trim())) {
+                // If so, append 'px' to make it a valid CSS value.
+                maxWidth = `${configValue.trim()}px`;
+            } else {
+                // Otherwise, use the value as is (e.g., "500px", "90%", "none").
+                maxWidth = configValue;
+            }
+        } else {
+            // If the config value is missing, null, or an empty string, use the default.
+            maxWidth = '1400px';
+        }
+        elements.forEach(el => el.style.maxWidth = maxWidth);
     }
 
     function populateTeamSelector(teams = {}, loadFirstTeam = false) {
-      const selector = document.getElementById('team-selector');
-      selector.innerHTML = '';
-      if (!loadFirstTeam) {
-        const placeholder = document.createElement('option');
-        placeholder.value = ""; 
-        placeholder.textContent = "Select a Team...";
-        placeholder.disabled = true; 
-        placeholder.selected = true;
-        selector.appendChild(placeholder);
-      }
-      Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
-        const option = document.createElement('option');
-        option.value = id; option.textContent = teamData.name;
-        selector.appendChild(option);
-      });
+        const selector = document.getElementById('team-selector');
+        selector.innerHTML = '';
+        selector.disabled = false; // Enable by default
+
+        const isPrivate = config.boardVisibility === 'private';
+
+        if (isPrivate) {
+            if (authState.isLoggedIn && authState.profile?.team) {
+                // Private board, user is on a team: Lock to their team.
+                const teamId = authState.profile.team;
+                const teamData = teams[teamId];
+                if (teamData) {
+                    const option = document.createElement('option');
+                    option.value = teamId;
+                    option.textContent = teamData.name;
+                    selector.appendChild(option);
+                    selector.value = teamId;
+                    selector.disabled = true;
+                } else {
+                    // Edge case: user's team doesn't exist in allTeams. Treat as no team.
+                    selector.innerHTML = '<option value="" selected disabled>Select a Team...</option>';
+                    selector.disabled = true;
+                }
+            } else {
+                // Private board, user not logged in or not on a team: Show disabled placeholder.
+                selector.innerHTML = '<option value="" selected disabled>Select a Team...</option>';
+                selector.disabled = true;
+            }
+        } else {
+            // Public board: Original behavior
+            if (!loadFirstTeam) {
+                const placeholder = document.createElement('option');
+                placeholder.value = "";
+                placeholder.textContent = "Select a Team...";
+                placeholder.disabled = true;
+                placeholder.selected = true;
+                selector.appendChild(placeholder);
+            }
+            Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = teamData.name;
+                selector.appendChild(option);
+            });
+        }
     }
 
     function handleTeamChange() {
@@ -508,8 +618,10 @@
     function getTileStatus(tile, teamName) {
         const isPublic = config.boardVisibility !== 'private';
         // The teamName parameter is now a teamId
-        if (!isPublic && teamName !== authState.profile?.team && !authState.isEventMod) { // authState.profile.team is also a teamId
-             return 'Hidden';
+        if (!isPublic && teamName && teamName !== authState.profile?.team) {
+            // On a private board, if you're viewing a team that isn't yours, tiles are hidden.
+            // This is a safeguard; the UI should prevent selecting other teams anyway.
+            return 'Hidden';
         }
 
         if (!teamName || !teamData[teamName]) return 'Locked'; // teamName is teamId
@@ -663,14 +775,18 @@
               stampDiv.style.transform = `scale(${stampScale}) rotate(${stampRotation})`;
               tileDiv.appendChild(stampDiv);
           }
-          if (displayTeam && status !== 'Locked') {
-            tileDiv.onclick = () => openModal(tile, status);
-          } else if (!displayTeam) {
-            // If no team is selected, show a message on click.
-            tileDiv.onclick = () => {
-              showMessage('Please select a team to interact with a tile.', true);
-            };
-          }
+
+          const canOpenModal = displayTeam && status !== 'Locked' && authState.isLoggedIn && authState.profile?.team === displayTeam;
+
+            if (canOpenModal) {
+                tileDiv.onclick = () => openModal(tile, status);
+            } else if (!displayTeam) {
+                tileDiv.onclick = () => showMessage('Please select a team to interact with a tile.', true);
+            } else if (displayTeam && status !== 'Locked') {
+                // Tile is visible but not interactive for this user (e.g., public board, wrong team)
+                tileDiv.style.cursor = 'not-allowed';
+            }
+
           container.appendChild(tileDiv);
         });
       };
@@ -708,53 +824,84 @@
     }
     
     function renderColorKey() {
-        if (!config) return;
+        if (!config || !allStyles) return;
         const keyContainer = document.getElementById('color-key-container');
         keyContainer.innerHTML = '';
         const keyOrder = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 
         keyOrder.forEach(status => {
-            const style = allStyles[status];
-            if (style && style.color) {
-                const opacity = style.opacity || 0.7;
-                const keyItem = document.createElement('div');
-                keyItem.className = 'key-item';
-                const colorBox = document.createElement('div');
-                colorBox.className = 'key-color-box';
-                colorBox.style.backgroundColor = hexToRgba(style.color, opacity);
+            const style = allStyles[status] || {}; // Default to empty object if style is not defined
 
-                const useStamp = style.useStampByDefault === true;
-                const stampImg = style.stampImageUrl;
-                if (useStamp && stampImg) {
-                    colorBox.style.backgroundImage = `url('${stampImg}')`;
-                } else {
-                    colorBox.style.backgroundImage = 'none';
-                }
+            // Provide defaults for color and opacity if not defined in the style object
+            const color = style.color || '#888888'; // Default to a neutral grey
+            const opacity = style.opacity ?? 0.7; // Use nullish coalescing to correctly handle opacity: 0
 
-                const keyLabel = document.createElement('span');
-                keyLabel.textContent = status;
-                keyItem.appendChild(colorBox);
-                keyItem.appendChild(keyLabel);
-                keyContainer.appendChild(keyItem);
+            const keyItem = document.createElement('div');
+            keyItem.className = 'key-item';
+            const colorBox = document.createElement('div');
+            colorBox.className = 'key-color-box';
+            colorBox.style.backgroundColor = hexToRgba(color, opacity);
+
+            const useStamp = style.useStampByDefault === true;
+            const stampImg = style.stampImageUrl;
+            if (useStamp && stampImg) {
+                colorBox.style.backgroundImage = `url('${stampImg}')`;
             }
+
+            const keyLabel = document.createElement('span');
+            keyLabel.textContent = status;
+            keyItem.appendChild(colorBox);
+            keyItem.appendChild(keyLabel);
+            keyContainer.appendChild(keyItem);
         });
     }
 
     function renderScoreboard() {
         const container = document.getElementById('scoreboard-container');
         if (!config || config.showScoreboard !== true) {
-            container.style.display = 'none';
-            return;
+            container.style.display = 'none'; return;
         }
         container.style.display = 'flex';
         container.innerHTML = '<h2>Scoreboard</h2>';
-        scoreboard.forEach((team, index) => {
-            const item = document.createElement('div');
-            item.className = 'scoreboard-item';
-            const teamName = (allTeams && allTeams[team.teamId]) ? allTeams[team.teamId].name : team.teamId;
-            item.innerHTML = `<div class="scoreboard-rank">${index + 1}.</div><div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
-            container.appendChild(item);
-        });
+
+        let dataToRender = scoreboard;
+        const isPrivate = config.boardVisibility === 'private';
+
+        // Filter scoreboard data for private boards
+        if (isPrivate) {
+            if (authState.isLoggedIn && authState.profile?.team) {
+                // User is on a team, show only their team
+                dataToRender = scoreboard.filter(item => item.teamId === authState.profile.team);
+            } else {
+                // User not on a team, show no scores
+                dataToRender = [];
+            }
+        }
+
+        if (dataToRender.length === 0) {
+            const noScoreItem = document.createElement('div');
+            noScoreItem.textContent = 'No scores to display.';
+            noScoreItem.style.textAlign = 'center';
+            noScoreItem.style.color = '#888';
+            container.appendChild(noScoreItem);
+        } else {
+            dataToRender.forEach((team) => {
+                const item = document.createElement('div');
+                item.className = 'scoreboard-item';
+                const teamName = (allTeams && allTeams[team.teamId]) ? allTeams[team.teamId].name : team.teamId;
+                if (isPrivate) {
+                    // For private boards, hide rank and adjust grid
+                    item.style.gridTemplateColumns = '1fr 60px';
+                    item.innerHTML = `<div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
+                } else {
+                    // For public boards, show rank as normal
+                    const originalIndex = scoreboard.findIndex(item => item.teamId === team.teamId);
+                    const rank = originalIndex !== -1 ? originalIndex + 1 : '-';
+                    item.innerHTML = `<div class="scoreboard-rank">${rank}.</div><div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
+                }
+                container.appendChild(item);
+            });
+        }
     }
 
     // --- NEW: Dynamic Evidence Field Functions ---
@@ -765,13 +912,14 @@
         const evidenceItemDiv = document.createElement('div');
         evidenceItemDiv.className = 'evidence-item';
 
+        // Swapped link and name inputs, and updated placeholder text for clarity.
         evidenceItemDiv.innerHTML = `
             <div class="evidence-item-header">
                 <label>Evidence #${itemCount + 1}</label>
                 <button type="button" class="remove-evidence-btn" onclick="this.parentElement.parentElement.remove(); renumberEvidenceItems();">&times;</button>
             </div>
+            <input type="text" class="evidence-name" placeholder="Optional: name or short description" value="${name}">
             <input type="text" class="evidence-link" placeholder="Link (e.g., https://discord...)" value="${link}">
-            <input type="text" class="evidence-name" placeholder="Name / Description" value="${name}">
         `;
         container.appendChild(evidenceItemDiv);
     }
@@ -792,6 +940,75 @@
         container.innerHTML = '';
     }
 
+    function populatePlayerNameSelector(savedNamesString = '') {
+        const membersContainer = document.getElementById('team-members-checkboxes');
+        const teamCheckbox = document.getElementById('team-submission-checkbox');
+        const manualInput = document.getElementById('manual-player-name');
+
+        membersContainer.innerHTML = '';
+        teamCheckbox.checked = false;
+        manualInput.value = '';
+
+        // 1. Get team members and populate checkboxes
+        const teamMembers = allUsers.filter(u => u.team === currentTeam);
+        teamMembers.forEach(member => {
+            const id = `player-check-${member.uid}`;
+            const item = document.createElement('div');
+            item.className = 'player-checkbox-item';
+            item.innerHTML = `
+                <input type="checkbox" id="${id}" data-name="${member.displayName}">
+                <label for="${id}">${member.displayName}</label>
+            `;
+            membersContainer.appendChild(item);
+        });
+
+        // 2. Parse saved names and pre-fill the form
+        const savedNames = savedNamesString ? savedNamesString.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const teamMemberNames = new Set(teamMembers.map(m => m.displayName));
+        const manualNames = [];
+
+        const teamName = allTeams[currentTeam]?.name || currentTeam;
+        if (savedNames.length === 1 && savedNames[0] === teamName) {
+            teamCheckbox.checked = true;
+        } else {
+            savedNames.forEach(name => {
+                if (teamMemberNames.has(name)) {
+                    const memberCheckbox = membersContainer.querySelector(`[data-name="${name}"]`);
+                    if (memberCheckbox) memberCheckbox.checked = true;
+                } else {
+                    manualNames.push(name);
+                }
+            });
+        }
+        manualInput.value = manualNames.join(', ');
+
+        // 3. Add a single event listener to the container
+        const container = document.getElementById('player-name-container');
+        container.removeEventListener('input', updatePlayerNameField); // Clear old listener to prevent duplicates
+        container.addEventListener('input', updatePlayerNameField);
+
+        // 4. Initial update to set the hidden field value
+        updatePlayerNameField();
+    }
+
+    function updatePlayerNameField() {
+        const membersContainer = document.getElementById('team-members-checkboxes');
+        const teamCheckbox = document.getElementById('team-submission-checkbox');
+        const manualInput = document.getElementById('manual-player-name');
+        const hiddenInput = document.getElementById('player-name-value');
+        const teamName = allTeams[currentTeam]?.name || currentTeam;
+        if (teamCheckbox.checked) {
+            hiddenInput.value = teamName;
+            membersContainer.querySelectorAll('input').forEach(i => { i.checked = false; i.disabled = true; });
+            manualInput.value = ''; manualInput.disabled = true; return;
+        }
+        membersContainer.querySelectorAll('input').forEach(i => i.disabled = false);
+        manualInput.disabled = false;
+        const selectedNames = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.name);
+        const manualNames = manualInput.value.split(',').map(s => s.trim()).filter(Boolean);
+        hiddenInput.value = [...new Set([...selectedNames, ...manualNames])].join(', ');
+    }
+
     function openModal(tile, status) {
       const modal = document.getElementById('submission-modal');
       const form = document.getElementById('submission-form');
@@ -809,7 +1026,7 @@
 
       const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
 
-      document.getElementById('player-name').value = existingSubmission?.PlayerName || '';
+      populatePlayerNameSelector(existingSubmission?.PlayerName);
       document.getElementById('notes').value = existingSubmission?.Notes || '';
       document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
       document.getElementById('requires-action').checked = existingSubmission?.RequiresAction || false;
@@ -862,7 +1079,7 @@
           }
       });
 
-      const canSubmit = authState.isLoggedIn && (authState.profile?.team === currentTeam || authState.isEventMod);
+      const canSubmit = authState.isLoggedIn && authState.profile?.team === currentTeam;
       if (!canSubmit) {
           showMessage('You do not have permission to submit for this team.', true);
           submitButton.disabled = false;
@@ -874,7 +1091,7 @@
       const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
 
       const dataToSave = {
-        PlayerName: document.getElementById('player-name').value,
+        PlayerName: document.getElementById('player-name-value').value,
         Evidence: JSON.stringify(evidenceItems),
         Notes: document.getElementById('notes').value,
         Team: currentTeam,
@@ -885,7 +1102,8 @@
 
       try {
           if (existingSubmission) {
-              const subRef = fb.doc(db, 'submissions', existingSubmission.id);
+              // Use the correct document ID to get the reference for updating.
+              const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
               if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
                   dataToSave.CompletionTimestamp = fb.serverTimestamp();
               }

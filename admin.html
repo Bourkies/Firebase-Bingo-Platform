@@ -308,7 +308,7 @@
             const submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.orderBy('Timestamp', 'desc'));
             unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
                 console.log("Admin: Submissions updated in real-time.");
-                allSubmissions = snapshot.docs.map(doc => ({...doc.data(), id: doc.id}));
+                allSubmissions = snapshot.docs.map(doc => ({...doc.data(), docId: doc.id}));
                 renderSubmissionsTable();
                 if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
             });
@@ -409,7 +409,7 @@
             const teamName = allTeams[sub.Team]?.name || sub.Team;
             const timestamp = sub.Timestamp?.toDate()?.toLocaleString() || 'N/A';
             return `
-                <tr data-id="${sub.id}">
+                <tr data-id="${sub.docId}">
                     <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
                     <td title="${tileName}">${tileName}</td>
                     <td>${teamName}</td>
@@ -432,7 +432,7 @@
     }
 
     function openSubmissionModal(submissionId) {
-        const sub = allSubmissions.find(s => s.id === submissionId);
+        const sub = allSubmissions.find(s => s.docId === submissionId);
         if (!sub) return;
 
         // Create a map of user-facing IDs to tile data for quick lookups
@@ -441,7 +441,7 @@
             return acc;
         }, {});
 
-        document.getElementById('modal-submission-id').value = sub.id;
+        document.getElementById('modal-submission-id').value = sub.docId;
         const teamName = allTeams[sub.Team]?.name || sub.Team;
         document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId[sub.id]?.Name || 'Unknown Tile'}`;
         document.getElementById('modal-team').textContent = teamName;
