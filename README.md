@@ -118,16 +118,74 @@ First, install the Firebase CLI: `npm install -g firebase-tools` and log in with
 2.  **Deploy**: Run `firebase deploy`. The CLI will give you your live Hosting URL.
 
 #### Option 2: Automated Deployment with GitHub (Production Workflow)
-This is the ideal workflow for a live event. Every time you push a change to your main branch on GitHub, it will automatically deploy to Firebase Hosting.
+This is the ideal workflow for a live event. It allows you to push changes to your main branch on GitHub and have them automatically deploy to Firebase Hosting.
 
-1.  **Push to GitHub**: Make sure your project is pushed to a GitHub repository.
-2.  **Run Init Command**: In your project's root directory, run `firebase init hosting:github`.
-3.  **Follow Prompts**:
-    *   Authorize with GitHub and select your repository (`username/repo-name`).
-    *   When asked "What script should be run before every deploy?", leave it blank and press Enter.
-    *   Set up a workflow to deploy on push? **Yes**.
-    *   Choose the branch to deploy from (e.g., `main`).
-4.  **Done!**: The CLI creates a `.github/workflows` directory. Now, any `git push` to your main branch will automatically update your live site.
+**Core Concepts for Reusability**
+
+This template is designed to be forked and reused. The automated deployment relies on two types of secrets stored in your GitHub repository settings (`Settings > Secrets and variables > Actions`):
+
+1.  `FIREBASE_CONFIG_JS`: You create this manually. It holds your web app keys.
+2.  `FIREBASE_SERVICE_ACCOUNT_...`: This is created *automatically* when you link your repository to Firebase.
+
+**Crucially, these secrets are NOT copied when someone forks the repository.** This is a security feature. Therefore, every person who forks this project must perform the following setup steps on their own repository to connect it to their own Firebase project.
+
+**One-Time Setup Steps (For the original owner AND for each new fork):**
+
+These steps must be performed from a local clone of the repository.
+
+1.  **Clone Your Repository**: If you have just forked this project, clone *your fork* to your local machine.
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/YOUR_FORKED_REPO_NAME.git
+    cd YOUR_FORKED_REPO_NAME
+    ```
+
+2.  **Set Up `FIREBASE_CONFIG_JS` Secret**:
+    *   In *your* GitHub repository, go to `Settings > Secrets and variables > Actions`.
+    *   Click "New repository secret".
+    *   **Name**: `FIREBASE_CONFIG_JS`
+    *   **Value**: Copy the *entire contents* of your local `firebase-config.js` file and paste it here.
+    *   Click "Add secret".
+
+3.  **Link Repository to Firebase Hosting**:
+    *   In your terminal, from the project's root directory, run the Firebase CLI command:
+        ```bash
+        firebase init hosting:github
+        ```
+    *   **Follow the prompts:**
+        *   Authorize with GitHub and select *your* repository (`YOUR_USERNAME/YOUR_FORKED_REPO_NAME`).
+        *   When asked "What script should be run before every deploy?", leave it blank and press Enter.
+        *   Set up a workflow to deploy on push? **Yes**.
+        *   Choose the branch to deploy from (e.g., `main`).
+    *   This command is critical: it overwrites any existing workflow file with one configured for *your* project and creates the necessary `FIREBASE_SERVICE_ACCOUNT_...` secret in *your* repository.
+
+4.  **Modify the Generated Workflow File**:
+    *   The previous step created/updated a file at `.github/workflows/firebase-hosting-merge.yml`. Open this file.
+    *   Find the `steps:` section. Just before the deployment step (`- uses: FirebaseExtended/action-hosting-deploy@...`), add a new step to create the config file from your secret:
+        ```yaml
+        - name: Create Firebase Config
+          run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
+        ```
+    *   The final `steps` section should look something like this:
+        ```yaml
+        steps:
+          - uses: actions/checkout@v4
+          - name: Create Firebase Config
+            run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
+          - uses: FirebaseExtended/action-hosting-deploy@v0
+            with:
+              repoToken: '${{ secrets.GITHUB_TOKEN }}'
+              firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_your-project-id }}' # This is created for you
+              channelId: live
+              projectId: your-project-id # This is your project ID
+        ```
+
+5.  **Commit and Push**: Commit the updated workflow file to your repository.
+    ```bash
+    git add .github/workflows/firebase-hosting-merge.yml
+    git commit -m "Configure GitHub Actions for Firebase deployment"
+    git push
+    ```
+    Any future `git push` to your main branch will now automatically and securely deploy your site.
 
 ## Part 3: Initial Admin Setup (Crucial Step)
 
