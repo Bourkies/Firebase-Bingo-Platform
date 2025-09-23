@@ -45,6 +45,28 @@
             color: #111;
             font-weight: bold;
         }
+        /* Modal Styles (adapted from admin.html) */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; text-align: center; }
+        .modal-content .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content h3 { margin-top: 0; color: #e57373; }
+        .modal-content p { text-align: center; }
+        .modal-content input { width: 100%; padding: 10px; margin: 1rem 0; box-sizing: border-box; background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #444; border-radius: 4px; }
+        .modal-content button { background-color: #dc3545; width: 100%; }
+        .modal-content button:disabled { background-color: #555; cursor: not-allowed; }
+        .button-like-link {
+            background-color: #17a2b8; /* A different color */
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            display: inline-block;
+            text-align: center;
+        }
+        .button-like-link:hover { background-color: #138496; }
         /* --- NEW: Global Loader & Message Box --- */
         .global-loader {
             position: fixed; top: 0; left: 0; width: 100%; height: 3px;
@@ -243,7 +265,8 @@
         }
         .details-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
+            flex-wrap: wrap;
             align-items: center;
             margin-bottom: 15px;
             gap: 15px;
@@ -268,6 +291,10 @@
         #delete-tile-btn {
             margin-top: 0;
             background-color: #dc3545;
+        }
+        #delete-all-tiles-btn {
+            margin-top: 0;
+            background-color: #c82333; /* A darker red */
         }
         #toggle-global-styles-btn {
             margin-top: 0;
@@ -619,10 +646,24 @@
                 <select id="tile-selector-dropdown"></select>
                 <button id="delete-tile-btn" disabled>Delete Selected Tile</button>
                 <button id="add-new-tile-btn">Add New Tile</button>
+                <a href="./import.html" class="button-like-link" target="_blank" rel="noopener noreferrer">Mass Import / Export</a>
+                <button id="delete-all-tiles-btn">Delete All Tiles</button>
             </div>
             <form id="details-form"></form>
         </div>
     </div>
+    </div>
+</div>
+
+<!-- NEW: Mass Delete Confirmation Modal -->
+<div id="delete-all-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3>Confirm Mass Deletion</h3>
+        <p>This is an irreversible action. You are about to delete <strong>ALL</strong> tiles from the board. This cannot be undone.</p>
+        <p>To confirm, please type <code style="background: #111; padding: 2px 5px; border-radius: 3px;">DELETE ALL</code> in the box below.</p>
+        <input type="text" id="delete-confirm-input" autocomplete="off">
+        <button id="delete-confirm-btn" disabled>Confirm Deletion</button>
     </div>
 </div>
 
@@ -732,6 +773,11 @@
         const prereqLinesSvg = document.getElementById('prereq-lines-svg');
 
         document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('delete-all-tiles-btn').addEventListener('click', openDeleteAllModal);
+            document.querySelector('#delete-all-modal .close-button').addEventListener('click', closeDeleteAllModal);
+            document.getElementById('delete-confirm-input').addEventListener('input', validateDeleteAll);
+            document.getElementById('delete-confirm-btn').addEventListener('click', executeDeleteAll);
+
             initAuth(onAuthStateChanged);
             createStylePreviewButtons();
             toggleTeams(); // Start with the teams panel minimized
@@ -1750,6 +1796,44 @@
                     // The onSnapshot listener will automatically handle removing the tile
                     // from the UI and clearing the editor panel if it was selected.
                 }).catch(err => showMessage(`Failed to delete tile: ${err.message}`, true));
+            }
+        }
+
+        // --- NEW: Mass Deletion Logic ---
+        function openDeleteAllModal() {
+            document.getElementById('delete-all-modal').style.display = 'flex';
+        }
+
+        function closeDeleteAllModal() {
+            const modal = document.getElementById('delete-all-modal');
+            modal.style.display = 'none';
+            document.getElementById('delete-confirm-input').value = '';
+            document.getElementById('delete-confirm-btn').disabled = true;
+        }
+
+        function validateDeleteAll() {
+            const input = document.getElementById('delete-confirm-input');
+            const confirmBtn = document.getElementById('delete-confirm-btn');
+            confirmBtn.disabled = input.value !== 'DELETE ALL';
+        }
+
+        async function executeDeleteAll() {
+            showGlobalLoader();
+            const confirmBtn = document.getElementById('delete-confirm-btn');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Deleting...';
+
+            try {
+                const batch = fb.writeBatch(db);
+                tilesData.forEach(tile => batch.delete(fb.doc(db, 'tiles', tile.docId)));
+                await batch.commit();
+                showMessage('All tiles have been deleted.', false);
+                closeDeleteAllModal();
+            } catch (error) {
+                showMessage(`Error deleting tiles: ${error.message}`, true);
+            } finally {
+                confirmBtn.textContent = 'Confirm Deletion';
+                hideGlobalLoader();
             }
         }
 
