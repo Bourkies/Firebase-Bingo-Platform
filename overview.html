@@ -186,8 +186,8 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       showGlobalLoader();
-      initAuth(onAuthStateChanged);
       initializeApp();
+      initAuth(onAuthStateChanged);
     });
 
     function onAuthStateChanged(authState) {

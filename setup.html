@@ -790,8 +790,6 @@
             document.getElementById('delete-confirm-input').addEventListener('input', validateDeleteAll);
             document.getElementById('delete-confirm-btn').addEventListener('click', executeDeleteAll);
             document.getElementById('lock-tiles-btn').addEventListener('click', toggleTileLock);
-
-            initAuth(onAuthStateChanged);
             createStylePreviewButtons();
             toggleTeams(); // Start with the teams panel minimized
             toggleGlobalStyles(); // Start with the panel minimized
@@ -808,6 +806,10 @@
             });
 
             applyTileLockState(); // Apply initial lock state on load
+
+            // Initialize data fetching first, then authentication
+            initializeApp();
+            initAuth(onAuthStateChanged);
         });
 
         function onAuthStateChanged(authState) {

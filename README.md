@@ -52,7 +52,7 @@ The repository is organized into the following key files:
         *   The "Public-facing name" will be pre-filled (e.g., `project-12345`). It's recommended to change this to your event's name (e.g., "Community Bingo").
         *   Select a "Project support email" from the dropdown.
         *   Click "Save". You can leave all other settings (like Authorized Domains) as they are.
-        *   (Optional) From the "Sign-in method" tab, also enable **Apple** and **Anonymous** providers. No extra configuration is needed for them.
+        *   (Optional) From the "Sign-in method" tab, also enable the **Anonymous** provider. No extra configuration is needed for it.
     *   **Firestore Database**:
         *   Go to `Build > Firestore Database` and click "Create database".
         *   Choose **Start in production mode**.

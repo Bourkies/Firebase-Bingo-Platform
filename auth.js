@@ -8,13 +8,13 @@ export function initAuth(callback) {
     onAuthChangeCallback = callback;
     fb.onAuthStateChanged(auth, async (user) => {
         if (user) {
-            currentUser = user;
-            await fetchUserProfile(user.uid);
+            currentUser = user; // Set currentUser immediately
+            // Pass the full user object to fetchUserProfile
+            await fetchUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
         } else {
             currentUser = null;
             userProfile = null;
         }
-        handleRedirectResult(); // Check for Apple Sign-In redirect result
         if (onAuthChangeCallback) {
             onAuthChangeCallback(getAuthState());
         }
@@ -32,12 +32,6 @@ export async function signInWithGoogle() {
     }
 }
 
-export async function signInWithApple() {
-    const provider = new fb.AppleAuthProvider();
-    // Apple sign-in works best with redirect, especially on mobile.
-    await fb.signInWithRedirect(auth, provider);
-}
-
 export async function signInAnonymously() {
     try {
         await fb.signInAnonymously(auth);
@@ -45,22 +39,6 @@ export async function signInAnonymously() {
     } catch (error) {
         console.error("Anonymous Sign-In Error:", error);
         alert("Could not sign in anonymously. Please try again.");
-    }
-}
-
-// This function runs on page load to catch the result from Apple's redirect.
-async function handleRedirectResult() {
-    try {
-        const result = await fb.getRedirectResult(auth);
-        if (result) {
-            // User signed in with Apple. onAuthStateChanged will now fire.
-            console.log("Apple Sign-In redirect result processed.");
-        }
-    } catch (error) {
-        console.error("Apple Sign-In Redirect Error:", error);
-        if (error.code === 'auth/account-exists-with-different-credential') {
-            alert("An account already exists with the same email address. Please sign in using the original method.");
-        }
     }
 }
 
@@ -73,7 +51,7 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
         const newUserProfile = {
             uid: uid,
             email: email,
-            displayName: isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || `User-${uid.substring(0,5)}`),
+            displayName: isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`),
             team: null,
             isAdmin: false,
             isEventMod: false,
