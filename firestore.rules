@@ -30,7 +30,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /tiles/{tileId} {
-      allow read: if true;
+      // Allow read if censorship is off, OR if the user is an admin/mod.
+      // If censorship is on, non-admins will be denied and should read from `public_tiles`.
+      allow read: if get(/databases/$(database)/documents/config/main).data.censorTilesBeforeEvent != true || isEventMod();
       allow write: if isAdmin();
     }
 
@@ -41,6 +43,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // NEW: Publicly readable layout data for censored boards. Only admins can write.
+    match /public_tiles/{tileId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // NEW: Styles are publicly readable, but only Admins can modify them.
     match /styles/{styleId} {
       allow read: if true;
@@ -48,7 +56,12 @@ service cloud.firestore {
     }
 
     match /submissions/{subId} {
-      allow read: if true;
+      // Read is allowed if:
+      // 1. The board is not private, OR
+      // 2. The user is an Event Mod/Admin, OR
+      // 3. The user is logged in and requesting a submission for their own team.
+      allow read: if get(/databases/$(database)/documents/config/main).data.boardVisibility != 'private' ||
+                     isEventMod() || (isAuth() && getUserData().team == resource.data.Team);
 
       // A logged-in user can create a submission, but only for their own team.
       allow create: if request.auth != null &&
@@ -68,15 +81,27 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
 
-      // An Event Mod can update any user, but cannot grant Admin status.
-      // An Admin can update any user with any field.
-      // A Captain can only update the 'team' field of users.
-      allow update: if isEventMod() && request.resource.data.isAdmin == resource.data.isAdmin ||
-                      isAdmin() || (
-                        // A captain can assign/unassign users from their own team.
-                        (isCaptainOfTeam(resource.data.team) || isCaptainOfTeam(request.resource.data.team)) &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['team'])
-                      );
+      // Update is allowed if:
+      allow update: if
+        // 1. You are an Admin (can change anything).
+        isAdmin() ||
+        // 2. You are an Event Mod (can change anything except making someone an admin).
+        (isEventMod() && request.resource.data.isAdmin == resource.data.isAdmin) ||
+        // 3. You are a Captain changing ONLY the 'team' field of a user you are captain of.
+        (
+          (isCaptainOfTeam(resource.data.team) || isCaptainOfTeam(request.resource.data.team)) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['team'])
+        ) ||
+        // 4. You are updating your OWN profile, under specific conditions.
+        (
+          request.auth.uid == userId &&
+          // You cannot make yourself an admin or mod.
+          request.resource.data.isAdmin == resource.data.isAdmin &&
+          request.resource.data.isEventMod == resource.data.isEventMod &&
+          // You can only change your displayName (if not locked) and hasSetDisplayName flag.
+          (resource.data.get('isNameLocked', false) == false || request.resource.data.displayName == resource.data.displayName) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hasSetDisplayName'])
+        );
     }
   }
 }

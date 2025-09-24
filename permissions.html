@@ -191,14 +191,15 @@
     function renderUserManagement(authState) {
         const tbody = document.querySelector('#user-management-table tbody');
         tbody.innerHTML = allUsers.map(user => {
-            // An admin can edit any user's roles, except they cannot remove their own admin status.
-            const canEditRoles = authState.isAdmin;
-            const canEditAdmin = authState.isAdmin && user.uid !== authState.user.uid;
+            // An admin can edit roles, but not for anonymous users or their own admin status.
+            const canEditRoles = authState.isAdmin && !user.isAnonymous;
+            const canEditAdmin = canEditRoles && user.uid !== authState.user.uid;
             const adminTooltip = !canEditAdmin ? 'title="Cannot remove your own admin status."' : '';
+            const anonIndicator = user.isAnonymous ? ' (Anonymous)' : '';
 
             return `
                 <tr>
-                    <td>${user.displayName || ''}</td>
+                    <td>${user.displayName || ''}${anonIndicator}</td>
                     <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles ? 'disabled' : ''}></td>
                     <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
                     <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
