@@ -31,6 +31,7 @@ The repository is organized into the following key files:
 -   **`firestore.rules`**: Security rules for the Firestore database.
 -   **`storage.rules`**: Security rules for Firebase Storage (image uploads).
 
+-   **`TEST_PLAN.md`**: A comprehensive test plan for the entire application.
 -   **`README.md`**: This file, containing setup and usage instructions.
 
 ### Step 1: Create and Configure Firebase Project
