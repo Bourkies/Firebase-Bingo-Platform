@@ -155,7 +155,13 @@
                 throw new Error('One or more Firebase modules failed to import.');
             } catch (e) {
                 console.error("SDK Check Error:", e);
-                updateCheck('sdk', 'error', 'ERROR', `Failed to load Firebase modules. This is a critical error.\n\n<strong>Possible Causes:</strong>\n- The file 'firebase-config.js' is missing or has a syntax error.\n- The file 'auth.js' is missing or has a syntax error.\n- There is a network issue preventing the Firebase SDK from loading from Google's servers.\n\n<span class="error-msg">Error: ${e.message}</span>`);
+                let details = `Failed to load Firebase modules. This is a critical error.\n\n<strong>Possible Causes:</strong>\n- The file 'firebase-config.js' is missing or has a syntax error.\n- The file 'auth.js' is missing or has a syntax error.\n- There is a network issue preventing the Firebase SDK from loading from Google's servers.`;
+                
+                if (e.message && e.message.includes("doesn't provide an export named")) {
+                    details += `\n\n<strong>Specific Error Found:</strong>\nThis looks like a module import error. It means a file is trying to import a function that doesn't exist in the Firebase SDK. Check all files that import from 'firebase-config.js' or Firebase directly for typos or unimplemented features (like 'AppleAuthProvider').`;
+                }
+                details += `\n\n<span class="error-msg">Error: ${e.message}</span>`;
+                updateCheck('sdk', 'error', 'ERROR', details);
                 return false;
             }
         }
