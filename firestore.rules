@@ -78,7 +78,13 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if true;
+      // A user can read their own document.
+      allow get: if isAuth() && request.auth.uid == userId;
+
+      // Admins/Mods can LIST users (for management pages), but this does NOT grant
+      // them permission to GET individual documents. The client-side code MUST
+      // be responsible for not trying to access sensitive fields.
+      allow list: if isEventMod();
       allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
 
       // Update is allowed if:

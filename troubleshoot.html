@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Bingo - Troubleshooting</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e; --surface-color: #2d2d2d; --primary-text: #e0e0e0;
+            --secondary-text: #a0a0a0; --accent-color: #00b8d4; --border-color: #444;
+            --success-color: #81c784; --error-color: #e57373; --warn-color: #ffc107;
+            --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+        body {
+            font-family: var(--font-main); background-color: var(--bg-color); color: var(--primary-text);
+            margin: 0; padding: 2rem; box-sizing: border-box;
+        }
+        .container { width: 100%; max-width: 900px; margin: 0 auto; }
+        h1 { color: var(--accent-color); text-align: center; margin-bottom: 2rem; }
+        .check-item {
+            background-color: var(--surface-color); border-radius: 8px;
+            padding: 1.5rem; margin-bottom: 1.5rem;
+            border-left: 5px solid var(--border-color);
+        }
+        .check-item.status-success { border-left-color: var(--success-color); }
+        .check-item.status-error { border-left-color: var(--error-color); }
+        .check-item.status-warn { border-left-color: var(--warn-color); }
+
+        .check-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .check-header h2 { margin: 0; font-size: 1.25rem; }
+        .status-badge {
+            padding: 0.25rem 0.75rem; border-radius: 12px; font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .status-badge.success { background-color: var(--success-color); color: #111; }
+        .status-badge.error { background-color: var(--error-color); color: #111; }
+        .status-badge.warn { background-color: var(--warn-color); color: #111; }
+        .status-badge.info { background-color: var(--border-color); color: var(--primary-text); }
+
+        .details {
+            background-color: var(--bg-color); padding: 1rem; border-radius: 6px;
+            font-family: var(--font-mono); font-size: 0.85rem; white-space: pre-wrap;
+            word-wrap: break-word; max-height: 300px; overflow-y: auto;
+        }
+        .details strong { color: var(--accent-color); }
+        .error-msg { color: var(--error-color); }
+        .button-bar { text-align: center; margin-top: 2rem; }
+        button {
+            background-color: var(--accent-color); color: #111; border: none;
+            padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer;
+            font-size: 1rem; font-weight: bold; transition: background-color 0.2s;
+        }
+        button:hover { background-color: #00d9f5; }
+        .instructions {
+            background-color: var(--surface-color);
+            border-left: 5px solid var(--accent-color);
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        .instructions ul {
+            padding-left: 1.25rem;
+            margin: 0.5rem 0 0 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Troubleshooting Diagnostics</h1>
+
+        <div class="instructions">
+            <p style="text-align: left; margin: 0;">For comprehensive security testing, run these diagnostics under different access levels:</p>
+            <ul>
+                <li><strong>As an Admin:</strong> Log in with your admin account.</li>
+                <li><strong>As a Player:</strong> Log in with a regular, non-admin account.</li>
+                <li><strong>As a Visitor:</strong> Open this page in an Incognito or Private browser window to test logged-out access.</li>
+            </ul>
+        </div>
+
+        <div id="check-sdk" class="check-item">
+            <div class="check-header">
+                <h2>Firebase SDK</h2>
+                <span id="sdk-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="sdk-details" class="details"></div>
+        </div>
+
+        <div id="check-config" class="check-item">
+            <div class="check-header">
+                <h2>Firebase Config</h2>
+                <span id="config-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="config-details" class="details"></div>
+        </div>
+
+        <div id="check-auth" class="check-item">
+            <div class="check-header">
+                <h2>Authentication</h2>
+                <span id="auth-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="auth-details" class="details"></div>
+        </div>
+
+        <div id="check-firestore" class="check-item">
+            <div class="check-header">
+                <h2>Firestore Data</h2>
+                <span id="firestore-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="firestore-details" class="details"></div>
+        </div>
+
+        <div id="check-security" class="check-item">
+            <div class="check-header">
+                <h2>Security Checks</h2>
+                <span id="security-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="security-details" class="details"></div>
+        </div>
+
+        <div class="button-bar">
+            <button onclick="runAllChecks()">Re-run Checks</button>
+        </div>
+    </div>
+
+    <script type="module">
+        let fb, db, auth, initAuth, getAuthState;
+
+        // Helper to update UI
+        function updateCheck(id, status, badgeText, detailsText) {
+            const item = document.getElementById(`check-${id}`);
+            const badge = document.getElementById(`${id}-status`);
+            const details = document.getElementById(`${id}-details`);
+
+            item.className = `check-item status-${status}`;
+            badge.className = `status-badge ${status}`;
+            badge.textContent = badgeText;
+            details.innerHTML = detailsText;
+        }
+
+        async function checkSdk() {
+            try {
+                const firebase = await import('./firebase-config.js');
+                fb = firebase.fb;
+                db = firebase.db;
+                auth = firebase.auth;
+                const authModule = await import('./auth.js');
+                initAuth = authModule.initAuth;
+                getAuthState = authModule.getAuthState;
+
+                if (fb && db && auth && initAuth) {
+                    updateCheck('sdk', 'success', 'LOADED', 'Firebase SDK and auth module loaded successfully.');
+                    return true;
+                }
+                throw new Error('One or more Firebase modules failed to import.');
+            } catch (e) {
+                console.error("SDK Check Error:", e);
+                updateCheck('sdk', 'error', 'ERROR', `Failed to load Firebase modules. This is a critical error.\n\n<strong>Possible Causes:</strong>\n- The file 'firebase-config.js' is missing or has a syntax error.\n- The file 'auth.js' is missing or has a syntax error.\n- There is a network issue preventing the Firebase SDK from loading from Google's servers.\n\n<span class="error-msg">Error: ${e.message}</span>`);
+                return false;
+            }
+        }
+
+        function checkConfig() {
+            if (!auth || !auth.app) {
+                updateCheck('config', 'error', 'ERROR', 'Firebase app object not available. Cannot check config.');
+                return;
+            }
+            const config = auth.app.options;
+            if (config && config.projectId && config.projectId !== 'YOUR_PROJECT_ID') {
+                updateCheck('config', 'success', 'VALID', `Configuration loaded for project: <strong>${config.projectId}</strong>`);
+            } else {
+                updateCheck('config', 'error', 'ERROR', `Firebase configuration appears to be invalid or is using placeholder values.\n\n<strong>Action:</strong>\n- Ensure you have copied 'firebase-config.example.js' to 'firebase-config.js'.\n- Ensure you have replaced the placeholder values in 'firebase-config.js' with your actual Firebase project keys.`);
+            }
+        }
+
+        function checkAuth() {
+            return new Promise(resolve => {
+                initAuth(authState => {
+                    if (authState.isLoggedIn) {
+                        const profile = authState.profile || {};
+                        const details = `<strong>Status:</strong> Logged In\n<strong>User ID:</strong> ${authState.user.uid}\n<strong>Display Name:</strong> ${profile.displayName || 'N/A'}\n<strong>Email:</strong> ${profile.email || 'N/A'}\n<strong>Anonymous:</strong> ${profile.isAnonymous}\n\n<strong>Permissions:</strong>\n  - Admin: ${profile.isAdmin}\n  - Event Mod: ${profile.isEventMod}\n\n<strong>Team:</strong> ${profile.team || 'Not Assigned'}`;
+                        updateCheck('auth', 'success', 'LOGGED IN', details);
+                    } else {
+                        updateCheck('auth', 'warn', 'LOGGED OUT', 'You are not logged in. Some Firestore checks may fail due to security rules.');
+                    }
+                    resolve();
+                });
+            });
+        }
+
+        async function checkFirestore() {
+            let results = [];
+            let overallStatus = 'success';
+            let errorCount = 0;
+
+            const checkCollection = async (name, path) => {
+                try {
+                    const docRef = fb.doc(db, path);
+                    const docSnap = await fb.getDoc(docRef);
+                    if (docSnap.exists()) {
+                        results.push(`- <strong>${name}:</strong> <span style="color: var(--success-color);">SUCCESS</span> (Found document at '${path}')`);
+                    } else {
+                        results.push(`- <strong>${name}:</strong> <span style="color: var(--warn-color);">WARN</span> (Document at '${path}' not found. This may be normal if not yet configured.)`);
+                        if (overallStatus !== 'error') overallStatus = 'warn';
+                    }
+                } catch (e) {
+                    results.push(`- <strong>${name}:</strong> <span class="error-msg">ERROR</span> reading '${path}'. Reason: ${e.message}`);
+                    overallStatus = 'error';
+                    errorCount++;
+                }
+            };
+
+            const checkCollectionCount = async (name) => {
+                try {
+                    const querySnapshot = await fb.getDocs(fb.collection(db, name));
+                    results.push(`- <strong>${name} collection:</strong> <span style="color: var(--success-color);">SUCCESS</span> (Found ${querySnapshot.size} documents)`);
+                } catch (e) {
+                    results.push(`- <strong>${name} collection:</strong> <span class="error-msg">ERROR</span> reading collection. Reason: ${e.message}`);
+                    overallStatus = 'error';
+                    errorCount++;
+                }
+            };
+
+            // Run checks
+            await checkCollection('Main Config', 'config/main');
+            
+            const authState = getAuthState();
+            if (authState.isLoggedIn) {
+                await checkCollection('Current User Profile', `users/${authState.user.uid}`);
+            } else {
+                results.push('- <strong>Current User Profile:</strong> SKIPPED (User not logged in)');
+            }
+
+            results.push('\n<strong>Collection Counts:</strong>');
+            await checkCollectionCount('users');
+            await checkCollectionCount('teams');
+            await checkCollectionCount('tiles');
+            await checkCollectionCount('public_tiles');
+            await checkCollectionCount('styles');
+            await checkCollectionCount('submissions');
+
+            let summary = 'All checks passed.';
+            let badgeText = 'OK';
+            if (overallStatus === 'error') {
+                summary = `Encountered ${errorCount} error(s). This often indicates a problem with <strong>Firestore Security Rules</strong> or database setup.`;
+                badgeText = 'ERROR';
+            } else if (overallStatus === 'warn') {
+                summary = 'Some checks returned warnings. This might be expected for a new setup, but review the details.';
+                badgeText = 'WARNING';
+            }
+
+            const detailsHtml = `${summary}\n\n<strong>Details:</strong>\n${results.join('\n')}`;
+            updateCheck('firestore', overallStatus, badgeText, detailsHtml);
+        }
+
+        async function checkSecurity() {
+            let details = [];
+            let overallStatus = 'success';
+            let errorCount = 0;
+
+            const addResult = (status, message) => {
+                let color = 'var(--primary-text)';
+                if (status === 'SUCCESS') color = 'var(--success-color)';
+                if (status === 'FAILURE') {
+                    color = 'var(--error-color)';
+                    overallStatus = 'error';
+                    errorCount++;
+                }
+                details.push(`- <span style="color: ${color};"><strong>${status}:</strong></span> ${message}`);
+            };
+
+            const authState = getAuthState();
+            updateCheck('security', 'info', 'RUNNING', `Running checks for role: ${authState.isEventMod ? 'Admin/Mod' : (authState.isLoggedIn ? 'Player' : 'Logged Out')}...`);
+
+            // --- Test 1: Listing all users ---
+            details.push("<strong>Test 1: Attempting to list all users...</strong>");
+            try {
+                await fb.getDocs(fb.collection(db, 'users'));
+                if (authState.isEventMod) {
+                    addResult('SUCCESS', 'Admin/Mod was able to list users, as per security rules.');
+                } else {
+                    addResult('FAILURE', 'A non-admin was able to list all users. Rules are too permissive.');
+                }
+            } catch (e) {
+                if (e.code === 'permission-denied') {
+                    if (authState.isEventMod) {
+                        addResult('FAILURE', 'Admin/Mod was blocked from listing users. Check `allow list` rule.');
+                    } else {
+                        addResult('SUCCESS', 'Non-admin was correctly blocked from listing users.');
+                    }
+                } else {
+                    addResult('ERROR', `An unexpected error occurred: ${e.message}`);
+                }
+            }
+
+            // --- Test 2: Reading another user's document ---
+            details.push("\n<strong>Test 2: Attempting to read another user's document...</strong>");
+            // This test requires being logged in to find another user.
+            if (authState.isLoggedIn) {
+                try {
+                    // We need to get the list of users first to find one that isn't us.
+                    // This part of the test might fail for non-admins, which is expected.
+                    const usersSnapshot = await fb.getDocs(fb.collection(db, 'users'));
+                    const otherUserDoc = usersSnapshot.docs.find(doc => doc.id !== authState.user.uid);
+
+                    if (!otherUserDoc) {
+                        details.push('- INCONCLUSIVE: Could not find another user account to test against.');
+                        if (overallStatus !== 'error') overallStatus = 'warn';
+                    } else {
+                        details.push(`- Found user '${otherUserDoc.id}', attempting to read their full document...`);
+                        const otherUserSnap = await fb.getDoc(otherUserDoc.ref);
+                        // If the above line doesn't throw, it's a failure for any user type.
+                        const otherUserData = otherUserSnap.data();
+                        addResult('FAILURE', `Successfully read full document of user ${otherUserDoc.id}. Email found: ${otherUserData.email || 'N/A'}. Rules are too permissive.`);
+                    }
+                } catch (e) {
+                    if (e.code === 'permission-denied') {
+                        // If the initial `getDocs` failed for a non-admin, that's a success for the list rule.
+                        // If the `getDoc` failed for an admin, that's a success for the `get` rule.
+                        addResult('SUCCESS', 'Attempt to read another user\'s full document (including email) was correctly blocked by security rules.');
+                    } else {
+                        addResult('ERROR', `An unexpected error occurred: ${e.message}`);
+                    }
+                }
+            } else {
+                details.push('- SKIPPED: User is not logged in.');
+            }
+
+            // --- Test 3: Reading own user document (for logged-in users) ---
+            if (authState.isLoggedIn) {
+                details.push("\n<strong>Test 3: Attempting to read own user document...</strong>");
+                try {
+                    await fb.getDoc(fb.doc(db, 'users', authState.user.uid));
+                    addResult('SUCCESS', 'Logged-in user was able to read their own profile.');
+                } catch (e) {
+                    addResult('FAILURE', `Logged-in user was blocked from reading their own profile. Error: ${e.message}`);
+                }
+            }
+
+            // --- Final Summary ---
+            let summary = 'All security checks passed.';
+            let badgeText = 'PASSED';
+            if (overallStatus === 'error') {
+                summary = `Found ${errorCount} security failure(s). Review your Firestore rules immediately.`;
+                badgeText = 'FAILED';
+            } else if (overallStatus === 'warn') {
+                summary = 'Some checks were inconclusive. This may be normal if there is only one user in the database.';
+                badgeText = 'WARNING';
+            }
+
+            const detailsHtml = `${summary}\n\n<strong>Details:</strong>\n${details.join('\n')}`;
+            updateCheck('security', overallStatus, badgeText, detailsHtml);
+        }
+
+        async function runAllChecks() {
+            const sdkOk = await checkSdk();
+            if (!sdkOk) {
+                // Stop if SDK fails, as other checks will fail too
+                updateCheck('config', 'error', 'SKIPPED', 'Skipped due to SDK load failure.');
+                updateCheck('auth', 'error', 'SKIPPED', 'Skipped due to SDK load failure.');
+                updateCheck('firestore', 'error', 'SKIPPED', 'Skipped due to SDK load failure.');
+                updateCheck('security', 'error', 'SKIPPED', 'Skipped due to SDK load failure.');
+                return;
+            }
+
+            checkConfig();
+            await checkAuth(); // This needs to complete before Firestore checks
+            await checkFirestore();
+            await checkSecurity();
+        }
+
+        // Expose to global scope for the button
+        window.runAllChecks = runAllChecks;
+
+        // Run on page load
+        document.addEventListener('DOMContentLoaded', runAllChecks);
+    </script>
+</body>
+</html>

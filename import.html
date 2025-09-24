@@ -197,10 +197,10 @@
     let csvData = [];
 
     document.addEventListener('DOMContentLoaded', () => {
-        initAuth(onAuthStateChanged);
         document.getElementById('export-csv-btn').addEventListener('click', handleExport);
         document.getElementById('csv-file-input').addEventListener('change', handleFileSelect);
         document.getElementById('import-btn').addEventListener('click', handleImport);
+        initAuth(onAuthStateChanged);
     });
 
     function onAuthStateChanged(authState) {

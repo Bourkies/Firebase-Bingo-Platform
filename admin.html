@@ -200,6 +200,7 @@
             <div class="admin-links-container">
                 <a href="./users.html" target="_blank" id="user-assignment-link" class="button-like-link" style="display: none;">Manage User Teams</a>
                 <a href="./permissions.html" target="_blank" id="user-permissions-link" class="button-like-link" style="display: none;">Manage Permissions</a>
+                <a href="./troubleshoot.html" target="_blank" class="button-like-link" style="background-color: var(--warn-color); color: #111; margin-left: auto;">Troubleshoot</a>
             </div>
             <div id="submissions-card" class="card">
                 <h2>Submissions</h2>
@@ -275,8 +276,6 @@
     let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
  
     document.addEventListener('DOMContentLoaded', () => {
-        initAuth(onAuthStateChanged);
-        // Add listeners for all filter controls
         document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
         document.getElementById('search-filter').addEventListener('input', renderSubmissionsTable);
         document.querySelectorAll('#submissions-filters input[type="checkbox"]').forEach(cb => {
@@ -284,6 +283,9 @@
         });
         document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
         document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
+
+        // Initialize data fetching first, then authentication
+        initAuth(onAuthStateChanged);
     });
     
     async function onAuthStateChanged(authState) {
@@ -345,16 +347,6 @@
             }
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to config:", error); hideGlobalLoader(); });
-
-        // Listener for the new teams collection
-        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
-        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
-            console.log("Admin: Teams updated in real-time.");
-            allTeams = {};
-            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
-            populateFilters();
-            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
 
         // Listener for tiles
         unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
@@ -448,7 +440,7 @@
                     <td>${sub.id}</td>
                     <td title="${tileName}">${tileName}</td>
                     <td>${teamName}</td>
-                    <td title="${sub.PlayerName}">${sub.PlayerName}</td>
+                    <td title="${sub.PlayerName || ''}">${sub.PlayerName || ''}</td>
                     <td>${timestamp}</td>
                 </tr>
             `;

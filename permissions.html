@@ -100,7 +100,7 @@
         <h1>User Permissions</h1>
         <div class="card">
             <table id="user-management-table" style="table-layout: fixed;">
-                <thead><tr><th style="width: 40%;">Display Name</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th><th style="width: 30%;">Email</th></tr></thead>
+                <thead><tr><th style="width: 70%;">Display Name</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -115,6 +115,8 @@
     let unsubscribeUsers, unsubscribeTeams, unsubscribeConfig;
  
     document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('auth-button').onclick = () => signInWithGoogle();
+        initializeApp(null); // Initialize data fetching first
         initAuth(onAuthStateChanged);
     });
     
@@ -172,9 +174,14 @@
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
         });
 
+        // Securely fetch only the necessary user fields, excluding email.
         const usersQuery = fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'));
         unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
-            allUsers = snapshot.docs.map(doc => ({...doc.data(), uid: doc.id}));
+            allUsers = snapshot.docs.map(doc => {
+                const data = doc.data();
+                // Explicitly select fields to prevent loading sensitive data like email
+                return { uid: doc.id, displayName: data.displayName, isEventMod: data.isEventMod, isAdmin: data.isAdmin, isAnonymous: data.isAnonymous };
+            });
             renderUserManagement(authState);
             if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
         });
@@ -202,7 +209,6 @@
                     <td>${user.displayName || ''}${anonIndicator}</td>
                     <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles ? 'disabled' : ''}></td>
                     <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
-                    <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
                 </tr>`;
         }).join('');
 

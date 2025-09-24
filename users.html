@@ -69,7 +69,7 @@
         <h1>User Team & Captain Assignments</h1>
         <div class="card">
             <table id="user-assignment-table">
-                <thead><tr><th style="width: 25%;">Display Name</th><th style="width: 10%;">Lock Name</th><th style="width: 20%;">Team</th><th style="width: 10%;">Is Captain</th><th style="width: 35%;">Email</th></tr></thead>
+                <thead><tr><th style="width: 45%;">Display Name</th><th style="width: 10%;">Lock Name</th><th style="width: 25%;">Team</th><th style="width: 20%;">Is Captain</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -84,8 +84,11 @@
     let unsubscribeUsers, unsubscribeTeams, unsubscribeConfig;
  
     document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('auth-button').onclick = () => signInWithGoogle();
+        initializeApp(null); // Initialize data fetching first
         initAuth(onAuthStateChanged);
     });
+
     
     async function onAuthStateChanged(authState) {
         const authButton = document.getElementById('auth-button');
@@ -141,12 +144,18 @@
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
         });
 
+        // Securely fetch only the necessary user fields, excluding email.
         const usersQuery = fb.query(fb.collection(db, 'users'), fb.orderBy('displayName'));
         unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
-            allUsers = snapshot.docs.map(doc => ({...doc.data(), uid: doc.id}));
+            allUsers = snapshot.docs.map(doc => {
+                const data = doc.data();
+                // Explicitly select fields to prevent loading sensitive data like email
+                return { uid: doc.id, displayName: data.displayName, team: data.team, isCaptain: data.isCaptain, isNameLocked: data.isNameLocked, isAnonymous: data.isAnonymous };
+            });
             renderUserAssignments();
             if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
         });
+
 
         const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
         unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
@@ -177,7 +186,6 @@
                         </select>
                     </td>
                     <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!canBeCaptain ? 'disabled' : ''}></td>
-                    <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
                 </tr>`;
         }).join('');
 
