@@ -12,9 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Create Firebase Config
-        env:
-          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JS }}
-        run: echo "$FIREBASE_CONFIG" > firebase-config.js
+        run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
