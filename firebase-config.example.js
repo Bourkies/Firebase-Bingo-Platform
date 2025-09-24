@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 // All necessary storage functions, including deleteObject
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 
 // =================================================================
@@ -39,5 +39,5 @@ export const fb = {
     // Storage
     ref, uploadBytes, getDownloadURL, deleteObject,
     // Auth
-    onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut
+    onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile
 };

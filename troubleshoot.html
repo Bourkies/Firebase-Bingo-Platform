@@ -68,7 +68,7 @@
 <body>
     <div class="container">
         <h1>Troubleshooting Diagnostics</h1>
-        <p style="text-align: center; margin-top: -1.5rem; color: var(--secondary-text);">v1.0.2</p>
+        <p style="text-align: center; margin-top: -1.5rem; color: var(--secondary-text);">v1.0.3</p>
 
         <div class="instructions">
             <p style="text-align: left; margin: 0;">For comprehensive security testing, run these diagnostics under different access levels:</p>
@@ -93,6 +93,14 @@
                 <span id="config-status" class="status-badge info">PENDING</span>
             </div>
             <div id="config-details" class="details"></div>
+        </div>
+
+        <div id="check-imports" class="check-item">
+            <div class="check-header">
+                <h2>Firebase Service Imports</h2>
+                <span id="imports-status" class="status-badge info">PENDING</span>
+            </div>
+            <div id="imports-details" class="details"></div>
         </div>
 
         <div id="check-auth" class="check-item">
@@ -177,6 +185,40 @@
                 updateCheck('config', 'success', 'VALID', `Configuration loaded for project: <strong>${config.projectId}</strong>`);
             } else {
                 updateCheck('config', 'error', 'ERROR', `Firebase configuration appears to be invalid or is using placeholder values.\n\n<strong>Action:</strong>\n- Ensure you have copied 'firebase-config.example.js' to 'firebase-config.js'.\n- Ensure you have replaced the placeholder values in 'firebase-config.js' with your actual Firebase project keys.`);
+            }
+        }
+
+        function checkImports() {
+            if (!fb) {
+                updateCheck('imports', 'error', 'SKIPPED', 'Skipped because Firebase SDK failed to load.');
+                return;
+            }
+
+            const requiredFunctions = [
+                // Firestore
+                'getDoc', 'getDocs', 'setDoc', 'addDoc', 'updateDoc', 'deleteDoc',
+                'doc', 'collection', 'query', 'where', 'orderBy', 'onSnapshot',
+                'writeBatch', 'arrayUnion', 'serverTimestamp', 'documentId',
+                // Auth
+                'onAuthStateChanged', 'GoogleAuthProvider', 'signInWithPopup',
+                'signInAnonymously', 'signOut', 'updateProfile',
+                // Storage
+                'ref', 'getDownloadURL', 'uploadBytes', 'deleteObject'
+            ];
+
+            const missingFunctions = [];
+            for (const funcName of requiredFunctions) {
+                if (typeof fb[funcName] !== 'function') {
+                    missingFunctions.push(funcName);
+                }
+            }
+
+            if (missingFunctions.length === 0) {
+                const details = `All ${requiredFunctions.length} required Firebase services are correctly exported from 'firebase-config.js'.`;
+                updateCheck('imports', 'success', 'VALID', details);
+            } else {
+                const details = `The 'fb' object exported from 'firebase-config.js' is missing required functions. This usually means the config file is outdated or has been modified incorrectly.\n\n<strong>Action:</strong>\n- Compare your 'firebase-config.js' to 'firebase-config.example.js' to ensure all necessary services from 'firebase/app', 'firebase/auth', 'firebase/firestore', and 'firebase/storage' are being imported and added to the 'fb' object.\n\n<span class="error-msg"><strong>Missing Functions:</strong>\n${missingFunctions.join('\n')}</span>`;
+                updateCheck('imports', 'error', 'ERROR', details);
             }
         }
 
@@ -371,6 +413,7 @@
             }
 
             checkConfig();
+            checkImports();
             await checkAuth(); // This needs to complete before Firestore checks
             await checkFirestore();
             await checkSecurity();
