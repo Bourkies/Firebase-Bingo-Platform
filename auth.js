@@ -9,7 +9,7 @@ export function initAuth(callback) {
     fb.onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user; // Set currentUser immediately
-            // Pass the full user object to fetchUserProfile
+            // CRITICAL FIX: await the profile fetch before proceeding.
             await fetchUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
         } else {
             currentUser = null;
@@ -49,10 +49,8 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
     if (!userDocSnap.exists()) {
         // Create a new user profile if it doesn't exist
         const newUserProfile = {
-            uid: uid,
-            email: email,
-            displayName: isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`),
             team: null,
+            // displayName is now stored directly on the user object, not here.
             isAdmin: false,
             isEventMod: false,
             isAnonymous: isAnonymous,
@@ -60,7 +58,14 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
             // For anonymous users, we don't prompt them to change their name. For new Google users, we do.
             hasSetDisplayName: isAnonymous
         };
-        await fb.setDoc(userDocRef, newUserProfile);
+        // Also set the initial display name on the auth object itself for consistency
+        const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
+        
+        // We perform two separate operations: one to create the Firestore doc,
+        // and one to update the Auth user's profile.
+        await fb.setDoc(userDocRef, newUserProfile); 
+        await fb.updateProfile(auth.currentUser, { displayName: initialAuthDisplayName });
+
         userProfile = newUserProfile;
     } else {
         userProfile = userDocSnap.data();
@@ -76,13 +81,15 @@ export async function updateUserDisplayName(newName) {
     }
 
     const userRef = fb.doc(db, 'users', currentUser.uid);
+    const authUser = auth.currentUser;
     try {
-        await fb.updateDoc(userRef, {
-            displayName: newName,
-            hasSetDisplayName: true
-        });
+        // Update both the auth profile and the firestore doc in parallel
+        await Promise.all([
+            fb.updateProfile(authUser, { displayName: newName }),
+            fb.updateDoc(userRef, { hasSetDisplayName: true })
+        ]);
+
         // Manually update local state to reflect change immediately
-        userProfile.displayName = newName;
         userProfile.hasSetDisplayName = true;
         // Notify the main app that auth state has changed
         if (onAuthChangeCallback) {
@@ -103,15 +110,23 @@ export async function signOut() {
 }
 
 export function getAuthState() {
-    const profile = userProfile || {};
-    const isAdmin = profile.isAdmin === true;
-    const isEventMod = isAdmin || profile.isEventMod === true;
+    const isLoggedIn = !!currentUser;
+    const firestoreProfile = userProfile || {};
+    const authProfile = currentUser || {};
+
+    // Merge the Firestore profile with the Auth profile for a complete view.
+    const fullProfile = isLoggedIn ? {
+        ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
+        uid: authProfile.uid,
+        displayName: authProfile.displayName,
+        email: authProfile.email,
+    } : null;
 
     return {
-        isLoggedIn: !!currentUser,
+        isLoggedIn: isLoggedIn,
         user: currentUser,
-        profile: userProfile,
-        isAdmin: isAdmin,
-        isEventMod: isEventMod,
+        profile: fullProfile,
+        isAdmin: fullProfile?.isAdmin === true,
+        isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
     };
 }

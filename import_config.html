@@ -276,29 +276,14 @@
         const importMode = document.querySelector('input[name="import-mode"]:checked').value;
 
         try {
-            const batch = fb.writeBatch(db);
-
             if (importMode === 'replace') {
-                // In replace mode, we first need to delete existing documents.
-                // This is a separate operation before the write batch.
-                await executeClear(true); // Pass silent=true
+                // SAFER REPLACE: Instead of deleting first, perform all operations in one batch.
+                // Fetch all documents to be deleted, then create a single batch that
+                // performs all deletions and all new writes together.
+                await performBatchedReplace();
+            } else { // Merge mode
+                await performBatchedMerge();
             }
-
-            // Process config
-            if (parsedJsonData.config) {
-                const configRef = fb.doc(db, 'config', 'main');
-                batch.set(configRef, parsedJsonData.config, { merge: importMode === 'merge' });
-            }
-
-            // Process styles
-            if (parsedJsonData.styles) {
-                for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
-                    const styleRef = fb.doc(db, 'styles', styleId);
-                    batch.set(styleRef, styleData, { merge: importMode === 'merge' });
-                }
-            }
-
-            await batch.commit();
             showMessage('Configuration imported successfully!', false);
 
         } catch (error) {
@@ -309,6 +294,45 @@
             importBtn.disabled = false;
             importBtn.textContent = 'Import Config';
         }
+    }
+
+    async function performBatchedMerge() {
+        const batch = fb.writeBatch(db);
+        // Process config
+        if (parsedJsonData.config) {
+            const configRef = fb.doc(db, 'config', 'main');
+            batch.set(configRef, parsedJsonData.config, { merge: true });
+        }
+        // Process styles
+        if (parsedJsonData.styles) {
+            for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
+                const styleRef = fb.doc(db, 'styles', styleId);
+                batch.set(styleRef, styleData, { merge: true });
+            }
+        }
+        await batch.commit();
+    }
+
+    async function performBatchedReplace() {
+        const batch = fb.writeBatch(db);
+
+        // 1. Schedule existing documents for deletion
+        const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+        stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        batch.delete(fb.doc(db, 'config', 'main')); // Also delete the main config
+
+        // 2. Schedule new documents to be written
+        if (parsedJsonData.config) {
+            const configRef = fb.doc(db, 'config', 'main');
+            batch.set(configRef, parsedJsonData.config); // No merge on replace
+        }
+        if (parsedJsonData.styles) {
+            for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
+                const styleRef = fb.doc(db, 'styles', styleId);
+                batch.set(styleRef, styleData); // No merge on replace
+            }
+        }
+        await batch.commit();
     }
 
     // --- Clear Config Logic ---

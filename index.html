@@ -407,6 +407,7 @@
   <script type="module">
     import { db, fb } from './firebase-config.js';
     import { initAuth, signInWithGoogle, signInAnonymously, signOut, getAuthState, updateUserDisplayName } from './auth.js';
+    import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from './utils.js';
 
     let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {}, allUsers = [];
     let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
@@ -1244,8 +1245,12 @@
           if (existingSubmission) {
               // Use the correct document ID to get the reference for updating.
               const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
-              // FIX: Log specific changes by comparing against original values
+              // Log specific changes by comparing against original values
               if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
+              if (dataToSave.PlayerName !== (existingSubmission.PlayerName || '')) historyEntry.changes.push({ field: 'PlayerName', from: existingSubmission.PlayerName || '', to: dataToSave.PlayerName });
+              if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
+              const oldEvidence = existingSubmission.Evidence || '[]';
+              if (dataToSave.Evidence !== oldEvidence) historyEntry.changes.push({ field: 'Evidence', from: 'Previous evidence', to: 'New evidence' }); // Keep it simple for evidence
 
               // Only add history if there were actual changes
               if (historyEntry.changes.length > 0) {
@@ -1321,38 +1326,6 @@
     }
     function closeLoginModal() {
         document.getElementById('login-modal').style.display = 'none';
-    }
-
-    function showMessage(text, isError = false) {
-      const box = document.getElementById('message-box');
-      box.textContent = text;
-      box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
-      box.classList.add('show');
-      setTimeout(() => box.classList.remove('show'), 4000);
-    }
-    
-    // --- NEW: Global Loader Functions ---
-    function showGlobalLoader() {
-        document.getElementById('global-loader').style.display = 'block';
-    }
-    function hideGlobalLoader() {
-        document.getElementById('global-loader').style.display = 'none';
-    }
-
-    function hexToRgba(colorStr, alpha) {
-        if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
-        const sColor = colorStr.trim();
-        if (sColor === 'transparent') return 'transparent';
-        if (!sColor.startsWith('#')) return sColor;
-        const hex = sColor.slice(1);
-        let r = 0, g = 0, b = 0;
-        if (hex.length === 3) {
-            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
-        } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
-        } else { return `rgba(255, 255, 255, ${alpha})`; }
-        if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 255, 255, ${alpha})`;
-        return `rgba(${r},${g},${b},${alpha})`;
     }
 
     // Expose functions to global scope for onclick handlers
