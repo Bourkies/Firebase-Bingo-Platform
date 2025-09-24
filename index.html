@@ -349,7 +349,8 @@
             </div>
             <input type="text" id="manual-player-name" placeholder="Manually add other players (comma-separated)">
         </div>
-        <input type="hidden" id="player-name-value" name="player-name-value" required>
+        <input type="hidden" id="player-ids-value" name="player-ids-value">
+        <input type="hidden" id="additional-players-value" name="additional-players-value">
         <label id="evidence-label">Evidence:</label>
         <div id="evidence-container"></div>
         <button type="button" id="add-evidence-btn" onclick="addEvidenceInput()">+ Add Evidence Item</button>
@@ -430,6 +431,7 @@
         // We need to re-evaluate and re-populate the team selector.
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         populateTeamSelector(allTeams, loadFirstTeam);
+        processAllData(); // Re-process data in case team/permissions changed
         handleTeamChange(); // This is crucial to update the board based on the (potentially new) selector state.
 
         // NEW: Welcome modal logic
@@ -582,15 +584,12 @@
             authButton.textContent = 'Logout';
             const profile = authState.profile || {};
             const roles = [];
-            if (profile.isAdmin) roles.push('Admin');
-            else if (profile.isEventMod) roles.push('Event Mod');
+            if (profile.isAdmin) { roles.push('Admin'); } else if (profile.isEventMod) { roles.push('Event Mod'); }
             
             const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
             const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
             const teamInfo = teamName ? ` | Team: ${teamName}` : '';
-            // Use a more descriptive fallback for the display name
-            const displayName = profile.displayName || (profile.isAnonymous ? `Anonymous-${profile.uid.substring(0,5)}` : 'User');
-            userInfo.textContent = `${displayName} ${roleString} ${teamInfo}`;
+            userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
 
             // NEW: Show change name button if user is not anonymous and name is not locked
             const canChangeName = !profile.isAnonymous && !profile.isNameLocked;
@@ -1039,7 +1038,7 @@
         container.appendChild(evidenceItemDiv);
     }
 
-    function renumberEvidenceItems() {
+    window.renumberEvidenceItems = function renumberEvidenceItems() {
         const container = document.getElementById('evidence-container');
         const items = container.querySelectorAll('.evidence-item');
         items.forEach((item, index) => {
@@ -1055,12 +1054,13 @@
         container.innerHTML = '';
     }
 
-    function populatePlayerNameSelector(savedNamesString = '') {
+    function populatePlayerNameSelector(savedPlayerIDs = [], savedAdditionalNames = '') {
         const membersContainer = document.getElementById('team-members-checkboxes');
         const teamCheckbox = document.getElementById('team-submission-checkbox');
         const manualInput = document.getElementById('manual-player-name');
 
         membersContainer.innerHTML = '';
+        // Reset listeners and values
         teamCheckbox.checked = false;
         manualInput.value = '';
 
@@ -1070,39 +1070,35 @@
             const id = `player-check-${member.uid}`;
             const item = document.createElement('div');
             item.className = 'player-checkbox-item';
+            // Use data-uid to store the user's ID
             item.innerHTML = `
-                <input type="checkbox" id="${id}" data-name="${member.displayName}">
+                <input type="checkbox" id="${id}" data-uid="${member.uid}">
                 <label for="${id}">${member.displayName}</label>
             `;
             membersContainer.appendChild(item);
         });
 
-        // 2. Parse saved names and pre-fill the form
-        const savedNames = savedNamesString ? savedNamesString.split(',').map(s => s.trim()).filter(Boolean) : [];
-        const teamMemberNames = new Set(teamMembers.map(m => m.displayName));
-        const manualNames = [];
-
+        // 2. Pre-fill the form based on saved data
         const teamName = allTeams[currentTeam]?.name || currentTeam;
-        if (savedNames.length === 1 && savedNames[0] === teamName) {
+        // Check if the submission was for the whole team
+        if (savedAdditionalNames === teamName && savedPlayerIDs.length === 0) {
             teamCheckbox.checked = true;
         } else {
-            savedNames.forEach(name => {
-                if (teamMemberNames.has(name)) {
-                    const memberCheckbox = membersContainer.querySelector(`[data-name="${name}"]`);
-                    if (memberCheckbox) memberCheckbox.checked = true;
-                } else {
-                    manualNames.push(name);
-                }
+            // Check the boxes for saved player UIDs
+            savedPlayerIDs.forEach(uid => {
+                const memberCheckbox = membersContainer.querySelector(`[data-uid="${uid}"]`);
+                if (memberCheckbox) memberCheckbox.checked = true;
             });
+            // Populate the manual input with any additional names
+            manualInput.value = savedAdditionalNames;
         }
-        manualInput.value = manualNames.join(', ');
 
         // 3. Add a single event listener to the container
         const container = document.getElementById('player-name-container');
         container.removeEventListener('input', updatePlayerNameField); // Clear old listener to prevent duplicates
         container.addEventListener('input', updatePlayerNameField);
 
-        // 4. Initial update to set the hidden field value
+        // 4. Initial update to set the hidden field values
         updatePlayerNameField();
     }
 
@@ -1110,18 +1106,25 @@
         const membersContainer = document.getElementById('team-members-checkboxes');
         const teamCheckbox = document.getElementById('team-submission-checkbox');
         const manualInput = document.getElementById('manual-player-name');
-        const hiddenInput = document.getElementById('player-name-value');
+        const playerIdsInput = document.getElementById('player-ids-value');
+        const additionalNamesInput = document.getElementById('additional-players-value');
+
         const teamName = allTeams[currentTeam]?.name || currentTeam;
+
+        // If "Submit for whole team" is checked, it overrides everything else.
         if (teamCheckbox.checked) {
-            hiddenInput.value = teamName;
+            playerIdsInput.value = JSON.stringify([]);
+            additionalNamesInput.value = teamName;
             membersContainer.querySelectorAll('input').forEach(i => { i.checked = false; i.disabled = true; });
             manualInput.value = ''; manualInput.disabled = true; return;
         }
+
+        // Otherwise, enable other inputs and collect their values.
         membersContainer.querySelectorAll('input').forEach(i => i.disabled = false);
         manualInput.disabled = false;
-        const selectedNames = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.name);
-        const manualNames = manualInput.value.split(',').map(s => s.trim()).filter(Boolean);
-        hiddenInput.value = [...new Set([...selectedNames, ...manualNames])].join(', ');
+        const selectedUIDs = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.uid);
+        playerIdsInput.value = JSON.stringify(selectedUIDs);
+        additionalNamesInput.value = manualInput.value.trim();
     }
 
     function openModal(tile, status) {
@@ -1142,7 +1145,7 @@
 
       const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
 
-      populatePlayerNameSelector(existingSubmission?.PlayerName);
+      populatePlayerNameSelector(existingSubmission?.PlayerIDs || [], existingSubmission?.AdditionalPlayerNames || '');
       document.getElementById('notes').value = existingSubmission?.Notes || '';
       document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
 
@@ -1216,7 +1219,8 @@
       const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
 
       const dataToSave = {
-        PlayerName: document.getElementById('player-name-value').value,
+        PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
+        AdditionalPlayerNames: document.getElementById('additional-players-value').value,
         Evidence: JSON.stringify(evidenceItems),
         Notes: document.getElementById('notes').value,
         Team: currentTeam,
@@ -1247,7 +1251,8 @@
               const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
               // Log specific changes by comparing against original values
               if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
-              if (dataToSave.PlayerName !== (existingSubmission.PlayerName || '')) historyEntry.changes.push({ field: 'PlayerName', from: existingSubmission.PlayerName || '', to: dataToSave.PlayerName });
+              if (JSON.stringify(dataToSave.PlayerIDs) !== JSON.stringify(existingSubmission.PlayerIDs || [])) historyEntry.changes.push({ field: 'PlayerIDs', from: 'Previous players', to: 'New players' });
+              if (dataToSave.AdditionalPlayerNames !== (existingSubmission.AdditionalPlayerNames || '')) historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: existingSubmission.AdditionalPlayerNames || '', to: dataToSave.AdditionalPlayerNames });
               if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
               const oldEvidence = existingSubmission.Evidence || '[]';
               if (dataToSave.Evidence !== oldEvidence) historyEntry.changes.push({ field: 'Evidence', from: 'Previous evidence', to: 'New evidence' }); // Keep it simple for evidence
@@ -1333,10 +1338,7 @@
     window.closeModal = closeModal;
     window.handleFormSubmit = handleFormSubmit;
     window.addEvidenceInput = addEvidenceInput;
-    window.openLoginModal = openLoginModal;
     window.closeLoginModal = closeLoginModal;
-    window.handleWelcomeFormSubmit = handleWelcomeFormSubmit;
-    window.renumberEvidenceItems = renumberEvidenceItems;
 
   </script>
 </body>

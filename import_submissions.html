@@ -171,11 +171,11 @@
     import { db, fb } from './firebase-config.js';
     import { initAuth } from './auth.js';
 
-    const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerName', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
-    const EDITABLE_FIELDS = ['id', 'Team', 'PlayerName', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived'];
+    const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
+    const EDITABLE_FIELDS = ['id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived']; // Use PlayerNames for import mapping
     let csvHeaders = [];
     let csvData = [];
-    let allTiles = {}, allTeams = {};
+    let allTiles = {}, allTeams = {}, allUsers = {};
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('export-csv-btn').addEventListener('click', handleExport);
@@ -201,12 +201,15 @@
     }
 
     async function fetchPrerequisites() {
-        const [tilesSnapshot, teamsSnapshot] = await Promise.all([
+        // Add usersSnapshot to the prerequisite fetch
+        const [tilesSnapshot, teamsSnapshot, usersSnapshot] = await Promise.all([
             fb.getDocs(fb.collection(db, 'tiles')),
-            fb.getDocs(fb.collection(db, 'teams'))
+            fb.getDocs(fb.collection(db, 'teams')),
+            fb.getDocs(fb.collection(db, 'users'))
         ]);
         tilesSnapshot.forEach(doc => allTiles[doc.data().id] = doc.data());
         teamsSnapshot.forEach(doc => allTeams[doc.id] = doc.data());
+        usersSnapshot.forEach(doc => allUsers[doc.id] = doc.data());
     }
 
     async function handleExport() {
@@ -215,7 +218,16 @@
             const snapshot = await fb.getDocs(fb.collection(db, 'submissions'));
             const submissions = snapshot.docs.map(doc => {
                 const data = doc.data();
-                const record = { docId: doc.id };
+                // NEW: Convert PlayerIDs to a readable PlayerNames string for export
+                const playerNames = (data.PlayerIDs || [])
+                    .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
+                    .join(', ');
+                const finalPlayerString = [playerNames, data.AdditionalPlayerNames].filter(Boolean).join(', ');
+
+                const record = { 
+                    docId: doc.id,
+                    PlayerNames: finalPlayerString
+                };
                 SUBMISSION_FIELDS.forEach(field => {
                     let value = data[field] ?? '';
                     if (value && typeof value.toDate === 'function') {
@@ -223,6 +235,9 @@
                     } else if (typeof value === 'object') {
                         value = JSON.stringify(value);
                     }
+                    // Don't include the raw ID/name fields in the final export
+                    if (field === 'PlayerIDs' || field === 'AdditionalPlayerNames') return;
+
                     record[field] = value;
                 });
                 return record;
@@ -233,7 +248,10 @@
                 return;
             }
 
-            const csv = Papa.unparse(submissions, { header: true });
+            // Define explicit headers to control order and inclusion
+            const exportHeaders = ['docId', 'id', 'Team', 'PlayerNames', 'IsComplete', 'AdminVerified', 'RequiresAction', 'Timestamp', 'CompletionTimestamp', 'Notes', 'Evidence', 'AdminFeedback', 'IsArchived', 'history'];
+
+            const csv = Papa.unparse(submissions, { header: true, columns: exportHeaders });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
@@ -278,7 +296,7 @@
 
         EDITABLE_FIELDS.forEach(field => {
             const tr = document.createElement('tr');
-            const isRequired = field === 'id' || field === 'Team';
+            const isRequired = field === 'id' || field === 'Team' || field === 'PlayerNames';
             tr.innerHTML = `<td><label for="map-${field}" class="${isRequired ? 'required-field' : ''}">${field} ${isRequired ? '*' : ''}</label></td>
                             <td><select id="map-${field}" data-field="${field}">${headerOptions}</select></td>`;
             tbody.appendChild(tr);
@@ -292,19 +310,20 @@
 
     function updatePreview() {
         const mapping = {};
-        let idMapped = false, teamMapped = false;
+        let idMapped = false, teamMapped = false, playerMapped = false;
         document.querySelectorAll('#mapping-table select').forEach(select => {
             if (select.value) {
                 mapping[select.dataset.field] = select.value;
                 if (select.dataset.field === 'id') idMapped = true;
                 if (select.dataset.field === 'Team') teamMapped = true;
+                if (select.dataset.field === 'PlayerNames') playerMapped = true;
             }
         });
 
         const importBtn = document.getElementById('import-btn');
         const step3 = document.getElementById('import-step-3');
 
-        if (!idMapped || !teamMapped) {
+        if (!idMapped || !teamMapped || !playerMapped) {
             step3.style.display = 'none';
             importBtn.disabled = true;
             return;
@@ -368,16 +387,34 @@
         const failedRows = [];
 
         csvData.forEach((row, index) => {
-            const subData = {};
+            const subData = { PlayerIDs: [], AdditionalPlayerNames: '' };
             EDITABLE_FIELDS.forEach(field => {
                 const csvHeader = mapping[field];
                 if (csvHeader && row[csvHeader] !== undefined) {
                     let value = row[csvHeader];
+                    // Handle boolean conversions
                     if (['IsComplete', 'AdminVerified', 'RequiresAction', 'IsArchived'].includes(field)) {
                         value = String(value).toLowerCase() === 'true';
                     }
-                    subData[field] = value;
+                    // Don't add PlayerNames directly to subData
+                    if (field !== 'PlayerNames') {
+                        subData[field] = value;
+                    }
                 }
+            });
+
+            // NEW: Process PlayerNames into PlayerIDs and AdditionalPlayerNames
+            const playerNamesString = row[mapping['PlayerNames']] || '';
+            const namesToProcess = playerNamesString.split(',').map(n => n.trim()).filter(Boolean);
+            const usersByName = Object.values(allUsers).reduce((acc, user) => {
+                if (user.displayName) acc[user.displayName.toLowerCase()] = user.uid;
+                return acc;
+            }, {});
+
+            namesToProcess.forEach(name => {
+                const foundId = usersByName[name.toLowerCase()];
+                if (foundId) subData.PlayerIDs.push(foundId);
+                else subData.AdditionalPlayerNames = [subData.AdditionalPlayerNames, name].filter(Boolean).join(', ');
             });
 
             const tileId = subData.id;

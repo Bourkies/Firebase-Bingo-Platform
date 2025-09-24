@@ -358,15 +358,13 @@
                     } else {
                         details.push(`- Found user '${otherUserDoc.id}', attempting to read their full document...`);
                         const otherUserSnap = await fb.getDoc(otherUserDoc.ref);
-                        // If the above line doesn't throw, it's a failure for any user type.
-                        const otherUserData = otherUserSnap.data();
-                        addResult('FAILURE', `Successfully read full document of user ${otherUserDoc.id}. Email found: ${otherUserData.email || 'N/A'}. Rules are too permissive.`);
+                        // If the above line doesn't throw, it's a failure for non-admins.
+                        addResult('FAILURE', `A non-admin was able to read the full document of user ${otherUserDoc.id}. Rules are too permissive.`);
                     }
                 } catch (e) {
                     if (e.code === 'permission-denied') {
-                        // If the initial `getDocs` failed for a non-admin, that's a success for the list rule.
-                        // If the `getDoc` failed for an admin, that's a success for the `get` rule.
-                        addResult('SUCCESS', 'Attempt to read another user\'s full document (including email) was correctly blocked by security rules.');
+                        // This is the expected outcome for non-admins.
+                        addResult('SUCCESS', 'Non-admin was correctly blocked from reading another user\'s document.');
                     } else {
                         addResult('ERROR', `An unexpected error occurred: ${e.message}`);
                     }

@@ -305,7 +305,7 @@
     import { db, fb } from './firebase-config.js';
     import { initAuth, signInWithGoogle, signOut, getAuthState } from './auth.js';
 
-    let allUsers = [], allTeams = {}, allTiles = {}, allSubmissions = [];
+    let allUsers = {}, allTeams = {}, allTiles = {}, allSubmissions = [];
     let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
  
     document.addEventListener('DOMContentLoaded', () => {
@@ -318,6 +318,7 @@
         document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
 
         // Initialize data fetching first, then authentication
+        initializeApp(getAuthState()); // Pass initial (logged-out) auth state
         initAuth(onAuthStateChanged);
     });
 
@@ -328,10 +329,12 @@
             authButton.onclick = signOut;
             const userInfo = document.getElementById('user-info');
             const profile = authState.profile || {};
+            const roles = []; if (profile.isAdmin) { roles.push('Admin'); } else if (profile.isEventMod) { roles.push('Event Mod'); }
+            const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
             const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
             const teamInfo = teamName ? ` | Team: ${teamName}` : '';
-            const role = authState.isAdmin ? 'Admin' : 'Event Mod';
-            userInfo.textContent = `${profile.displayName} (${role})${teamInfo}`;
+
+            userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
         } else {
             authButton.textContent = 'Login';
             authButton.onclick = signInWithGoogle;
@@ -364,7 +367,7 @@
         if (unsubscribeSubmissions) unsubscribeSubmissions();
 
         let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false };
-        const checkAllLoaded = () => {
+        const checkAllLoaded = () => { // FIX: Added allUsers to check
             if (Object.values(initialDataLoaded).every(Boolean)) {
                 hideGlobalLoader();
             }
@@ -374,7 +377,7 @@
         unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
             console.log("Admin: Config updated in real-time.");
             const config = doc.data() || {};
-            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
+            document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true || authState.isEventMod ? 'inline-block' : 'none';
             
             if (authState.isEventMod) {
                 populateFilters();
@@ -405,6 +408,16 @@
             }
             if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
+
+        // Listener for users
+        unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
+            console.log("Admin: Users updated in real-time.");
+            allUsers = {};
+            snapshot.docs.forEach(doc => { allUsers[doc.id] = doc.data(); });
+            if (authState.isEventMod) renderSubmissionsTable();
+            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to users:", error); hideGlobalLoader(); });
+
 
         // Listener for submissions
         if (authState.isEventMod) {
@@ -465,10 +478,17 @@
             if (searchTerm) {
                 const tileName = (tilesByVisibleId[sub.id]?.Name || '').toLowerCase();
                 const teamName = (allTeams[sub.Team]?.name || '').toLowerCase();
-                const playerName = (sub.PlayerName || '').toLowerCase();
+                
+                // NEW: Search through looked-up player names
+                const playerNames = (sub.PlayerIDs || [])
+                    .map(uid => allUsers[uid]?.displayName || '')
+                    .join(' ')
+                    .toLowerCase();
+                const additionalNames = (sub.AdditionalPlayerNames || '').toLowerCase();
+
                 const tileId = (sub.id || '').toLowerCase();
 
-                const searchIn = [teamName, tileId, tileName, playerName];
+                const searchIn = [teamName, tileId, tileName, playerNames, additionalNames];
                 if (!searchIn.some(text => text.includes(searchTerm))) return false;
             }
             return true; // If all filters pass
@@ -480,13 +500,21 @@
             const teamName = allTeams[sub.Team]?.name || sub.Team;
             const date = sub.Timestamp?.toDate();
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
+
+            // NEW: Generate player name string from IDs
+            const playerNames = (sub.PlayerIDs || [])
+                .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
+                .join(', ');
+            const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
+
+
             return `
                 <tr data-id="${sub.docId}">
                     <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
                     <td>${sub.id}</td>
                     <td title="${tileName}">${tileName}</td>
                     <td>${teamName}</td>
-                    <td title="${sub.PlayerName || ''}">${sub.PlayerName || ''}</td>
+                    <td title="${finalPlayerString}">${finalPlayerString}</td>
                     <td>${timestamp}</td>
                 </tr>
             `;
@@ -518,7 +546,13 @@
         const teamName = allTeams[sub.Team]?.name || sub.Team;
         document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId[sub.id]?.Name || 'Unknown Tile'}`;
         document.getElementById('modal-team').textContent = teamName;
-        document.getElementById('modal-players').textContent = sub.PlayerName;
+
+        // NEW: Generate player name string from IDs
+        const playerNames = (sub.PlayerIDs || [])
+            .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
+            .join(', ');
+        const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
+        document.getElementById('modal-players').textContent = finalPlayerString;
         document.getElementById('modal-notes').textContent = sub.Notes || 'None';
 
         const useUtcTime = document.getElementById('utc-time-toggle').checked;
