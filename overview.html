@@ -288,23 +288,24 @@
     }
 
     function processAllData() {
-        // Add allUsers to the check
-        if (!config || Object.keys(tiles).length === 0 || submissions.length === 0 || Object.keys(allUsers).length === 0) return;
+        // More robust check to prevent race conditions on initial load.
+        if (!config.pageTitle || Object.keys(tiles).length === 0 || submissions.length === 0 || Object.keys(allUsers).length === 0) return;
 
         // 1. Calculate Leaderboard
         const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
         const allTeamIds = Object.keys(allTeams);
+
+        // Create a map of user-facing IDs to tile data for quick lookups.
+        // This should be done once, outside the loops.
+        const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
+            if (tile.id) acc[tile.id] = tile;
+            return acc;
+        }, {});
+
         const leaderboardData = allTeamIds.map(teamId => {
             let score = 0;
             let completedTiles = 0;
             const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
-
-            // Create a map of user-facing IDs to tile data for quick lookups
-            const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                if (tile.id) acc[tile.id] = tile;
-                return acc;
-            }, {});
-
             Object.values(tiles).forEach(tile => {
                 const sub = teamSubmissions.find(s => s.id === tile.id);
                 if (!sub) return;
@@ -322,11 +323,6 @@
         fullFeedData = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                // Create a map of user-facing IDs to tile data for quick lookups
-                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                    if (tile.id) acc[tile.id] = tile;
-                    return acc;
-                }, {});
                 const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
@@ -345,11 +341,6 @@
         const scoredEvents = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                // Create a map of user-facing IDs to tile data for quick lookups
-                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                    if (tile.id) acc[tile.id] = tile;
-                    return acc;
-                }, {});
                 const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
@@ -436,9 +427,11 @@
                 .join(', ');
             const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
             
+            const tileNameDisplay = item.tileName || ''; // Ensure tileName is not undefined
+
             div.innerHTML = `
-            <p class="feed-title">${finalPlayerString} (${teamName}): ${item.tileId} ${item.tileName}</p>
-            <p class="feed-meta">${item.timestamp.toUTCString()}</p>
+            <p class="feed-title">${item.tileId} ${tileNameDisplay}: ${finalPlayerString} (${teamName})</p>
+            <p class="feed-meta">${item.timestamp.toLocaleString()}</p>
             `;
             container.appendChild(div);
         });
