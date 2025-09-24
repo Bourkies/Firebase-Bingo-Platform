@@ -156,8 +156,8 @@
     .status-Partially-Complete { background-color: #64b5f6; }
 
     /* Modal Styles */
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
-    .modal-content { background-color: var(--surface-color); margin: 10% auto; padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; position: relative; }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+    .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; position: relative; max-height: 90vh; overflow-y: auto; }
     .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
     .modal-content h3 { margin-top: 0; color: var(--accent-color); }
     .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -170,7 +170,29 @@
     .modal-actions input[type="checkbox"] { width: 18px; height: 18px; }
     .modal-actions button { background-color: var(--accent-color); color: #111; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
     .modal-actions button:disabled { background-color: #555; cursor: not-allowed; }
+    /* NEW: Admin Feedback Styles */
+    #admin-feedback-group { display: none; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+    #admin-feedback-group textarea {
+        width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color);
+        padding: 0.5rem; border-radius: 4px; box-sizing: border-box; min-height: 80px; resize: vertical;
+    }
     #evidence-links a { color: var(--accent-color); display: block; margin-bottom: 0.25rem; }
+
+    /* History Log Styles */
+    .history-log {
+        margin-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+    .history-log h4 { margin: 0 0 0.5rem 0; color: var(--secondary-text); }
+    .history-item { font-size: 0.85rem; color: #ccc; margin-bottom: 0.5rem; }
+    .history-item .timestamp { color: var(--secondary-text); }
+    .history-item .user { font-weight: bold; color: var(--accent-color); }
+    /* NEW: Details/Summary for expandable history */
+    details { border: 1px solid var(--border-color); border-radius: 6px; margin-top: 1.5rem; }
+    summary { padding: 0.75rem; cursor: pointer; font-weight: bold; color: var(--secondary-text); }
+    summary:hover { background-color: rgba(255,255,255,0.05); }
+    .history-log { margin-top: 0; border-top: none; padding: 0 1rem 1rem 1rem; }
   </style>
 </head>
 <body>
@@ -200,6 +222,7 @@
             <div class="admin-links-container">
                 <a href="./users.html" target="_blank" id="user-assignment-link" class="button-like-link" style="display: none;">Manage User Teams</a>
                 <a href="./permissions.html" target="_blank" id="user-permissions-link" class="button-like-link" style="display: none;">Manage Permissions</a>
+                <a href="./import_submissions.html" target="_blank" id="submissions-import-link" class="button-like-link" style="display: none;">Import/Export Submissions</a>
                 <a href="./troubleshoot.html" target="_blank" class="button-like-link" style="background-color: var(--warn-color); color: #111; margin-left: auto;">Troubleshoot</a>
             </div>
             <div id="submissions-card" class="card">
@@ -262,16 +285,26 @@
               <div class="modal-actions">
                   <div class="checkbox-group"><input type="checkbox" id="modal-verified"><label for="modal-verified">Admin Verified</label></div>
                   <div class="checkbox-group"><input type="checkbox" id="modal-requires-action"><label for="modal-requires-action">Requires Action</label></div>
+                  <div id="admin-feedback-group">
+                      <label for="modal-admin-feedback">Feedback for Player:</label>
+                      <textarea id="modal-admin-feedback" placeholder="Explain what the player needs to fix..."></textarea>
+                  </div>
                   <button type="submit">Update Submission</button>
               </div>
+              <details id="history-details" style="display: none;">
+                  <summary>Submission History</summary>
+                  <div class="history-log" id="modal-history-log">
+                      <div id="modal-history-content"></div>
+                  </div>
+              </details>
           </form>
       </div>
   </div>
 
   <script type="module">
     import { db, fb } from './firebase-config.js';
-    import { initAuth, signInWithGoogle, signOut } from './auth.js';
- 
+    import { initAuth, signInWithGoogle, signOut, getAuthState } from './auth.js';
+
     let allUsers = [], allTeams = {}, allTiles = {}, allSubmissions = [];
     let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
  
@@ -287,7 +320,7 @@
         // Initialize data fetching first, then authentication
         initAuth(onAuthStateChanged);
     });
-    
+
     async function onAuthStateChanged(authState) {
         const authButton = document.getElementById('auth-button');
         if (authState.isLoggedIn) {
@@ -306,11 +339,12 @@
         }
 
         if (authState.isEventMod) {
-            document.getElementById('access-denied').style.display = 'none';
+            document.getElementById('access-denied').style.display = 'none'; // This is where the authState is passed
             document.getElementById('admin-view').style.display = 'flex';
             document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';            
             document.getElementById('user-assignment-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
             document.getElementById('user-permissions-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
+            document.getElementById('submissions-import-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
             initializeApp(authState);
         } else {
             document.getElementById('access-denied').style.display = 'block';
@@ -321,7 +355,7 @@
             hideGlobalLoader();
         }
     }
- 
+
     function initializeApp(authState) {
         // Detach old listeners if they exist
         if (unsubscribeConfig) unsubscribeConfig();
@@ -359,6 +393,18 @@
             if (authState.isEventMod) renderSubmissionsTable();
             if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to tiles:", error); hideGlobalLoader(); });
+
+        // FIX: Add listener for teams to populate filters
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            console.log("Admin: Teams updated in real-time.");
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            if (authState.isEventMod) {
+                populateFilters();
+            }
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
 
         // Listener for submissions
         if (authState.isEventMod) {
@@ -497,6 +543,52 @@
         document.getElementById('modal-verified').checked = sub.AdminVerified || false;
         document.getElementById('modal-requires-action').checked = sub.RequiresAction || false;
 
+        // NEW: Handle Admin Feedback field
+        const feedbackGroup = document.getElementById('admin-feedback-group');
+        const feedbackInput = document.getElementById('modal-admin-feedback');
+        feedbackInput.value = sub.AdminFeedback || '';
+        feedbackGroup.style.display = sub.RequiresAction ? 'flex' : 'none';
+
+        // NEW: Make checkboxes mutually exclusive for accept/reject flow
+        const verifiedCheckbox = document.getElementById('modal-verified');
+        const requiresActionCheckbox = document.getElementById('modal-requires-action');
+
+        verifiedCheckbox.addEventListener('change', () => {
+            if (verifiedCheckbox.checked) {
+                requiresActionCheckbox.checked = false;
+                feedbackGroup.style.display = 'none'; // Hide feedback when verifying
+            }
+        });
+
+        requiresActionCheckbox.addEventListener('change', (e) => {
+            if (requiresActionCheckbox.checked) { verifiedCheckbox.checked = false; }
+            feedbackGroup.style.display = e.target.checked ? 'flex' : 'none';
+        });
+
+        // NEW: Render history
+        const historyDetails = document.getElementById('history-details');
+        const historyContent = document.getElementById('modal-history-content');
+        historyContent.innerHTML = '';
+        if (sub.history && Array.isArray(sub.history)) {
+            historyDetails.style.display = 'block';
+            // Sort history from newest to oldest
+            const sortedHistory = [...sub.history].sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            sortedHistory.forEach(entry => {
+                const date = entry.timestamp?.toDate();
+                const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
+                const changesText = entry.changes?.map(c => 
+                    `'${c.field}' from '${c.from}' to '${c.to}'`
+                ).join(', ') || '';
+
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action} ${changesText}`;
+                historyContent.appendChild(item);
+            });
+        } else {
+            historyDetails.style.display = 'none';
+        }
+
         document.getElementById('submission-modal').style.display = 'flex';
     }
 
@@ -504,12 +596,45 @@
         event.preventDefault();
         showGlobalLoader();
         const submissionId = document.getElementById('modal-submission-id').value;
+        const existingSub = allSubmissions.find(s => s.docId === submissionId);
+        if (!existingSub) return;
+
+        const authState = getAuthState(); // We need the current admin's info
+        const newVerified = document.getElementById('modal-verified').checked;
+        const newRequiresAction = document.getElementById('modal-requires-action').checked;
+
+        // FIX: Compare against the original values, not the live ones
+        const originalVerified = !!existingSub.AdminVerified;
+        const originalRequiresAction = !!existingSub.RequiresAction;
+        const originalFeedback = existingSub.AdminFeedback || '';
+        const newFeedback = document.getElementById('modal-admin-feedback').value;
+
+        const historyEntry = {
+            timestamp: new Date(),
+            user: { uid: authState.user.uid, name: authState.profile.displayName },
+            action: 'Admin Update',
+            changes: []
+        };
+
+        if (newVerified !== originalVerified) historyEntry.changes.push({ field: 'AdminVerified', from: originalVerified, to: newVerified });
+        if (newRequiresAction !== originalRequiresAction) historyEntry.changes.push({ field: 'RequiresAction', from: originalRequiresAction, to: newRequiresAction });
+        if (newFeedback !== originalFeedback) historyEntry.changes.push({ field: 'AdminFeedback', from: `"${originalFeedback}"`, to: `"${newFeedback}"` });
+
+        const dataToUpdate = { AdminVerified: newVerified, RequiresAction: newRequiresAction, AdminFeedback: newRequiresAction ? newFeedback : '' };
+
+        // NEW: If Requires Action is checked, automatically set IsComplete to false.
+        if (newRequiresAction && existingSub.IsComplete) {
+            dataToUpdate.IsComplete = false;
+            historyEntry.changes.push({ field: 'IsComplete', from: true, to: false });
+        }
+
         const subRef = fb.doc(db, 'submissions', submissionId);
         try {
-            await fb.updateDoc(subRef, {
-                AdminVerified: document.getElementById('modal-verified').checked,
-                RequiresAction: document.getElementById('modal-requires-action').checked
-            });
+            // Only add history if there were actual changes
+            if (historyEntry.changes.length > 0) {
+                dataToUpdate.history = fb.arrayUnion(historyEntry);
+            }
+            await fb.updateDoc(subRef, dataToUpdate);
             document.getElementById('submission-modal').style.display = 'none';
         } catch (error) {
             console.error("Failed to update submission:", error);

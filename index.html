@@ -73,12 +73,20 @@
       background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
       /* The size for the placeholder gradient is now handled in JS to avoid conflicts */
     }
+    @keyframes pulse-border {
+      0% { box-shadow: 0 0 0 0 rgba(229, 115, 115, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(229, 115, 115, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(229, 115, 115, 0); }
+    }
     .tile-overlay {
       position: absolute; box-sizing: border-box;
       transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
       display: flex; align-items: center; justify-content: center; text-align: center;
       color: white; font-weight: bold; text-shadow: 1px 1px 3px black;
       font-size: 0.9rem; padding: 4px; cursor: pointer;
+    }
+    .tile-overlay.requires-action {
+      animation: pulse-border 2s infinite; /* Enable animation only for these tiles */
     }
     .stamp-image {
       position: absolute; width: 100%; height: 100%; background-size: contain;
@@ -139,6 +147,14 @@
       border-radius: 8px; cursor: pointer; transition: background-color 0.2s;
     }
     #submission-form button:hover { background-color: #00d9f5; }
+    /* NEW: Resubmit button style */
+    #submission-form button.resubmit-btn {
+        background-color: var(--error-border);
+        color: var(--text-light);
+    }
+    #submission-form button.resubmit-btn:hover {
+        background-color: #e74c3c;
+    }
     #submission-form button:disabled { background-color: #555; cursor: not-allowed; }
     /* --- NEW: Evidence Input Styling --- */
     #player-name-container {
@@ -189,6 +205,14 @@
         font-weight: normal; font-size: 0.9rem;
     }
     #add-evidence-btn:hover { background-color: rgba(0, 184, 212, 0.1); }
+    /* NEW: Admin Feedback Display */
+    #admin-feedback-display {
+        display: none; /* Hidden by default */
+        background-color: var(--error-bg);
+        border: 1px solid var(--error-border);
+        border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;
+    }
+    #admin-feedback-display h4 { margin: 0 0 0.5rem 0; color: #ffc107; }
     .error-message {
         padding: 2rem; background-color: var(--error-bg); border: 2px dashed var(--error-border);
         border-radius: 8px; text-align: center; width: 80%; word-wrap: break-word; position: absolute; z-index: 1;
@@ -311,6 +335,10 @@
         <h2 id="modal-tile-name"></h2>
         <h3 id="modal-team-name"></h3>
         <p id="modal-tile-desc"></p>
+        <div id="admin-feedback-display">
+            <h4>Admin Feedback</h4>
+            <p id="admin-feedback-text"></p>
+        </div>
         <input type="hidden" id="modal-tile-id">
         <label for="player-name-container">Player Name(s):</label>
         <div id="player-name-container">
@@ -330,10 +358,6 @@
         <div class="checkbox-container">
             <input type="checkbox" id="mark-as-complete">
             <label for="mark-as-complete">Mark as complete and ready for review</label>
-        </div>
-        <div class="checkbox-container">
-            <input type="checkbox" id="requires-action">
-            <label for="requires-action">Flag for Admin Action</label>
         </div>
         <button type="submit" id="submit-button">Save Progress</button>
       </form>
@@ -383,6 +407,7 @@
   <script type="module">
     import { db, fb } from './firebase-config.js';
     import { initAuth, signInWithGoogle, signInAnonymously, signOut, getAuthState, updateUserDisplayName } from './auth.js';
+    import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from './utils.js';
 
     let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {}, allUsers = [];
     let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
@@ -1103,6 +1128,7 @@
       const modal = document.getElementById('submission-modal');
       const form = document.getElementById('submission-form');
       form.reset();
+      document.getElementById('admin-feedback-display').style.display = 'none'; // Hide feedback by default
 
       document.getElementById('modal-tile-id').value = tile.id; // The user-facing ID
       document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name || 'Censored'}`; // Handle censored name
@@ -1119,7 +1145,6 @@
       populatePlayerNameSelector(existingSubmission?.PlayerName);
       document.getElementById('notes').value = existingSubmission?.Notes || '';
       document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
-      document.getElementById('requires-action').checked = existingSubmission?.RequiresAction || false;
 
       let evidenceData = [];
       if (existingSubmission?.Evidence) {
@@ -1140,9 +1165,19 @@
 
       const formElements = document.querySelectorAll('#submission-form input, #submission-form textarea, #submission-form button');
       const submitButton = document.getElementById('submit-button');
+      submitButton.className = ''; // Reset button style
+
       if (isEditable) {
           formElements.forEach(el => el.disabled = false);
-          submitButton.textContent = 'Save Progress';
+          // NEW: Check for admin feedback to change button text/style
+          if (existingSubmission?.AdminFeedback) {
+              document.getElementById('admin-feedback-display').style.display = 'block';
+              document.getElementById('admin-feedback-text').textContent = existingSubmission.AdminFeedback;
+              submitButton.textContent = 'Resubmit for Review';
+              submitButton.classList.add('resubmit-btn');
+          } else {
+              submitButton.textContent = 'Save Progress';
+          }
       } else {
           formElements.forEach(el => el.disabled = true);
           submitButton.textContent = 'Verified (Locked)';
@@ -1187,22 +1222,52 @@
         Team: currentTeam,
         id: tileId, // Save the user-facing tile ID
         IsComplete: document.getElementById('mark-as-complete').checked,
-        RequiresAction: document.getElementById('requires-action').checked,
       };
+      
+      // FIX: Define historyEntry before using it.
+      const historyEntry = {
+          timestamp: new Date(),
+          user: { uid: authState.user.uid, name: authState.profile.displayName },
+          changes: []
+      };
+
+      // If this is a resubmission, clear the feedback and "Requires Action" flag
+      if (existingSubmission?.AdminFeedback) {
+          historyEntry.action = 'Player Resubmission';
+          historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
+          dataToSave.RequiresAction = false; // Player has addressed the issue
+          dataToSave.AdminFeedback = ''; // Clear the feedback message
+      } else {
+          historyEntry.action = 'Player Update';
+      }
 
       try {
           if (existingSubmission) {
               // Use the correct document ID to get the reference for updating.
               const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
+              // Log specific changes by comparing against original values
+              if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
+              if (dataToSave.PlayerName !== (existingSubmission.PlayerName || '')) historyEntry.changes.push({ field: 'PlayerName', from: existingSubmission.PlayerName || '', to: dataToSave.PlayerName });
+              if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
+              const oldEvidence = existingSubmission.Evidence || '[]';
+              if (dataToSave.Evidence !== oldEvidence) historyEntry.changes.push({ field: 'Evidence', from: 'Previous evidence', to: 'New evidence' }); // Keep it simple for evidence
+
+              // Only add history if there were actual changes
+              if (historyEntry.changes.length > 0) {
+                  dataToSave.history = fb.arrayUnion(historyEntry);
+              }
+
               if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
                   dataToSave.CompletionTimestamp = fb.serverTimestamp();
               }
               await fb.updateDoc(subRef, dataToSave);
           } else {
-              dataToSave.Timestamp = fb.serverTimestamp();
+              dataToSave.Timestamp = fb.serverTimestamp(); // This call is correct
               if (dataToSave.IsComplete) {
                   dataToSave.CompletionTimestamp = fb.serverTimestamp();
               }
+              historyEntry.action = 'Player Create';
+              dataToSave.history = [historyEntry];
               await fb.addDoc(fb.collection(db, 'submissions'), dataToSave);
           }
           showMessage('Submission saved!', false);
@@ -1261,38 +1326,6 @@
     }
     function closeLoginModal() {
         document.getElementById('login-modal').style.display = 'none';
-    }
-
-    function showMessage(text, isError = false) {
-      const box = document.getElementById('message-box');
-      box.textContent = text;
-      box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
-      box.classList.add('show');
-      setTimeout(() => box.classList.remove('show'), 4000);
-    }
-    
-    // --- NEW: Global Loader Functions ---
-    function showGlobalLoader() {
-        document.getElementById('global-loader').style.display = 'block';
-    }
-    function hideGlobalLoader() {
-        document.getElementById('global-loader').style.display = 'none';
-    }
-
-    function hexToRgba(colorStr, alpha) {
-        if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
-        const sColor = colorStr.trim();
-        if (sColor === 'transparent') return 'transparent';
-        if (!sColor.startsWith('#')) return sColor;
-        const hex = sColor.slice(1);
-        let r = 0, g = 0, b = 0;
-        if (hex.length === 3) {
-            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
-        } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
-        } else { return `rgba(255, 255, 255, ${alpha})`; }
-        if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 255, 255, ${alpha})`;
-        return `rgba(${r},${g},${b},${alpha})`;
     }
 
     // Expose functions to global scope for onclick handlers
