@@ -31,6 +31,7 @@ The repository is organized into the following key files:
 -   **`firestore.rules`**: Security rules for the Firestore database.
 -   **`storage.rules`**: Security rules for Firebase Storage (image uploads).
 
+-   **`TEST_PLAN.md`**: A comprehensive test plan for the entire application.
 -   **`README.md`**: This file, containing setup and usage instructions.
 
 ### Step 1: Create and Configure Firebase Project
@@ -224,6 +225,7 @@ After setting up your Firebase project and serving the application (either local
 2.  **Log In**: Click the "Login with Google" button and sign in with the account you want to be the administrator. This action creates your user profile in the Firestore database.
 3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database > Data`.
 4.  **Find Your User**: You should see a `users` collection. Click on it, then find the document that has an `email` field matching your email address.
+    > **Note:** If your user document doesn't have an email field, you can find your User ID (UID) by logging in and visiting the `troubleshoot.html` page. The UID will be listed under the "Authentication" check.
 5.  **Update Your Role**:
     *   Click on your user document to view its fields.
     *   Find the `isAdmin` field (it should be a boolean set to `false`).
