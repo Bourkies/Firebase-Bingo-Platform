@@ -395,7 +395,7 @@
       <div class="anon-warning">
         <strong>Warning:</strong> Anonymous sign-in has limitations:
         <ul>
-          <li>Your progress is tied to <strong>this browser on this device</strong>. Clearing your cache may cause you to lose access.</li>
+          <li>Your progress is tied to <strong>this browser on this device only</strong>. If you log out or clear your cache, you will <strong>not</strong> be able to log back into this anonymous account.</li>
           <li>You cannot be assigned as a team captain, mod, or admin.</li>
         </ul>
       </div>
@@ -414,12 +414,13 @@
     let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('change-name-btn').onclick = () => showWelcomeModal(true);
-        document.getElementById('auth-button').onclick = () => authState.isLoggedIn ? signOut() : openLoginModal();
-        document.getElementById('login-google').onclick = () => { signInWithGoogle(); closeLoginModal(); };
-        document.getElementById('login-anon').onclick = () => { signInAnonymously(); closeLoginModal(); };
-        document.getElementById('welcome-form').addEventListener('submit', handleWelcomeFormSubmit);
+        // Initialize data listeners first, then auth. This prevents race conditions.
         initializeApp();
+        document.getElementById('change-name-btn').addEventListener('click', () => showWelcomeModal(true));
+        document.getElementById('auth-button').addEventListener('click', () => authState.isLoggedIn ? signOut() : openLoginModal());
+        document.getElementById('login-google').addEventListener('click', () => { signInWithGoogle(); closeLoginModal(); });
+        document.getElementById('login-anon').addEventListener('click', () => { signInAnonymously(); closeLoginModal(); });
+        document.getElementById('welcome-form').addEventListener('submit', handleWelcomeFormSubmit);
         initAuth(onAuthStateChanged);
     });
 
@@ -431,25 +432,16 @@
         // We need to re-evaluate and re-populate the team selector.
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         populateTeamSelector(allTeams, loadFirstTeam);
-        processAllData(); // Re-process data in case team/permissions changed
-        handleTeamChange(); // This is crucial to update the board based on the (potentially new) selector state.
+        setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
         // NEW: Welcome modal logic
         // Check if user is logged in, config allows prompting, and user hasn't set their name yet.
-        if (authState.isLoggedIn && authState.profile && !authState.profile.isAnonymous && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
+        if (authState.isLoggedIn && authState.profile && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
             showWelcomeModal();
         }
     }
 
     function initializeApp() {
-        showGlobalLoader();
-
-        // Detach old listeners if they exist to prevent memory leaks
-        if (unsubscribeConfig) unsubscribeConfig();
-        if (unsubscribeTiles) unsubscribeTiles();
-        if (unsubscribeSubmissions) unsubscribeSubmissions();
-        if (unsubscribeStyles) unsubscribeStyles();
-        if (unsubscribeUsers) unsubscribeUsers();
         let unsubscribeTeams = null; // New listener for teams
 
         let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false, users: false };
@@ -458,6 +450,15 @@
                 hideGlobalLoader();
             }
         };
+
+        showGlobalLoader();
+
+        // Detach old listeners if they exist to prevent memory leaks on hot-reloads
+        if (unsubscribeConfig) unsubscribeConfig();
+        if (unsubscribeTiles) unsubscribeTiles();
+        if (unsubscribeSubmissions) unsubscribeSubmissions();
+        if (unsubscribeStyles) unsubscribeStyles();
+        if (unsubscribeUsers) unsubscribeUsers();
 
         // Listener for the main configuration document
         unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
@@ -469,59 +470,13 @@
             }
             config = doc.data();
 
-            // --- NEW: Conditional Tile Listener ---
-            // Detach any existing tile listener before creating a new one.
-            if (unsubscribeTiles) unsubscribeTiles();
-
-            const currentAuthState = getAuthState();
-            // Censorship is active if the config flag is true AND the user is not an admin/mod.
-            const isCensored = config.censorTilesBeforeEvent === true && !currentAuthState.isEventMod;
-            const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
-            console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
-
-            unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
-                console.log("Tiles updated in real-time.");
-                tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-                processAllData();
-                if (currentTeam) renderBoard();
-                renderScoreboard();
-                if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-            }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
-
-            // Set up submissions listener here, as it depends on the config.
-            // This ensures that if the board visibility changes, the listener is correctly re-initialized.
-            if (unsubscribeSubmissions) unsubscribeSubmissions();
-
-            let submissionsQuery;
-            const isPrivateBoard = config.boardVisibility === 'private';
-            const isPlayerOnTeam = currentAuthState.isLoggedIn && currentAuthState.profile?.team;
-
-            if (isPrivateBoard && isPlayerOnTeam && !currentAuthState.isEventMod) {
-                // For a regular player on a private board, only fetch submissions for their own team.
-                console.log(`Private board detected. Fetching submissions for team: ${currentAuthState.profile.team}`);
-                submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', currentAuthState.profile.team));
-            } else {
-                // For public boards, or for admins/mods on any board, fetch all submissions.
-                submissionsQuery = fb.collection(db, 'submissions');
-            }
-
-            unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
-                console.log("Submissions updated in real-time.");
-                submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-                processAllData();
-                if (currentTeam) renderBoard();
-                renderScoreboard(); // renderScoreboard depends on tile points, which are now in public_tiles
-                if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
-            }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
-
-
-            // Process data first, as other UI elements depend on it (e.g., scoreboard, tile status).
-            processAllData();
-
+            // After config is loaded, we can set up the other listeners that depend on it.
+            setupTilesListener();
+            setupSubmissionsListener();
+            
             applyGlobalStyles();
             const loadFirstTeam = config.loadFirstTeamByDefault === true;
             populateTeamSelector(allTeams, loadFirstTeam);
-            // handleTeamChange also calls renderBoard, ensuring the board reflects the latest config and data.
             handleTeamChange();
 
             document.getElementById('overview-nav-link').style.display = config.enableOverviewPage === true ? 'inline-block' : 'none';
@@ -531,6 +486,50 @@
 
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading config:", error); hideGlobalLoader(); });
+
+        // This function sets up the listener for tiles, respecting censorship rules.
+        const setupTilesListener = () => {
+            if (unsubscribeTiles) unsubscribeTiles();
+            const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
+            const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
+            console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
+
+            unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
+                console.log("Tiles updated in real-time.");
+                tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+                processAllData();
+                renderBoard(); // Render board with new tiles
+                if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+            }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
+        };
+
+        // This function sets up the listener for submissions, respecting privacy rules.
+        const setupSubmissionsListener = () => {
+            if (unsubscribeSubmissions) unsubscribeSubmissions();
+            let submissionsQuery;
+            const isPrivateBoard = config.boardVisibility === 'private';
+            const isPlayerOnTeam = authState.isLoggedIn && authState.profile?.team;
+
+            if (isPrivateBoard && isPlayerOnTeam && !authState.isEventMod) {
+                console.log(`Private board detected. Fetching submissions for team: ${authState.profile.team}`);
+                submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', authState.profile.team));
+            } else {
+                submissionsQuery = fb.collection(db, 'submissions');
+            }
+
+            unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+                console.log("Submissions updated in real-time.");
+                submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+                processAllData();
+                renderBoard(); // Re-render board with new submission data
+                if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
+            }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
+        };
+
+        // Initial setup for listeners that don't depend on config.
+        // They will be re-triggered by the config listener once it loads.
+        setupTilesListener();
+        setupSubmissionsListener();
 
         // Listener for the new teams collection
         const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
@@ -553,7 +552,7 @@
                     selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
                 }
             }
-            handleTeamChange(); // This will trigger a re-render if the selection changed
+            handleTeamChange(); // Re-render board with new team data
             if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading teams:", error); hideGlobalLoader(); });
 
@@ -563,7 +562,7 @@
             allStyles = {};
             snapshot.docs.forEach(doc => { allStyles[doc.id] = doc.data(); });
             renderColorKey();
-            if (currentTeam) renderBoard();
+            renderBoard(); // Re-render board with new styles
             if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading styles:", error); });
 
@@ -571,6 +570,7 @@
         unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
             console.log("Users updated in real-time.");
             allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+            updateNavbar(); // Update navbar in case display name or team changed
             if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading users:", error); });
     }
@@ -592,7 +592,7 @@
             userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
 
             // NEW: Show change name button if user is not anonymous and name is not locked
-            const canChangeName = !profile.isAnonymous && !profile.isNameLocked;
+            const canChangeName = !profile.isNameLocked;
             changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
         } else {
             authButton.textContent = 'Login';
@@ -718,14 +718,23 @@
         }
     }
 
+    function isGenericView() {
+        // Scenario 1: Board is private, and the user is either not logged in or not on a team.
+        if (config.boardVisibility === 'private' && (!authState.isLoggedIn || !authState.profile?.team)) return true;
+        // Scenario 2: Board is public, but no team is selected and the config doesn't load one by default.
+        if (config.boardVisibility !== 'private' && !currentTeam && config.loadFirstTeamByDefault !== true) return true;
+        return false;
+    }
+
     function handleTeamChange() {
       const selector = document.getElementById('team-selector');
-      if (selector.value === "") return;
       currentTeam = selector.value;
       renderBoard();
     }
 
     function getTileStatus(tile, teamName) {
+        if (isGenericView()) return 'Unlocked';
+
         const isPublic = config.boardVisibility !== 'private';
         // The teamName parameter is now a teamId
         if (!isPublic && teamName && teamName !== authState.profile?.team) {
@@ -790,8 +799,11 @@
     }
 
     function renderBoard() {
-      if (!tiles || tiles.length === 0) {
+      const shouldShowGeneric = isGenericView();
+      // Clear the board if there are no tiles, OR if no team is selected AND we are not in a generic view.
+      if (!tiles || tiles.length === 0 || (!currentTeam && !shouldShowGeneric)) {
         document.getElementById('board-container').innerHTML = '';
+        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo'; // Set title when board is cleared
         return;
       }
 
@@ -890,7 +902,10 @@
               tileDiv.appendChild(stampDiv);
           }
 
-          const canOpenModal = displayTeam && status !== 'Locked' && authState.isLoggedIn && authState.profile?.team === displayTeam;
+          // In generic view, modals cannot be opened.
+          const genericView = isGenericView();
+          const canOpenModal = !genericView && displayTeam && status !== 'Locked' && authState.isLoggedIn && authState.profile?.team === displayTeam;
+
 
             if (canOpenModal) {
                 tileDiv.onclick = () => openModal(tile, status);
@@ -1293,15 +1308,14 @@
         const nameInput = document.getElementById('welcome-display-name');
         const titleEl = modal.querySelector('h2');
 
+        const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
+
         if (isUpdate) {
             titleEl.textContent = 'Update Display Name';
-            messageEl.textContent = 'You can change your display name below. This name is used on leaderboards and submissions.';
         } else {
             titleEl.textContent = 'Welcome!';
-            const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
-            messageEl.textContent = (config.welcomeMessage || defaultMessage).replace('{displayName}', authState.profile.displayName);
         }
-        
+        messageEl.textContent = (config.welcomeMessage || defaultMessage).replace('{displayName}', authState.profile.displayName || 'User');
         nameInput.value = authState.profile.displayName || '';
         modal.style.display = 'flex';
     }
