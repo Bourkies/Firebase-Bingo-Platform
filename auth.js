@@ -48,9 +48,10 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
 
     if (!userDocSnap.exists()) {
         // Create a new user profile if it doesn't exist
+        const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
         const newUserProfile = {
+            displayName: initialAuthDisplayName,
             team: null,
-            // displayName is now stored directly on the user object, not here.
             isAdmin: false,
             isEventMod: false,
             isAnonymous: isAnonymous,
@@ -58,8 +59,6 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
             // For anonymous users, we don't prompt them to change their name. For new Google users, we do.
             hasSetDisplayName: isAnonymous
         };
-        // Also set the initial display name on the auth object itself for consistency
-        const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
         
         // We perform two separate operations: one to create the Firestore doc,
         // and one to update the Auth user's profile.
@@ -84,12 +83,12 @@ export async function updateUserDisplayName(newName) {
     const authUser = auth.currentUser;
     try {
         // Update both the auth profile and the firestore doc in parallel
-        await Promise.all([
-            fb.updateProfile(authUser, { displayName: newName }),
-            fb.updateDoc(userRef, { hasSetDisplayName: true })
-        ]);
+        // The Firestore document is the single source of truth for the display name.
+        await fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
 
         // Manually update local state to reflect change immediately
+        // The onAuthStateChanged listener will handle UI updates by re-fetching the profile.
+        userProfile.displayName = newName;
         userProfile.hasSetDisplayName = true;
         // Notify the main app that auth state has changed
         if (onAuthChangeCallback) {
@@ -118,8 +117,8 @@ export function getAuthState() {
     const fullProfile = isLoggedIn ? {
         ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
         uid: authProfile.uid,
-        displayName: authProfile.displayName,
-        email: authProfile.email,
+        displayName: firestoreProfile.displayName || authProfile.displayName, // Prioritize Firestore name
+        email: authProfile.email, // Email only comes from auth
     } : null;
 
     return {

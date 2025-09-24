@@ -69,7 +69,7 @@
         <h1>User Team & Captain Assignments</h1>
         <div class="card">
             <table id="user-assignment-table">
-                <thead><tr><th style="width: 45%;">Display Name</th><th style="width: 10%;">Lock Name</th><th style="width: 25%;">Team</th><th style="width: 20%;">Is Captain</th></tr></thead>
+                <thead><tr><th style="width: 30%;">Display Name</th><th style="width: 25%;">User ID</th><th style="width: 10%;">Lock Name</th><th style="width: 20%;">Team</th><th style="width: 15%;">Is Captain</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -178,6 +178,7 @@
             return `
                 <tr>
                     <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked ? 'disabled' : ''}>${anonIndicator}</td>
+                    <td style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
                     <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
                     <td>
                         <select class="user-field" data-uid="${user.uid}" data-field="team">

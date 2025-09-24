@@ -173,7 +173,7 @@
     import { db, fb } from './firebase-config.js';
     import { initAuth, getAuthState } from './auth.js';
 
-    let config = {}, allTeams = {};
+    let config = {}, allTeams = {}, allUsers = {}; // allUsers was already here, but logic was missing.
     let tiles = {};
     let submissions = [];
 
@@ -181,7 +181,7 @@
     let teamColorMap = {};
     let myScoreChart = null;
     let fullChartData = [];
-    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null;
+    let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeUsers = null; // unsubscribeUsers was here, but logic was missing.
     let unsubscribeTeams = null;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -202,9 +202,10 @@
         if (unsubscribeConfig) unsubscribeConfig();
         if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
+        if (unsubscribeUsers) unsubscribeUsers();
         if (unsubscribeTeams) unsubscribeTeams();
 
-        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false };
+        let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, users: false };
         const checkAllLoaded = () => {
             if (Object.values(initialDataLoaded).every(Boolean)) {
                 hideGlobalLoader();
@@ -275,25 +276,36 @@
             processAllData();
             if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
+
+        // Listener for users (to resolve names in feed)
+        unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
+            console.log("Overview: Users updated in real-time.");
+            allUsers = {};
+            snapshot.docs.forEach(doc => { allUsers[doc.id] = doc.data(); });
+            processAllData();
+            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to users:", error); hideGlobalLoader(); });
     }
 
     function processAllData() {
-        if (!config || !tiles || !submissions) return; // Don't process until all data is available
+        // More robust check to prevent race conditions on initial load.
+        if (!config.pageTitle || Object.keys(tiles).length === 0 || submissions.length === 0 || Object.keys(allUsers).length === 0) return;
 
         // 1. Calculate Leaderboard
         const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
         const allTeamIds = Object.keys(allTeams);
+
+        // Create a map of user-facing IDs to tile data for quick lookups.
+        // This should be done once, outside the loops.
+        const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
+            if (tile.id) acc[tile.id] = tile;
+            return acc;
+        }, {});
+
         const leaderboardData = allTeamIds.map(teamId => {
             let score = 0;
             let completedTiles = 0;
             const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
-
-            // Create a map of user-facing IDs to tile data for quick lookups
-            const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                if (tile.id) acc[tile.id] = tile;
-                return acc;
-            }, {});
-
             Object.values(tiles).forEach(tile => {
                 const sub = teamSubmissions.find(s => s.id === tile.id);
                 if (!sub) return;
@@ -311,14 +323,11 @@
         fullFeedData = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                // Create a map of user-facing IDs to tile data for quick lookups
-                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                    if (tile.id) acc[tile.id] = tile;
-                    return acc;
-                }, {});
                 const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
+                    playerIds: sub.PlayerIDs || [],
+                    additionalPlayerNames: sub.AdditionalPlayerNames || '',
                     teamId: sub.Team,
                     tileId: sub.id,
                     tileName: tile ? tile.Name : 'Unknown Tile',
@@ -332,11 +341,6 @@
         const scoredEvents = submissions
             .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
             .map(sub => {
-                // Create a map of user-facing IDs to tile data for quick lookups
-                const tilesByVisibleId = Object.values(tiles).reduce((acc, tile) => {
-                    if (tile.id) acc[tile.id] = tile;
-                    return acc;
-                }, {});
                 const tile = tilesByVisibleId[sub.id];
                 const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
                 return {
@@ -416,10 +420,18 @@
             const teamColor = teamColorMap[item.teamId] || 'var(--accent-color)';
             div.style.borderLeftColor = teamColor;
             const teamName = allTeams[item.teamId]?.name || item.teamId;
+
+            // NEW: Generate player name string from IDs
+            const playerNames = (item.playerIds || [])
+                .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
+                .join(', ');
+            const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
             
+            const tileNameDisplay = item.tileName || ''; // Ensure tileName is not undefined
+
             div.innerHTML = `
-            <p class="feed-title">${teamName}: ${item.tileId} ${item.tileName}</p>
-            <p class="feed-meta">${item.timestamp.toUTCString()}</p>
+            <p class="feed-title">${item.tileId} ${tileNameDisplay}: ${finalPlayerString} (${teamName})</p>
+            <p class="feed-meta">${item.timestamp.toLocaleString()}</p>
             `;
             container.appendChild(div);
         });
