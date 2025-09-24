@@ -48,31 +48,26 @@ The repository is organized into the following key files:
     *   **Authentication**:
         *   Go to `Build > Authentication` and click "Get started."
         *   On the "Sign-in method" tab, select **Google** from the list of providers.
-        *   Enable the Google provider by flipping the switch.
+        *   Enable the Google provider.
         *   The "Public-facing name" will be pre-filled (e.g., `project-12345`). It's recommended to change this to your event's name (e.g., "Community Bingo").
         *   Select a "Project support email" from the dropdown.
         *   Click "Save". You can leave all other settings (like Authorized Domains) as they are.
-    *   **Firestore**:
+        *   (Optional) From the "Sign-in method" tab, also enable **Apple** and **Anonymous** providers. No extra configuration is needed for them.
+    *   **Firestore Database**:
+        *   Go to `Build > Firestore Database` and click "Create database".
+        *   Choose **Start in production mode**.
+        *   Select a Cloud Firestore location. A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
+        *   Click "Enable".
+    *   **Storage**:
+        *   Go to `Build > Storage` and click "Get started".
+        *   Follow the on-screen prompts. You will be asked for a Cloud Storage location. To stay within the free tier allowances and ensure compatibility with your Firestore location (`nam5`), choose a US-based location like **`us-central1`**.
+        *   Click "Done". You can accept the default security rules for now, as they will be updated in the next step.
+    *   **Firestore (Legacy - ignore if you see the above)**:
         *   Go to `Build > Firestore Database` and click "Create database".
         *   If prompted to select an edition, choose **Standard** (this project uses Firestore in Native Mode).
         *   You will be asked to choose a Cloud Firestore location. This is a critical step.
             > **Important:** The location you choose for Firestore will also be the default location for Firebase Storage. For the free "Spark" plan, they **must** be in the same location.
         *   A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
-        *   Select **Production mode** and click "Next".
-        *   Click "Enable".
-    *   **Storage**:
-        *   Go to `Build > Storage` and click "Get started".
-        *   You will likely be prompted to upgrade your project to the **Blaze (pay-as-you-go) plan**. This is required for Cloud Storage but still includes a generous free tier. You will need to add a billing account to proceed.
-        *   **Recommended: Set a Budget Alert**: To prevent accidental charges, it's highly recommended to set a budget alert immediately after enabling billing.
-            1.  Go to the Google Cloud Console Budgets page.
-            2.  Click **Create Budget**.
-            3.  Give it a name (e.g., "Firebase Zero Spend Alert") and ensure it's applied to your project.
-            4.  Under "Budget amount", select "Specified amount" and enter `1` as the target amount (the lowest possible).
-            5.  Under "Actions", set an alert threshold for **100%** of the budget for "Actual" cost. This will email you if your spending exceeds $1, giving you peace of mind.
-        *   **Finalize Storage Setup**:
-            *   Return to the Firebase Storage page and click "Get started" again if needed.
-            *   You will be asked for a Cloud Storage location. To stay within the free tier allowances and ensure compatibility with your Firestore location (`nam5`), choose a US-based location like **`us-central1`**.
-            *   Click "Done". You can accept the default security rules for now, as they will be updated in the next step.
 
 ### Step 2: Set Security Rules
 
@@ -227,7 +222,7 @@ After setting up your Firebase project and serving the application (either local
 
 1.  **Open the App**: Open the application using your local server URL (e.g., `http://localhost:3000`) or your deployed Firebase Hosting URL.
 2.  **Log In**: Click the "Login with Google" button and sign in with the account you want to be the administrator. This action creates your user profile in the Firestore database.
-3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database`.
+3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database > Data`.
 4.  **Find Your User**: You should see a `users` collection. Click on it, then find the document that has an `email` field matching your email address.
 5.  **Update Your Role**:
     *   Click on your user document to view its fields.

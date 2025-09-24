@@ -182,6 +182,7 @@
     let myScoreChart = null;
     let fullChartData = [];
     let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null;
+    let unsubscribeTeams = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       showGlobalLoader();
@@ -201,7 +202,7 @@
         if (unsubscribeConfig) unsubscribeConfig();
         if (unsubscribeTiles) unsubscribeTiles();
         if (unsubscribeSubmissions) unsubscribeSubmissions();
-        let unsubscribeTeams = null;
+        if (unsubscribeTeams) unsubscribeTeams();
 
         let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false };
         const checkAllLoaded = () => {
@@ -228,35 +229,27 @@
                 return;
             }
 
+            // --- NEW: Conditional Tile Listener for Overview ---
+            // This must be inside the config listener because it depends on the `censorTilesBeforeEvent` flag.
+            if (unsubscribeTiles) unsubscribeTiles();
+            const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
+            const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
+            console.log(`Overview censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
+
+            unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
+                console.log("Overview: Tiles updated in real-time.");
+                const newTiles = {};
+                snapshot.forEach(doc => { newTiles[doc.id] = { ...doc.data(), docId: doc.id }; });
+                tiles = newTiles;
+                processAllData();
+                if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+            }, (error) => { console.error(`Error listening to ${tilesCollectionName}:`, error); hideGlobalLoader(); });
+
             document.title = (config.pageTitle || 'Bingo') + ' | Overview';
             
             processAllData();
             if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to config:", error); hideGlobalLoader(); });
-
-        // Listener for the new teams collection
-        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
-        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
-            console.log("Overview: Teams updated in real-time.");
-            allTeams = {};
-            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
-            teamColorMap = generateTeamColors(Object.keys(allTeams));
-            populateFeedFilter(allTeams);
-            processAllData();
-            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
-
-        // Listener for tiles
-        unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
-            console.log("Overview: Tiles updated in real-time.");
-            // Key by docId, value is the tile data object
-            const newTiles = {};
-            snapshot.forEach(doc => { newTiles[doc.id] = { ...doc.data(), docId: doc.id }; });
-            tiles = newTiles;
-
-            processAllData();
-            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error listening to tiles:", error); hideGlobalLoader(); });
 
         // Listener for submissions
         unsubscribeSubmissions = fb.onSnapshot(fb.collection(db, 'submissions'), (snapshot) => {
@@ -270,6 +263,18 @@
             processAllData();
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
         }, (error) => { console.error("Error listening to submissions:", error); hideGlobalLoader(); });
+
+        // Listener for the new teams collection (can be outside config listener)
+        const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
+        unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+            console.log("Overview: Teams updated in real-time.");
+            allTeams = {};
+            snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+            teamColorMap = generateTeamColors(Object.keys(allTeams));
+            populateFeedFilter(allTeams);
+            processAllData();
+            if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+        }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
     }
 
     function processAllData() {

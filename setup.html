@@ -232,7 +232,7 @@
         .file-inputs input {
             font-size: 14px;
         }
-        .zoom-control {
+        .zoom-control, .lock-control {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -608,6 +608,10 @@
                 <option value="selected">Show for Selected</option>
             </select>
         </div>
+        <div class="lock-control">
+            <label for="lock-tiles-btn">Tile Editing:</label>
+            <button id="lock-tiles-btn">Unlock Tiles</button>
+        </div>
     </div>
 
     <div class="container">
@@ -685,6 +689,7 @@
         let currentPreviewStatus = null;
         const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
         let prereqVisMode = 'hide';
+        let isTilesLocked = true; // NEW: Lock state for tiles
 
         // NEW: Real-time listener unsubscribe functions
         let unsubscribeConfig = null;
@@ -719,6 +724,7 @@
             showScoreboard: { label: 'Show Scoreboard (Player Page)', type: 'boolean', description: 'Set to TRUE to display the team scoreboard at the bottom of the player page.' },
             enableOverviewPage: { label: 'Enable Public Overview Page', type: 'boolean', description: 'Set to TRUE to show the "Overview" link in the navbar for everyone. Admins can always see it.' },
             boardVisibility: { label: 'Board Visibility', type: 'select', options: ['public', 'private'], description: 'If "private", players can only see their own team\'s board state unless they are an admin.' },
+            censorTilesBeforeEvent: { label: 'Censor Tiles Pre-Event', type: 'boolean', description: 'Set to TRUE to hide tile names and descriptions from all non-admins. Requires syncing the public layout below.' },
             evidenceFieldLabel: { label: 'Evidence Field Label', type: 'text', description: 'The text label displayed above the evidence submission inputs in the modal.' },
             loadFirstTeamByDefault: { label: 'Load First Team by Default', type: 'boolean', description: 'Set to TRUE to automatically load the first team in the list on the player page, instead of showing "Select a Team...".' },
             promptForDisplayNameOnLogin: { label: 'Prompt for Display Name', type: 'boolean', description: 'Set to TRUE to show a welcome modal on first login, prompting users to set a custom display name.' },
@@ -745,7 +751,7 @@
         const configGroups = {
             'Board Configuration': ['pageTitle', 'boardImageUrl', 'maxPageWidth', 'showTileNames', 'evidenceFieldLabel', 'loadFirstTeamByDefault'],
             'User Experience': ['promptForDisplayNameOnLogin', 'welcomeMessage'],
-            'Rules & Visibility': ['unlockOnVerifiedOnly', 'scoreOnVerifiedOnly', 'showScoreboard', 'enableOverviewPage', 'boardVisibility'],
+            'Rules & Visibility': ['unlockOnVerifiedOnly', 'scoreOnVerifiedOnly', 'showScoreboard', 'enableOverviewPage', 'boardVisibility', 'censorTilesBeforeEvent'],
         };
 
         // END NEW: Schema-driven configuration
@@ -783,6 +789,7 @@
             document.querySelector('#delete-all-modal .close-button').addEventListener('click', closeDeleteAllModal);
             document.getElementById('delete-confirm-input').addEventListener('input', validateDeleteAll);
             document.getElementById('delete-confirm-btn').addEventListener('click', executeDeleteAll);
+            document.getElementById('lock-tiles-btn').addEventListener('click', toggleTileLock);
 
             initAuth(onAuthStateChanged);
             createStylePreviewButtons();
@@ -799,6 +806,8 @@
                     renderTiles(); // To highlight the new selection on the board
                 }
             });
+
+            applyTileLockState(); // Apply initial lock state on load
         });
 
         function onAuthStateChanged(authState) {
@@ -1041,6 +1050,23 @@
                     }
                 }
             });
+
+        // NEW: Tile Lock functions
+        function applyTileLockState() {
+            const lockBtn = document.getElementById('lock-tiles-btn');
+            if (isTilesLocked) {
+                interact('.draggable-tile').draggable(false).resizable(false);
+                lockBtn.textContent = 'Unlock Tiles';
+            } else {
+                interact('.draggable-tile').draggable(true).resizable(true);
+                lockBtn.textContent = 'Lock Tiles';
+            }
+        }
+
+        function toggleTileLock() {
+            isTilesLocked = !isTilesLocked;
+            applyTileLockState();
+        }
 
         function hexToRgba(colorStr, alpha) {
             if (!colorStr || typeof colorStr !== 'string') return `rgba(255, 255, 255, ${alpha})`;
@@ -1871,6 +1897,51 @@
             }
         }
 
+        async function syncPublicLayout() {
+            if (!confirm('This will overwrite the public tile layout data with the current layout, points, and prerequisites. Are you sure?')) return;
+            showGlobalLoader();
+            showMessage('Starting public layout sync...', false);
+
+            // Fields that are safe to be public. Name, Description, and Overrides are excluded.
+            const publicFields = ['id', 'Points', 'Prerequisites', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation'];
+
+            try {
+                // Step 1: Get all current public tiles to delete them.
+                // This ensures that tiles deleted from the main board are also removed from the public view.
+                const publicTilesSnapshot = await fb.getDocs(fb.collection(db, 'public_tiles'));
+                
+                // Step 2: Create a new batch write operation.
+                const batch = fb.writeBatch(db);
+
+                // Step 3: Schedule all old public documents for deletion.
+                publicTilesSnapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+
+                // Step 4: Schedule new public documents to be created from the main `tilesData`.
+                tilesData.forEach(tile => {
+                    const publicData = {};
+                    publicFields.forEach(field => {
+                        if (tile[field] !== undefined) {
+                            publicData[field] = tile[field];
+                        }
+                    });
+                    // Use the same document ID for consistency between collections.
+                    const publicTileRef = fb.doc(db, 'public_tiles', tile.docId);
+                    batch.set(publicTileRef, publicData);
+                });
+
+                // Step 5: Commit the entire batch operation.
+                await batch.commit();
+                showMessage('Public layout synced successfully!', false);
+            } catch (error) {
+                showMessage(`Sync failed: ${error.message}`, true);
+                console.error('Public layout sync error:', error);
+            } finally {
+                hideGlobalLoader();
+            }
+        }
+
         detailsForm.addEventListener('input', handleEditorInputChange);
         document.getElementById('global-style-form').addEventListener('input', handleGlobalStyleInputChange);
         addNewTileBtn.addEventListener('click', addNewTile);
@@ -1994,7 +2065,13 @@
                             break;
                         case 'boolean':
                             const checked = value === true;
-                            inputHtml = `<input type="checkbox" class="config-input" data-key="${prop}" ${checked ? 'checked' : ''}>`;
+                            if (prop === 'censorTilesBeforeEvent') {
+                                const checkboxHtml = `<input type="checkbox" class="config-input" data-key="${prop}" ${checked ? 'checked' : ''}>`;
+                                const buttonHtml = `<button type="button" id="sync-public-layout-btn" style="margin-left: auto; margin-top: 0;" title='If "Censor Tiles Pre-Event" is active, the player board will show a censored version of the tiles from a separate \`public_tiles\` collection. After making changes to the board layout, points, or prerequisites, you must sync the data for non-admins to see the updates.'>Sync Public Layout</button>`;
+                                inputHtml = `<div style="display: flex; align-items: center; width: 100%;">${checkboxHtml}${buttonHtml}</div>`;
+                            } else {
+                                inputHtml = `<input type="checkbox" class="config-input" data-key="${prop}" ${checked ? 'checked' : ''}>`;
+                            }
                             break;
                         case 'select':
                             const options = schema.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
@@ -2095,6 +2172,12 @@
                         newActiveElement.setSelectionRange(selectionStart, selectionEnd);
                     } catch (e) { /* no-op */ }
                 }
+            }
+
+            // After the form is built, attach the listener for the sync button
+            const syncBtn = document.getElementById('sync-public-layout-btn');
+            if (syncBtn) {
+                syncBtn.onclick = syncPublicLayout; // Safe to re-assign on re-renders
             }
 
             // Add event listeners for image uploads and range sliders

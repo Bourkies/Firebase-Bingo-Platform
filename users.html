@@ -39,7 +39,7 @@
     #access-denied { text-align: center; padding: 3rem; background-color: var(--surface-color); border-radius: 12px; max-width: 600px; margin: 4rem auto; display: none; }
     #users-view { display: none; width:100%; }
     .card { background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px; }
-    #user-assignment-table { width: 100%; border-collapse: collapse; }
+    #user-assignment-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     #user-assignment-table td, #user-assignment-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
     #user-assignment-table th { font-weight: bold; white-space: nowrap; }
     #user-assignment-table select, #user-assignment-table input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; box-sizing: border-box; }
@@ -68,8 +68,8 @@
     <div id="users-view" class="container">
         <h1>User Team & Captain Assignments</h1>
         <div class="card">
-            <table id="user-assignment-table" style="table-layout: fixed;">
-                <thead><tr><th style="width: 30%;">Display Name</th><th style="width: 25%;">Team</th><th style="width: 15%;">Is Captain</th><th style="width: 30%;">Email</th></tr></thead>
+            <table id="user-assignment-table">
+                <thead><tr><th style="width: 25%;">Display Name</th><th style="width: 10%;">Lock Name</th><th style="width: 20%;">Team</th><th style="width: 10%;">Is Captain</th><th style="width: 35%;">Email</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -162,18 +162,21 @@
         tbody.innerHTML = allUsers.map(user => {
             const teamOptions = Object.entries(allTeams).map(([id, data]) => `<option value="${id}" ${user.team === id ? 'selected' : ''}>${data.name}</option>`).join('');
             const isCaptain = user.team && allTeams[user.team]?.captainId === user.uid;
-            const teamIsSet = !!user.team;
+            const canBeCaptain = !!user.team && !user.isAnonymous; // Anonymous users cannot be captains
+            const anonIndicator = user.isAnonymous ? ' (Anonymous)' : '';
+            const isNameLocked = user.isNameLocked === true;
 
             return `
                 <tr>
-                    <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}"></td>
+                    <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked ? 'disabled' : ''}>${anonIndicator}</td>
+                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
                     <td>
                         <select class="user-field" data-uid="${user.uid}" data-field="team">
                             <option value="">--None--</option>
                             ${teamOptions}
                         </select>
                     </td>
-                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!teamIsSet ? 'disabled' : ''}></td>
+                    <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!canBeCaptain ? 'disabled' : ''}></td>
                     <td style="overflow: hidden; text-overflow: ellipsis;" title="${user.email}">${user.email}</td>
                 </tr>`;
         }).join('');
@@ -199,9 +202,10 @@
         const field = target.dataset.field;
         
         showGlobalLoader();
+        const value = target.type === 'checkbox' ? target.checked : target.value;
         try {
-            if (field === 'displayName') {
-                await fb.updateDoc(fb.doc(db, 'users', uid), { displayName: target.value });
+            if (field === 'displayName' || field === 'isNameLocked') {
+                await fb.updateDoc(fb.doc(db, 'users', uid), { [field]: value });
             } else if (field === 'team') {
                 const oldTeamId = allUsers.find(u => u.uid === uid)?.team;
                 const newTeamId = target.value || null;
