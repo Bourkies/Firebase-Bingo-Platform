@@ -222,6 +222,7 @@
             <div class="admin-links-container">
                 <a href="./users.html" target="_blank" id="user-assignment-link" class="button-like-link" style="display: none;">Manage User Teams</a>
                 <a href="./permissions.html" target="_blank" id="user-permissions-link" class="button-like-link" style="display: none;">Manage Permissions</a>
+                <a href="./import_submissions.html" target="_blank" id="submissions-import-link" class="button-like-link" style="display: none;">Import/Export Submissions</a>
                 <a href="./troubleshoot.html" target="_blank" class="button-like-link" style="background-color: var(--warn-color); color: #111; margin-left: auto;">Troubleshoot</a>
             </div>
             <div id="submissions-card" class="card">
@@ -343,6 +344,7 @@
             document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';            
             document.getElementById('user-assignment-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
             document.getElementById('user-permissions-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
+            document.getElementById('submissions-import-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
             initializeApp(authState);
         } else {
             document.getElementById('access-denied').style.display = 'block';

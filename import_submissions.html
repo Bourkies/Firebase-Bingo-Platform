@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Bingo Platform - Submissions Import/Export</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        :root { --accent-color: #00aaff; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1a1a1a; color: #f0f0f0; display: flex; flex-direction: column;
+            align-items: center; margin: 0; padding: 20px; box-sizing: border-box;
+        }
+        .navbar {
+            width: 100%; max-width: 1200px; background-color: #2d2d2d; border-radius: 8px;
+            padding: 0.5rem 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between;
+            align-items: center; box-sizing: border-box;
+        }
+        .nav-links a {
+            color: #f0f0f0; text-decoration: none; padding: 0.5rem 1rem;
+            border-radius: 6px; transition: background-color 0.2s;
+        }
+        .nav-links a:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .nav-links a.active { background-color: var(--accent-color); color: #111; font-weight: bold; }
+        .global-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+            background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+            background-size: 200% auto; animation: loading-animation 1.5s linear infinite;
+            z-index: 9999; display: none;
+        }
+        @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        #message-box {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;
+            z-index: 2000; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+        }
+        #message-box.show { opacity: 1; }
+        h1, h2 { color: var(--accent-color); text-align: center; }
+        p { text-align: center; max-width: 800px; color: #ccc; }
+        .container { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 1200px; }
+        .card { background-color: #2d2d2d; padding: 1.5rem 2rem; border-radius: 8px; display: flex; flex-direction: column; gap: 1rem; }
+        .card h2, .card p { text-align: left; margin: 0; }
+        button { background-color: var(--accent-color); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; width: fit-content; }
+        button:hover { background-color: #0088cc; }
+        button:disabled { background-color: #555; cursor: not-allowed; opacity: 0.7; }
+        input[type="file"] { font-size: 1rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 0.75rem; text-align: left; border: 1px solid #444; }
+        th { background-color: #3a3a3a; }
+        #mapping-table select { width: 100%; background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #555; border-radius: 4px; padding: 8px; }
+        #mapping-table .required-field { font-weight: bold; color: #ffc107; }
+        #preview-container { max-height: 400px; overflow: auto; border: 1px solid #444; border-radius: 4px; }
+        #preview-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .validation-error { color: #e57373; font-weight: bold; }
+        .radio-group { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .radio-group label { cursor: pointer; font-weight: normal; }
+        #import-results ul { list-style-type: none; padding: 0; margin-top: 0.5rem; max-height: 200px; overflow-y: auto; background-color: #1a1a1a; border: 1px solid #444; border-radius: 4px; }
+        #import-results li { padding: 0.5rem 1rem; border-bottom: 1px solid #444; }
+        #import-results li:last-child { border-bottom: none; }
+        #failure-list li { color: #e57373; }
+        #success-list li { color: #81c784; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; text-align: center; }
+        .modal-content .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content h3 { margin-top: 0; color: #e57373; }
+        .modal-content p { text-align: center; }
+        .modal-content input { width: 100%; padding: 10px; margin: 1rem 0; box-sizing: border-box; background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #444; border-radius: 4px; }
+        .modal-content button { background-color: #dc3545; width: 100%; }
+        .modal-content button:disabled { background-color: #555; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div id="global-loader" class="global-loader"></div>
+<div id="message-box"></div>
+
+<div id="main-content" style="display: block; width: 100%; display: flex; flex-direction: column; align-items: center;">
+    <div id="access-denied" style="display: block;">
+        <h1>Access Denied</h1>
+        <p>You must be an Admin to view this page. Please log in with an authorized account.</p>
+    </div>
+    <div id="import-view" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
+        <div class="navbar">
+            <div class="nav-links">
+                <a href="./index.html">Player View</a>
+                <a href="./overview.html">Overview</a>
+                <a href="./admin.html" class="active">Admin View</a>
+                <a href="./setup.html">Board Setup</a>
+            </div>
+        </div>
+        <h1>Submission Data Import / Export</h1>
+
+        <div class="container">
+            <div class="card">
+                <h2>Export All Submissions</h2>
+                <p>Download all submission data as a CSV file. This is useful for backups or offline analysis.</p>
+                <button id="export-csv-btn">Export to CSV</button>
+            </div>
+
+            <div class="card">
+                <h2>Import Submissions from CSV</h2>
+                <div id="import-step-1">
+                    <h3>Step 1: Upload CSV File</h3>
+                    <input type="file" id="csv-file-input" accept=".csv, text/csv">
+                </div>
+
+                <div id="import-step-2" style="display: none;">
+                    <h3>Step 2: Map Columns</h3>
+                    <p>Match the columns from your CSV file to the submission properties. 'id' (Tile ID) and 'Team' are required.</p>
+                    <table id="mapping-table">
+                        <thead><tr><th>Submission Property</th><th>CSV Column</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="import-step-3" style="display: none;">
+                    <h3>Step 3: Preview and Import</h3>
+                    <div id="import-options" style="margin-bottom: 1rem;">
+                        <h4 style="margin-top: 0; margin-bottom: 0.5rem;">Duplicate Handling Mode</h4>
+                        <p style="text-align: left; font-size: 0.9em; color: #ccc;">A "duplicate" is an entry with the same Tile ID and Team as an existing submission.</p>
+                        <div class="radio-group">
+                            <input type="radio" id="mode-skip" name="import-mode" value="skip" checked>
+                            <label for="mode-skip">Skip Duplicates (Default, Safest)</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="mode-overwrite" name="import-mode" value="overwrite">
+                            <label for="mode-overwrite">Overwrite Existing Submission</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="mode-archive" name="import-mode" value="archive">
+                            <label for="mode-archive">Archive Old & Create New</label>
+                        </div>
+                    </div>
+                    <p>Review the data below. The import will be handled according to the selected import mode.</p>
+                    <div id="preview-container">
+                        <table id="preview-table">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div id="import-summary"></div>
+                    <div id="import-results" style="display: none; margin-top: 1rem;">
+                        <div id="success-results" style="display: none;"><h4>Successfully Processed</h4><ul id="success-list"></ul></div>
+                        <div id="failure-results" style="display: none;"><h4>Failed Rows (Import Aborted)</h4><ul id="failure-list"></ul></div>
+                    </div>
+                    <button id="import-btn" disabled>Import Submissions</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Clear All Submissions</h2>
+                <p>This will permanently delete <strong>ALL</strong> submission documents from the database. This action is irreversible and should be used with extreme caution.</p>
+                <button id="clear-submissions-btn" style="background-color: #c82333;">Clear All Submissions</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="clear-submissions-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3>Confirm Mass Deletion</h3>
+        <p>This is an irreversible action. You are about to delete <strong>ALL</strong> submissions. This cannot be undone.</p>
+        <p>To confirm, please type <code style="background: #111; padding: 2px 5px; border-radius: 3px;">DELETE SUBMISSIONS</code> in the box below.</p>
+        <input type="text" id="delete-confirm-input" autocomplete="off">
+        <button id="delete-confirm-btn" disabled>Confirm Deletion</button>
+    </div>
+</div>
+
+<script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth } from './auth.js';
+
+    const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerName', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
+    const EDITABLE_FIELDS = ['id', 'Team', 'PlayerName', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived'];
+    let csvHeaders = [];
+    let csvData = [];
+    let allTiles = {}, allTeams = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('export-csv-btn').addEventListener('click', handleExport);
+        document.getElementById('csv-file-input').addEventListener('change', handleFileSelect);
+        document.getElementById('import-btn').addEventListener('click', handleImport);
+        document.getElementById('clear-submissions-btn').addEventListener('click', openClearModal);
+        document.querySelector('#clear-submissions-modal .close-button').addEventListener('click', closeClearModal);
+        document.getElementById('delete-confirm-input').addEventListener('input', validateClear);
+        document.getElementById('delete-confirm-btn').addEventListener('click', executeClear);
+        initAuth(onAuthStateChanged);
+    });
+
+    function onAuthStateChanged(authState) {
+        if (authState.isAdmin) {
+            document.getElementById('import-view').style.display = 'flex';
+            document.getElementById('access-denied').style.display = 'none';
+            fetchPrerequisites();
+        } else {
+            document.getElementById('import-view').style.display = 'none';
+            document.getElementById('access-denied').style.display = 'block';
+            document.querySelector('#access-denied p').textContent = authState.isLoggedIn ? 'You must be an Admin to view this page.' : 'You must be logged in as an Admin to view this page.';
+        }
+    }
+
+    async function fetchPrerequisites() {
+        const [tilesSnapshot, teamsSnapshot] = await Promise.all([
+            fb.getDocs(fb.collection(db, 'tiles')),
+            fb.getDocs(fb.collection(db, 'teams'))
+        ]);
+        tilesSnapshot.forEach(doc => allTiles[doc.data().id] = doc.data());
+        teamsSnapshot.forEach(doc => allTeams[doc.id] = doc.data());
+    }
+
+    async function handleExport() {
+        showGlobalLoader();
+        try {
+            const snapshot = await fb.getDocs(fb.collection(db, 'submissions'));
+            const submissions = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const record = { docId: doc.id };
+                SUBMISSION_FIELDS.forEach(field => {
+                    let value = data[field] ?? '';
+                    if (value && typeof value.toDate === 'function') {
+                        value = value.toDate().toISOString();
+                    } else if (typeof value === 'object') {
+                        value = JSON.stringify(value);
+                    }
+                    record[field] = value;
+                });
+                return record;
+            });
+
+            if (submissions.length === 0) {
+                showMessage('No submissions to export.', true);
+                return;
+            }
+
+            const csv = Papa.unparse(submissions, { header: true });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'bingo-submissions-export.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage('Export successful!', false);
+        } catch (error) {
+            showMessage(`Export failed: ${error.message}`, true);
+        } finally {
+            hideGlobalLoader();
+        }
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        showGlobalLoader();
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                csvHeaders = results.meta.fields;
+                csvData = results.data;
+                document.getElementById('import-step-2').style.display = 'block';
+                populateMappingTable();
+                document.getElementById('import-btn').style.display = 'block';
+                document.getElementById('import-results').style.display = 'none';
+                hideGlobalLoader();
+            },
+            error: (error) => { showMessage(`CSV parsing error: ${error.message}`, true); hideGlobalLoader(); }
+        });
+    }
+
+    function populateMappingTable() {
+        const tbody = document.querySelector('#mapping-table tbody');
+        tbody.innerHTML = '';
+        const headerOptions = `<option value="">-- Ignore --</option>` + csvHeaders.map(h => `<option value="${h}">${h}</option>`).join('');
+
+        EDITABLE_FIELDS.forEach(field => {
+            const tr = document.createElement('tr');
+            const isRequired = field === 'id' || field === 'Team';
+            tr.innerHTML = `<td><label for="map-${field}" class="${isRequired ? 'required-field' : ''}">${field} ${isRequired ? '*' : ''}</label></td>
+                            <td><select id="map-${field}" data-field="${field}">${headerOptions}</select></td>`;
+            tbody.appendChild(tr);
+            const select = tr.querySelector('select');
+            const matchingHeader = csvHeaders.find(h => h.toLowerCase() === field.toLowerCase());
+            if (matchingHeader) select.value = matchingHeader;
+            select.addEventListener('change', updatePreview);
+        });
+        updatePreview();
+    }
+
+    function updatePreview() {
+        const mapping = {};
+        let idMapped = false, teamMapped = false;
+        document.querySelectorAll('#mapping-table select').forEach(select => {
+            if (select.value) {
+                mapping[select.dataset.field] = select.value;
+                if (select.dataset.field === 'id') idMapped = true;
+                if (select.dataset.field === 'Team') teamMapped = true;
+            }
+        });
+
+        const importBtn = document.getElementById('import-btn');
+        const step3 = document.getElementById('import-step-3');
+
+        if (!idMapped || !teamMapped) {
+            step3.style.display = 'none';
+            importBtn.disabled = true;
+            return;
+        }
+
+        step3.style.display = 'block';
+        importBtn.disabled = false;
+
+        const previewThead = document.querySelector('#preview-table thead');
+        const previewTbody = document.querySelector('#preview-table tbody');
+        previewThead.innerHTML = '';
+        previewTbody.innerHTML = '';
+
+        const mappedFields = Object.keys(mapping);
+        previewThead.innerHTML = '<tr>' + mappedFields.map(f => `<th>${f}</th>`).join('') + '</tr>';
+
+        csvData.slice(0, 10).forEach(row => {
+            const tr = document.createElement('tr');
+            let validationError = '';
+            mappedFields.forEach(field => {
+                const csvHeader = mapping[field];
+                const value = row[csvHeader] || '';
+                tr.innerHTML += `<td title="${value}">${value}</td>`;
+                if (field === 'id' && !allTiles[value]) validationError = `Tile ID '${value}' does not exist.`;
+                if (field === 'Team' && !allTeams[value]) validationError = `Team ID '${value}' does not exist.`;
+            });
+            if (validationError) {
+                tr.style.backgroundColor = '#5d3a3a';
+                tr.title = `Invalid Row: ${validationError}`;
+                tr.querySelector('td').innerHTML += ` <span class="validation-error">(${validationError})</span>`;
+            }
+            previewTbody.appendChild(tr);
+        });
+        document.getElementById('import-summary').textContent = `Found ${csvData.length} rows to import.`;
+    }
+
+    async function handleImport() {
+        showGlobalLoader();
+        const importBtn = document.getElementById('import-btn');
+        importBtn.disabled = true;
+        importBtn.textContent = 'Importing...';
+
+        const resultsContainer = document.getElementById('import-results');
+        const successList = document.getElementById('success-list');
+        const failureList = document.getElementById('failure-list');
+        resultsContainer.style.display = 'none';
+        successList.innerHTML = '';
+        failureList.innerHTML = '';
+
+        const mapping = {};
+        document.querySelectorAll('#mapping-table select').forEach(select => {
+            if (select.value) mapping[select.dataset.field] = select.value;
+        });
+
+        const importMode = document.querySelector('input[name="import-mode"]:checked').value;
+
+        const existingSubsSnapshot = await fb.getDocs(fb.collection(db, 'submissions'));
+        const existingSubs = new Map(existingSubsSnapshot.docs.map(doc => [`${doc.data().id}|${doc.data().Team}`, { docId: doc.id, ...doc.data() }]));
+
+        const operations = [];
+        const failedRows = [];
+
+        csvData.forEach((row, index) => {
+            const subData = {};
+            EDITABLE_FIELDS.forEach(field => {
+                const csvHeader = mapping[field];
+                if (csvHeader && row[csvHeader] !== undefined) {
+                    let value = row[csvHeader];
+                    if (['IsComplete', 'AdminVerified', 'RequiresAction', 'IsArchived'].includes(field)) {
+                        value = String(value).toLowerCase() === 'true';
+                    }
+                    subData[field] = value;
+                }
+            });
+
+            const tileId = subData.id;
+            const teamId = subData.Team;
+
+            if (!tileId || !teamId) { failedRows.push({ rowNum: index + 2, reason: 'Missing Tile ID or Team ID.' }); return; }
+            if (!allTiles[tileId]) { failedRows.push({ rowNum: index + 2, reason: `Tile ID '${tileId}' does not exist.` }); return; }
+            if (!allTeams[teamId]) { failedRows.push({ rowNum: index + 2, reason: `Team ID '${teamId}' does not exist.` }); return; }
+
+            const existingSub = existingSubs.get(`${tileId}|${teamId}`);
+            if (existingSub) {
+                if (importMode === 'skip') {
+                    operations.push({ type: 'skip', id: `${tileId} on ${teamId}` });
+                } else if (importMode === 'overwrite') {
+                    operations.push({ type: 'set', ref: fb.doc(db, 'submissions', existingSub.docId), data: subData });
+                } else if (importMode === 'archive') {
+                    operations.push({ type: 'update', ref: fb.doc(db, 'submissions', existingSub.docId), data: { IsArchived: true } });
+                    operations.push({ type: 'add', data: { ...subData, Timestamp: fb.serverTimestamp() } });
+                }
+            } else {
+                operations.push({ type: 'add', data: { ...subData, Timestamp: fb.serverTimestamp() } });
+            }
+        });
+
+        if (failedRows.length > 0) {
+            showMessage(`Import failed with ${failedRows.length} validation errors.`, true);
+            resultsContainer.style.display = 'block';
+            document.getElementById('failure-results').style.display = 'block';
+            failedRows.forEach(fail => failureList.innerHTML += `<li>Row ${fail.rowNum}: ${fail.reason}</li>`);
+            hideGlobalLoader();
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import Submissions';
+            return;
+        }
+
+        try {
+            const BATCH_SIZE = 499;
+            for (let i = 0; i < operations.length; i += BATCH_SIZE) {
+                const batch = fb.writeBatch(db);
+                const chunk = operations.slice(i, i + BATCH_SIZE);
+                chunk.forEach(op => {
+                    if (op.type === 'set') batch.set(op.ref, op.data, { merge: true });
+                    else if (op.type === 'update') batch.update(op.ref, op.data);
+                    else if (op.type === 'add') batch.set(fb.doc(fb.collection(db, 'submissions')), op.data);
+                });
+                await batch.commit();
+            }
+            showMessage(`Successfully processed ${operations.length} rows!`, false);
+            resultsContainer.style.display = 'block';
+            document.getElementById('success-results').style.display = 'block';
+            operations.forEach(op => successList.innerHTML += `<li>${op.type.toUpperCase()}: ${op.id || op.data.id}</li>`);
+            document.getElementById('csv-file-input').value = '';
+            document.getElementById('import-step-2').style.display = 'none';
+            document.getElementById('import-btn').style.display = 'none';
+            document.getElementById('preview-container').style.display = 'none';
+        } catch (error) {
+            showMessage(`Import failed during database write: ${error.message}`, true);
+        } finally {
+            hideGlobalLoader();
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import Submissions';
+        }
+    }
+
+    function openClearModal() { document.getElementById('clear-submissions-modal').style.display = 'flex'; }
+    function closeClearModal() {
+        const modal = document.getElementById('clear-submissions-modal');
+        modal.style.display = 'none';
+        document.getElementById('delete-confirm-input').value = '';
+        document.getElementById('delete-confirm-btn').disabled = true;
+    }
+    function validateClear() {
+        const input = document.getElementById('delete-confirm-input');
+        const confirmBtn = document.getElementById('delete-confirm-btn');
+        confirmBtn.disabled = input.value !== 'DELETE SUBMISSIONS';
+    }
+    async function executeClear() {
+        showGlobalLoader();
+        const confirmBtn = document.getElementById('delete-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting...';
+        try {
+            const snapshot = await fb.getDocs(fb.collection(db, 'submissions'));
+            const BATCH_SIZE = 499;
+            for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+                const batch = fb.writeBatch(db);
+                const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
+                chunk.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            }
+            showMessage('All submissions have been deleted.', false);
+            closeClearModal();
+        } catch (error) {
+            showMessage(`Error clearing submissions: ${error.message}`, true);
+        } finally {
+            hideGlobalLoader();
+            confirmBtn.textContent = 'Confirm Deletion';
+        }
+    }
+
+    function showGlobalLoader() { document.getElementById('global-loader').style.display = 'block'; }
+    function hideGlobalLoader() { document.getElementById('global-loader').style.display = 'none'; }
+    function showMessage(text, isError = false) {
+        const box = document.getElementById('message-box');
+        box.textContent = text;
+        box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
+        box.classList.add('show');
+        setTimeout(() => box.classList.remove('show'), 5000);
+    }
+</script>
+</body>
+</html>

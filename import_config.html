@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Bingo Platform - Config Import/Export</title>
+    <style>
+        :root { --accent-color: #00aaff; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1a1a1a; color: #f0f0f0; display: flex; flex-direction: column;
+            align-items: center; margin: 0; padding: 20px; box-sizing: border-box;
+        }
+        .navbar {
+            width: 100%; max-width: 1200px; background-color: #2d2d2d; border-radius: 8px;
+            padding: 0.5rem 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between;
+            align-items: center; box-sizing: border-box;
+        }
+        .nav-links a {
+            color: #f0f0f0; text-decoration: none; padding: 0.5rem 1rem;
+            border-radius: 6px; transition: background-color 0.2s;
+        }
+        .nav-links a:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .nav-links a.active { background-color: var(--accent-color); color: #111; font-weight: bold; }
+        .global-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
+            background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
+            background-size: 200% auto; animation: loading-animation 1.5s linear infinite;
+            z-index: 9999; display: none;
+        }
+        @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        #message-box {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;
+            z-index: 2000; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+        }
+        #message-box.show { opacity: 1; }
+        h1, h2 { color: var(--accent-color); text-align: center; }
+        p { text-align: center; max-width: 800px; color: #ccc; }
+        .container {
+            display: flex; flex-direction: column; gap: 20px;
+            width: 100%; max-width: 1200px;
+        }
+        .card {
+            background-color: #2d2d2d; padding: 1.5rem 2rem; border-radius: 8px;
+            display: flex; flex-direction: column; gap: 1rem;
+        }
+        .card h2, .card p { text-align: left; margin: 0; }
+        button {
+            background-color: var(--accent-color); color: white; border: none; padding: 10px 15px;
+            border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.3s;
+            width: fit-content;
+        }
+        button:hover { background-color: #0088cc; }
+        button:disabled { background-color: #555; cursor: not-allowed; opacity: 0.7; }
+        input[type="file"] { font-size: 1rem; }
+        .radio-group { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .radio-group label { cursor: pointer; font-weight: normal; }
+        #json-preview {
+            background-color: #1a1a1a; border: 1px solid #444; border-radius: 4px;
+            padding: 1rem; max-height: 400px; overflow: auto;
+            white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;
+        }
+        .validation-error { color: #e57373; font-weight: bold; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; text-align: center; }
+        .modal-content .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content h3 { margin-top: 0; color: #e57373; }
+        .modal-content p { text-align: center; }
+        .modal-content input { width: 100%; padding: 10px; margin: 1rem 0; box-sizing: border-box; background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #444; border-radius: 4px; }
+        .modal-content button { background-color: #dc3545; width: 100%; }
+        .modal-content button:disabled { background-color: #555; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div id="global-loader" class="global-loader"></div>
+<div id="message-box"></div>
+
+<div id="main-content" style="display: block; width: 100%; display: flex; flex-direction: column; align-items: center;">
+    <div id="access-denied" style="display: block;">
+        <h1>Access Denied</h1>
+        <p>You must be an Admin to view this page. Please log in with an authorized account.</p>
+    </div>
+    <div id="import-view" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
+        <div class="navbar">
+            <div class="nav-links">
+                <a href="./index.html">Player View</a>
+                <a href="./overview.html">Overview</a>
+                <a href="./admin.html">Admin View</a>
+                <a href="./setup.html" class="active">Board Setup</a>
+            </div>
+        </div>
+        <h1>Global Config Import / Export</h1>
+
+        <div class="container">
+            <div class="card">
+                <h2>Export Current Config</h2>
+                <p>Download the entire 'Global Config & Styles' section as a single JSON file. This is a great way to create a backup.</p>
+                <button id="export-json-btn">Export to JSON</button>
+            </div>
+
+            <div class="card">
+                <h2>Import Config from JSON</h2>
+                <div id="import-step-1">
+                    <h3>Step 1: Upload JSON File</h3>
+                    <input type="file" id="json-file-input" accept=".json, application/json">
+                </div>
+
+                <div id="import-step-2" style="display: none;">
+                    <h3>Step 2: Preview and Import</h3>
+                    <div id="import-options" style="margin-bottom: 1rem;">
+                        <h4 style="margin-top: 0; margin-bottom: 0.5rem;">Import Mode</h4>
+                        <div class="radio-group">
+                            <input type="radio" id="mode-merge" name="import-mode" value="merge" checked>
+                            <label for="mode-merge">Merge with existing config (Default)</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="mode-replace" name="import-mode" value="replace">
+                            <label for="mode-replace">Replace all existing config (Destructive)</label>
+                        </div>
+                    </div>
+                    <p>Review the data below. The import will be handled according to the selected import mode.</p>
+                    <div id="json-preview"></div>
+                    <p id="import-summary" style="margin-top: 1rem;"></p>
+                    <button id="import-btn" disabled>Import Config</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Clear All Config</h2>
+                <p>This will delete the main config document and all style documents, resetting them to their default state. This action is irreversible.</p>
+                <button id="clear-config-btn" style="background-color: #c82333;">Clear All Config</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="clear-config-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3>Confirm Mass Deletion</h3>
+        <p>This is an irreversible action. You are about to delete <strong>ALL</strong> global and style configurations. This cannot be undone.</p>
+        <p>To confirm, please type <code style="background: #111; padding: 2px 5px; border-radius: 3px;">DELETE CONFIG</code> in the box below.</p>
+        <input type="text" id="delete-confirm-input" autocomplete="off">
+        <button id="delete-confirm-btn" disabled>Confirm Deletion</button>
+    </div>
+</div>
+
+<script type="module">
+    import { db, fb } from './firebase-config.js';
+    import { initAuth } from './auth.js';
+
+    let parsedJsonData = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('export-json-btn').addEventListener('click', handleExport);
+        document.getElementById('json-file-input').addEventListener('change', handleFileSelect);
+        document.getElementById('import-btn').addEventListener('click', handleImport);
+        document.getElementById('clear-config-btn').addEventListener('click', openClearModal);
+        document.querySelector('#clear-config-modal .close-button').addEventListener('click', closeClearModal);
+        document.getElementById('delete-confirm-input').addEventListener('input', validateClear);
+        document.getElementById('delete-confirm-btn').addEventListener('click', executeClear);
+        initAuth(onAuthStateChanged);
+    });
+
+    function onAuthStateChanged(authState) {
+        if (authState.isAdmin) {
+            document.getElementById('import-view').style.display = 'flex';
+            document.getElementById('access-denied').style.display = 'none';
+        } else {
+            document.getElementById('import-view').style.display = 'none';
+            document.getElementById('access-denied').style.display = 'block';
+            document.querySelector('#access-denied p').textContent = authState.isLoggedIn ? 'You must be an Admin to view this page.' : 'You must be logged in as an Admin to view this page.';
+        }
+    }
+
+    async function handleExport() {
+        showGlobalLoader();
+        try {
+            const configDoc = await fb.getDoc(fb.doc(db, 'config', 'main'));
+            const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+
+            const stylesData = {};
+            stylesSnapshot.forEach(doc => {
+                stylesData[doc.id] = doc.data();
+            });
+
+            const fullConfig = {
+                config: configDoc.exists() ? configDoc.data() : {},
+                styles: stylesData
+            };
+
+            const jsonString = JSON.stringify(fullConfig, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'bingo-config-export.json');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage('Export successful!', false);
+        } catch (error) {
+            showMessage(`Export failed: ${error.message}`, true);
+            console.error('Export error:', error);
+        } finally {
+            hideGlobalLoader();
+        }
+    }
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        showGlobalLoader();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                parsedJsonData = JSON.parse(e.target.result);
+                document.getElementById('import-step-2').style.display = 'block';
+                updatePreview();
+            } catch (error) {
+                showMessage(`JSON parsing error: ${error.message}`, true);
+                parsedJsonData = null;
+                document.getElementById('import-step-2').style.display = 'none';
+            } finally {
+                hideGlobalLoader();
+            }
+        };
+        reader.onerror = () => {
+            showMessage('Error reading file.', true);
+            hideGlobalLoader();
+        };
+        reader.readAsText(file);
+    }
+
+    function updatePreview() {
+        const previewEl = document.getElementById('json-preview');
+        const importBtn = document.getElementById('import-btn');
+        const summaryEl = document.getElementById('import-summary');
+
+        if (!parsedJsonData || typeof parsedJsonData !== 'object') {
+            previewEl.innerHTML = '<span class="validation-error">Invalid or empty JSON file.</span>';
+            importBtn.disabled = true;
+            summaryEl.textContent = '';
+            return;
+        }
+
+        const hasConfig = parsedJsonData.hasOwnProperty('config') && typeof parsedJsonData.config === 'object';
+        const hasStyles = parsedJsonData.hasOwnProperty('styles') && typeof parsedJsonData.styles === 'object';
+
+        if (!hasConfig && !hasStyles) {
+            previewEl.innerHTML = '<span class="validation-error">JSON must contain a "config" or "styles" object at the top level.</span>';
+            importBtn.disabled = true;
+            summaryEl.textContent = '';
+            return;
+        }
+
+        previewEl.textContent = JSON.stringify(parsedJsonData, null, 2);
+        importBtn.disabled = false;
+        summaryEl.textContent = 'Preview loaded. Ready to import.';
+    }
+
+    async function handleImport() {
+        if (!parsedJsonData) {
+            showMessage('No valid data to import.', true);
+            return;
+        }
+
+        showGlobalLoader();
+        const importBtn = document.getElementById('import-btn');
+        importBtn.disabled = true;
+        importBtn.textContent = 'Importing...';
+
+        const importMode = document.querySelector('input[name="import-mode"]:checked').value;
+
+        try {
+            const batch = fb.writeBatch(db);
+
+            if (importMode === 'replace') {
+                // In replace mode, we first need to delete existing documents.
+                // This is a separate operation before the write batch.
+                await executeClear(true); // Pass silent=true
+            }
+
+            // Process config
+            if (parsedJsonData.config) {
+                const configRef = fb.doc(db, 'config', 'main');
+                batch.set(configRef, parsedJsonData.config, { merge: importMode === 'merge' });
+            }
+
+            // Process styles
+            if (parsedJsonData.styles) {
+                for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
+                    const styleRef = fb.doc(db, 'styles', styleId);
+                    batch.set(styleRef, styleData, { merge: importMode === 'merge' });
+                }
+            }
+
+            await batch.commit();
+            showMessage('Configuration imported successfully!', false);
+
+        } catch (error) {
+            showMessage(`Import failed: ${error.message}`, true);
+            console.error('Import error:', error);
+        } finally {
+            hideGlobalLoader();
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import Config';
+        }
+    }
+
+    // --- Clear Config Logic ---
+    function openClearModal() {
+        document.getElementById('clear-config-modal').style.display = 'flex';
+    }
+
+    function closeClearModal() {
+        const modal = document.getElementById('clear-config-modal');
+        modal.style.display = 'none';
+        document.getElementById('delete-confirm-input').value = '';
+        document.getElementById('delete-confirm-btn').disabled = true;
+    }
+
+    function validateClear() {
+        const input = document.getElementById('delete-confirm-input');
+        const confirmBtn = document.getElementById('delete-confirm-btn');
+        confirmBtn.disabled = input.value !== 'DELETE CONFIG';
+    }
+
+    async function executeClear(silent = false) {
+        if (!silent) showGlobalLoader();
+        const confirmBtn = document.getElementById('delete-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting...';
+
+        try {
+            const batch = fb.writeBatch(db);
+            
+            // Delete main config doc
+            batch.delete(fb.doc(db, 'config', 'main'));
+
+            // Delete all style docs
+            const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+            stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+
+            await batch.commit();
+            if (!silent) {
+                showMessage('All configurations have been cleared.', false);
+                closeClearModal();
+            }
+        } catch (error) {
+            if (!silent) showMessage(`Error clearing config: ${error.message}`, true);
+            console.error("Clear config error:", error);
+            // Re-throw if silent so the import process can catch it
+            if (silent) throw error;
+        } finally {
+            if (!silent) hideGlobalLoader();
+            confirmBtn.textContent = 'Confirm Deletion';
+        }
+    }
+
+    // --- Utility Functions ---
+    function showGlobalLoader() { document.getElementById('global-loader').style.display = 'block'; }
+    function hideGlobalLoader() { document.getElementById('global-loader').style.display = 'none'; }
+    function showMessage(text, isError = false) {
+        const box = document.getElementById('message-box');
+        box.textContent = text;
+        box.style.backgroundColor = isError ? '#c0392b' : '#27ae60';
+        box.classList.add('show');
+        setTimeout(() => box.classList.remove('show'), 5000);
+    }
+</script>
+</body>
+</html>
