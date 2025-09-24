@@ -432,6 +432,7 @@
         // We need to re-evaluate and re-populate the team selector.
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         populateTeamSelector(allTeams, loadFirstTeam);
+        setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
         setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
         // NEW: Welcome modal logic
@@ -565,14 +566,6 @@
             renderBoard(); // Re-render board with new styles
             if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
         }, (error) => { console.error("Error loading styles:", error); });
-
-        // Listener for users collection
-        unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
-            console.log("Users updated in real-time.");
-            allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-            updateNavbar(); // Update navbar in case display name or team changed
-            if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error loading users:", error); });
     }
 
     function updateNavbar() {
@@ -602,6 +595,27 @@
 
         document.getElementById('admin-nav-link').style.display = authState.isEventMod ? 'inline-block' : 'none'; // isEventMod now includes Admin
         document.getElementById('setup-nav-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
+    }
+
+    // Listener for users collection, must be called after auth state is known
+    function setupUsersListener() {
+        if (unsubscribeUsers) unsubscribeUsers();
+        let usersQuery;
+        // Admins/mods can see all users. Regular players can only see their own teammates.
+        if (authState.isEventMod) {
+            usersQuery = fb.collection(db, 'users');
+        } else if (authState.isLoggedIn && authState.profile?.team) {
+            usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', authState.profile.team));
+        } else {
+            allUsers = []; // Logged out user can't see anyone.
+            return;
+        }
+        unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
+            console.log("Users updated in real-time.");
+            allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+            updateNavbar(); // Update navbar in case display name or team changed
+            // No need to check initialDataLoaded here as it's part of the auth flow
+        }, (error) => { console.error("Error loading users:", error); });
     }
 
     function processAllData() {

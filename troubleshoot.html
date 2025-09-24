@@ -358,12 +358,16 @@
                     } else {
                         details.push(`- Found user '${otherUserDoc.id}', attempting to read their full document...`);
                         const otherUserSnap = await fb.getDoc(otherUserDoc.ref);
-                        // If the above line doesn't throw, it's a failure for non-admins.
-                        addResult('FAILURE', `A non-admin was able to read the full document of user ${otherUserDoc.id}. Rules are too permissive.`);
+                        // If the above line doesn't throw, it's a success for admins, but a failure for non-admins.
+                        if (authState.isEventMod) {
+                            addResult('SUCCESS', `Admin/Mod was able to read the full document of user ${otherUserDoc.id}.`);
+                        } else {
+                            addResult('FAILURE', `A non-admin was able to read the full document of user ${otherUserDoc.id}. Rules are too permissive.`);
+                        }
                     }
                 } catch (e) {
                     if (e.code === 'permission-denied') {
-                        // This is the expected outcome for non-admins.
+                        // This is the expected outcome for non-admins, but a failure for admins.
                         addResult('SUCCESS', 'Non-admin was correctly blocked from reading another user\'s document.');
                     } else {
                         addResult('ERROR', `An unexpected error occurred: ${e.message}`);
