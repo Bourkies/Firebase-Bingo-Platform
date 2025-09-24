@@ -57,8 +57,7 @@ async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = n
             isEventMod: false,
             isAnonymous: isAnonymous,
             isNameLocked: false, // NEW: Add lock field
-            // For anonymous users, we don't prompt them to change their name.
-            // For new Google/Apple users, we do.
+            // For anonymous users, we don't prompt them to change their name. For new Google users, we do.
             hasSetDisplayName: isAnonymous
         };
         await fb.setDoc(userDocRef, newUserProfile);
