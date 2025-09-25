@@ -54,7 +54,6 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     groupDiv.className = 'prereq-or-group';
 
     const andInput = document.createElement('textarea');
-    andInput.type = 'text';
     andInput.className = 'prereq-and-input';
     andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
     andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
