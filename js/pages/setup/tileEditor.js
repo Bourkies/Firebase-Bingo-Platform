@@ -40,12 +40,13 @@ export function initializeTileEditor(mainController) {
     const addNewTileBtn = document.getElementById('add-new-tile-btn');
     const deleteTileBtn = document.getElementById('delete-tile-btn');
 
-    document.getElementById('delete-all-tiles-btn').addEventListener('click', openDeleteAllModal);
-    document.querySelector('#delete-all-modal .close-button').addEventListener('click', closeDeleteAllModal);
-    document.getElementById('delete-confirm-input').addEventListener('input', validateDeleteAll);
-    document.getElementById('delete-confirm-btn').addEventListener('click', executeDeleteAll);
+    console.log("tileEditor: Initializing...");
+    document.getElementById('delete-all-tiles-btn')?.addEventListener('click', openDeleteAllModal);
+    document.querySelector('#delete-all-modal .close-button')?.addEventListener('click', closeDeleteAllModal);
+    document.getElementById('delete-confirm-input')?.addEventListener('input', validateDeleteAll);
+    document.getElementById('delete-confirm-btn')?.addEventListener('click', executeDeleteAll);
 
-    document.getElementById('tile-selector-dropdown').addEventListener('change', (event) => {
+    document.getElementById('tile-selector-dropdown')?.addEventListener('change', (event) => {
         const selectedIndex = event.target.value;
         const newIndex = selectedIndex !== '' ? parseInt(selectedIndex, 10) : null;
         if (newIndex !== mainController.lastSelectedTileIndex) {
@@ -54,11 +55,11 @@ export function initializeTileEditor(mainController) {
         }
     });
 
-    detailsForm.addEventListener('input', (e) => handleEditorInputChange(e, mainController));
-    addNewTileBtn.addEventListener('click', () => addNewTile(mainController));
-    deleteTileBtn.addEventListener('click', () => deleteSelectedTile(mainController));
+    detailsForm?.addEventListener('input', (e) => handleEditorInputChange(e, mainController));
+    addNewTileBtn?.addEventListener('click', () => addNewTile(mainController));
+    deleteTileBtn?.addEventListener('click', () => deleteSelectedTile(mainController));
 
-    createEditorForm(null, mainController);
+    // createEditorForm is now called from the main controller when data is ready
 }
 
 export function updateTileEditorData(newTilesData, newLastSelectedTileIndex) {
@@ -67,7 +68,9 @@ export function updateTileEditorData(newTilesData, newLastSelectedTileIndex) {
 }
 
 export function createEditorForm(tileData, mainController) {
+    console.log("tileEditor: createEditorForm called for tile:", tileData?.id || 'None');
     const detailsForm = document.getElementById('details-form');
+    if (!detailsForm) return;
     detailsForm.innerHTML = '';
 
     const TILE_EDITOR_FIELDS = ['docId', 'id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation'];
@@ -79,14 +82,17 @@ export function createEditorForm(tileData, mainController) {
     detailsForm.appendChild(overridesFieldset);
     detailsForm.appendChild(prereqFieldset);
 
-    const addOverrideBtn = document.getElementById('add-override-btn');
-    addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', mainController));
+    // Attach listeners to the newly created elements inside the overrides fieldset
+    const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
+    if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', mainController));
 
-    const rawJsonTextarea = document.getElementById('overrides-json-textarea');
-    rawJsonTextarea.addEventListener('input', (e) => handleRawJsonOverrideChange(e, mainController));
+    const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
+    if (rawJsonTextarea) rawJsonTextarea.addEventListener('input', (e) => handleRawJsonOverrideChange(e, mainController));
+
 }
 
 export function populateTileSelector() {
+    console.log("tileEditor: populateTileSelector called.");
     const selector = document.getElementById('tile-selector-dropdown');
     if (!selector) return;
 
@@ -109,19 +115,21 @@ export function populateTileSelector() {
 }
 
 export function updateEditorPanelContent(index, mainController) {
+    console.log(`tileEditor: updateEditorPanelContent called for index: ${index}`);
     const deleteTileBtn = document.getElementById('delete-tile-btn');
+    if (!deleteTileBtn || !mainController) return; // Guard against element not existing or controller not ready
     if (index === null || !tilesData[index]) {
         deleteTileBtn.disabled = true;
-        const addOverrideBtn = document.getElementById('add-override-btn');
-        if (addOverrideBtn) addOverrideBtn.disabled = true;
         createEditorForm(null, mainController);
+        const addOverrideBtn = document.querySelector('#add-override-btn');
+        if (addOverrideBtn) addOverrideBtn.disabled = true;
         return;
     }
 
     const tile = tilesData[index];
     createEditorForm(tile, mainController);
 
-    const addOverrideBtn = document.getElementById('add-override-btn');
+    const addOverrideBtn = document.querySelector('#add-override-btn');
     if (addOverrideBtn) addOverrideBtn.disabled = false;
     deleteTileBtn.disabled = false;
 
@@ -135,7 +143,7 @@ export function updateEditorPanelContent(index, mainController) {
     } catch (e) { /* Ignore invalid JSON */ }
 
     const rawJsonTextarea = document.getElementById('overrides-json-textarea');
-    if (rawJsonTextarea) {
+    if (rawJsonTextarea) { // Check if it exists before using it
         rawJsonTextarea.value = tile['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
         rawJsonTextarea.style.borderColor = '';
     }
@@ -185,6 +193,8 @@ function validateTileId() {
 function handleEditorInputChange(event, mainController) {
     if (lastSelectedTileIndex === null) return;
 
+    // FIX: Ensure mainController is passed and exists
+    if (!mainController) return;
     const input = event.target;
     const key = input.dataset.key;
     if (!key) return;
@@ -196,7 +206,7 @@ function handleEditorInputChange(event, mainController) {
         const newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
         tile[key] = newValue;
 
-        mainController.debouncedSaveTile(tile.docId, { [key]: newValue });
+        mainController.debouncedSaveTile(tile.docId, { [key]: newValue }, mainController);
 
         const visualKeys = ['id', 'Name', 'Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
         if (visualKeys.includes(key) || key.toLowerCase().includes('color')) {
@@ -209,8 +219,9 @@ function handleEditorInputChange(event, mainController) {
 }
 
 async function addNewTile(mainController) {
+    console.log("tileEditor: addNewTile called.");
     const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
-    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+    const maxNumber = existingNumbers.length > 0 ? Math.max(0, ...existingNumbers) : 0;
     const newDocId = String(maxNumber + 1).padStart(5, '0');
 
     const newTileData = {
@@ -233,6 +244,7 @@ async function addNewTile(mainController) {
 
 async function deleteSelectedTile(mainController) {
     if (lastSelectedTileIndex === null) return;
+    console.log(`tileEditor: deleteSelectedTile called for index: ${lastSelectedTileIndex}`);
     const tileToDelete = tilesData[lastSelectedTileIndex];
     if (confirm(`Are you sure you want to delete tile "${tileToDelete.id}"?`)) {
         try {
@@ -262,6 +274,7 @@ function validateDeleteAll() {
 }
 
 async function executeDeleteAll() {
+    console.log("tileEditor: executeDeleteAll called.");
     showGlobalLoader();
     const confirmBtn = document.getElementById('delete-confirm-btn');
     confirmBtn.disabled = true;

@@ -1,5 +1,4 @@
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 // Import the new data managers
@@ -7,18 +6,19 @@ import * as configManager from '../core/data/configManager.js';
 import * as tileManager from '../core/data/tileManager.js';
 import * as teamManager from '../core/data/teamManager.js';
 import * as userManager from '../core/data/userManager.js';
+import { initAuth } from '../core/auth.js';
 import { createTileElement } from '../components/TileRenderer.js';
 
 // Import setup sub-modules
-import { initializeTileEditor, updateTileEditorData, populateTileSelector, updateEditorPanelContent } from './setup/tileEditor.js';
-import { initializePrereqEditor, updatePrereqEditorData, renderPrereqLines } from './setup/prereqEditor.js';
-import { initializeOverrideEditor } from './setup/overrideEditor.js';
+import { initializeTileEditor, updateTileEditorData, populateTileSelector, updateEditorPanelContent, createEditorForm } from './setup/tileEditor.js';
+import { initializePrereqEditor, updatePrereqEditorData, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
+import { initializeOverrideEditor, updateOverridesJsonFromCurrentTile as updateOverridesCallback, populateOverridesUI } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, updateGlobalConfigData, renderGlobalConfig, renderTeamsList } from './setup/globalConfigEditor.js';
 
 let tilesData = [], allUsers = [], allTeams = {};
 let config = {};
 let allStyles = {};
-let lastSelectedTileIndex = null;
+export let lastSelectedTileIndex = null; // Export for sub-modules
 let currentPreviewStatus = null;
 let isTilesLocked = true;
 
@@ -36,19 +36,18 @@ const zoomValue = document.getElementById('zoom-value');
 const resetZoomBtn = document.getElementById('reset-zoom');
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('lock-tiles-btn').addEventListener('click', toggleTileLock);
-    createStylePreviewButtons();
-
-    applyTileLockState();
-    initializeApp();
     initAuth(onAuthStateChanged);
 });
 
 function onAuthStateChanged(authState) {
+    console.log("setupController: onAuthStateChanged triggered. isAdmin:", authState.isAdmin);
     if (authState.isAdmin) {
         document.getElementById('setup-view').style.display = 'flex';
         document.getElementById('access-denied').style.display = 'none';
-        initializeApp();
+        document.getElementById('lock-tiles-btn')?.addEventListener('click', toggleTileLock);
+        createStylePreviewButtons();
+        applyTileLockState();
+        initializeApp(authState); // Pass the authState object here
     } else {
         document.getElementById('setup-view').style.display = 'none';
         document.getElementById('access-denied').style.display = 'block';
@@ -56,103 +55,107 @@ function onAuthStateChanged(authState) {
     }
 }
 
-function initializeApp() {
-    console.log("Setting up real-time data listeners...");
+function initializeApp(authState) {
+    console.log("setupController: initializeApp starting...");
     showGlobalLoader();
     unsubscribeFromAll();
-    const unsubs = [];
+    let unsubs = [];
 
     let initialDataLoaded = { config: false, tiles: false, users: false, teams: false };
     const checkAllLoaded = () => {
         if (Object.values(initialDataLoaded).every(Boolean)) {
+            console.log("setupController: All initial data loaded.");
             hideGlobalLoader();
             showMessage('Live editor initialized and synced!', false);
         }
     };
 
+    // Main controller interface passed to sub-modules
+    const mainControllerInterface = {
+        get lastSelectedTileIndex() { return lastSelectedTileIndex; },
+        get tilesData() { return tilesData; },
+        get config() { return config; },
+        get allStyles() { return allStyles; },
+        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
+    };
+    
     unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
-        console.log("Setup: Config/Styles updated in real-time.");
-        config = newConfig.main || {};
-        allStyles = newConfig.styles || {};
-        renderGlobalConfig();
+        console.log("setupController: Config/Styles updated.");
+        config = newConfig.config || {};
+        allStyles = newConfig.styles || {}; // This line is correct
+        
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
-        updateTileEditorData(tilesData, lastSelectedTileIndex);
-        updatePrereqEditorData(tilesData, lastSelectedTileIndex);
 
-        loadBoardImage(config.boardImageUrl || '');
-        renderTiles();
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
-    }, (error) => {
-        showMessage('Error loading config: ' + error.message, true);
-        hideGlobalLoader();
-    }));
+        if (!initialDataLoaded.config) {
+            unsubs.push(tileManager.listenToTiles(newTiles => {
+                console.log("setupController: Tiles updated.");
+                const needsRender = tilesData.length !== newTiles.length;
+                tilesData = newTiles;
+                updateTileEditorData(tilesData, lastSelectedTileIndex); // Update data in tileEditor
+                updatePrereqEditorData(tilesData, lastSelectedTileIndex); // Update data in prereqEditor
 
-    unsubs.push(tileManager.listenToTiles(newTiles => {
-        console.log("Setup: Tiles updated in real-time.");
-        const needsRender = tilesData.length !== newTiles.length;
-        tilesData = newTiles;
-        updateTileEditorData(tilesData, lastSelectedTileIndex);
-        updatePrereqEditorData(tilesData, lastSelectedTileIndex);
+                populateTileSelector();
 
+                if (needsRender) {
+                    renderTiles();
+                }
+                
+                // Check if the currently selected tile was removed
+                if (lastSelectedTileIndex !== null && !tilesData[lastSelectedTileIndex]) {
+                    updateEditorPanel(null);
+                } else if (lastSelectedTileIndex !== null) {
+                    // If it still exists, refresh the editor panel with potentially new data
+                    updateEditorPanel(lastSelectedTileIndex);
+                }
 
-        populateTileSelector();
+                if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
+            }, authState, config, true)); // Pass true for includeDocId
 
-        if (needsRender) {
+            // Initial render after first data load
+            renderGlobalConfig(mainControllerInterface);
+            updateEditorPanel(null);
+            initialDataLoaded.config = true;
+            checkAllLoaded();
+        } else {
+            // On subsequent updates, just re-render things that depend on config/styles
+            renderGlobalConfig(mainControllerInterface);
+            updatePrereqEditorData(tilesData, lastSelectedTileIndex);
+            loadBoardImage(config.boardImageUrl || '');
             renderTiles();
         }
-        
-        // Check if the currently selected tile was removed
-        if (lastSelectedTileIndex !== null && !tilesData[lastSelectedTileIndex]) {
-            updateEditorPanel(null);
-        } else if (lastSelectedTileIndex !== null) {
-            // If it still exists, refresh the editor panel with potentially new data
-            updateEditorPanel(lastSelectedTileIndex);
-        }
+    })); // The error callback is no longer needed here
 
-        if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-    }, {}, null, true)); // Pass true for includeDocId
-
+    // FIX: The authState object was being passed as the callback. Swapped argument order.
     unsubs.push(userManager.listenToUsers(newUsers => {
-        console.log("Setup: Users updated in real-time.");
+        console.log("setupController: Users updated.");
         allUsers = newUsers;
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
-        if (initialDataLoaded.teams) renderTeamsList();
+        if (initialDataLoaded.teams) renderTeamsList(allUsers);
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, {}));
+    }, authState));
 
     unsubs.push(teamManager.listenToTeams(newTeams => {
-        console.log("Setup: Teams updated in real-time.");
+        console.log("setupController: Teams updated.");
         allTeams = newTeams;
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
-        renderTeamsList();
+        renderTeamsList(allUsers);
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }));
 
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
 
-    const mainControllerInterface = {
-        lastSelectedTileIndex, tilesData,
-        updateEditorPanel, renderTiles, debouncedSaveTile, updateOverridesJsonFromCurrentTile
-    };
+    // Initialize sub-modules that attach event listeners
     initializeTileEditor(mainControllerInterface);
     initializePrereqEditor(mainControllerInterface);
     initializeOverrideEditor(mainControllerInterface);
-    initializeGlobalConfig(mainControllerInterface);
-
-    createEditorForm();
-    updateEditorPanel(null);
+    initializeGlobalConfig(mainControllerInterface); // Pass the interface here
 }
 
 function renderTiles() {
+    console.log("setupController: renderTiles called.");
     boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
-
-    const mainControllerInterface = {
-        lastSelectedTileIndex, tilesData,
-        updateEditorPanel, renderTiles, debouncedSaveTile, updateOverridesJsonFromCurrentTile
-    };
-    updatePrereqEditorData(tilesData, lastSelectedTileIndex);
 
     tilesData.forEach((tile, index) => {
         const status = currentPreviewStatus || 'Unlocked';
@@ -301,11 +304,18 @@ function updateEditorPanel(index) {
     lastSelectedTileIndex = index;
 
     const mainControllerInterface = {
-        lastSelectedTileIndex, tilesData,
-        updateEditorPanel, renderTiles, debouncedSaveTile, updateOverridesJsonFromCurrentTile
+        get lastSelectedTileIndex() { return lastSelectedTileIndex; },
+        get tilesData() { return tilesData; },
+        get config() { return config; },
+        get allStyles() { return allStyles; },
+        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
     };
+
+    // Update data in sub-modules before re-rendering their content
     updateTileEditorData(tilesData, lastSelectedTileIndex);
     updatePrereqEditorData(tilesData, lastSelectedTileIndex);
+
+    // Call the main content update function in tileEditor
     updateEditorPanelContent(index, mainControllerInterface);
 
     renderPrereqLines();
@@ -316,19 +326,6 @@ function getDuplicateIds(tiles) {
     const ids = tiles.map(t => t.id).filter(id => id);
     const duplicates = ids.filter((item, index) => ids.indexOf(item) !== index);
     return new Set(duplicates);
-}
-
-function createEditorForm() {
-    // This function is now a placeholder, the logic is in tileEditor.js
-    // It's called once on init to ensure the form is not empty.
-    updateEditorPanelContent(null, {
-        lastSelectedTileIndex: null,
-        tilesData: [],
-        updateEditorPanel,
-        renderTiles,
-        debouncedSaveTile,
-        updateOverridesJsonFromCurrentTile
-    });
 }
 
 boardContent.addEventListener('click', (event) => {
@@ -392,10 +389,13 @@ function debounce(func, wait) {
     };
 }
 
-const debouncedSaveTile = debounce(async (docId, data) => {
+// FIX: Pass mainControllerInterface to the debounced function so it's available in the callback.
+const debouncedSaveTile = debounce(async (docId, data, mainControllerInterface) => {
     if (!docId) return;
+    console.log(`setupController: Debounced save for tile ${docId}`, data);
     try {
         await tileManager.updateTile(docId, data);
+        if (data['Overrides (JSON)'] !== undefined && mainControllerInterface) updateOverridesCallback(mainControllerInterface);
     } catch (err) {
         showMessage(`Error saving tile: ${err.message}`, true);
     }

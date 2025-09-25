@@ -48,7 +48,7 @@ function initializeApp() {
         }
     };
 
-    unsubs.push(userManager.listenToUsers(newUsers => {
+    unsubs.push(userManager.listenToUsers(newUsers => { // The authState object is now optional
         allUsers = newUsers;
         renderUserAssignments();
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }

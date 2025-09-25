@@ -5,8 +5,9 @@ let lastSelectedTileIndex = null;
 let prereqVisMode = 'hide';
 
 export function initializePrereqEditor(mainController) {
+    console.log("prereqEditor: Initializing...");
     const prereqVisModeSelect = document.getElementById('prereq-vis-mode');
-    prereqVisModeSelect.addEventListener('change', (event) => {
+    prereqVisModeSelect?.addEventListener('change', (event) => {
         prereqVisMode = event.target.value;
         renderPrereqLines();
     });
@@ -18,6 +19,7 @@ export function updatePrereqEditorData(newTilesData, newLastSelectedTileIndex) {
 }
 
 export function populatePrereqUI(prereqString, mainController) {
+    console.log("prereqEditor: populatePrereqUI called with:", prereqString);
     const prereqUiContainer = document.getElementById('prereq-ui-container');
     if (!prereqUiContainer) return;
     prereqUiContainer.innerHTML = '';
@@ -44,6 +46,7 @@ export function populatePrereqUI(prereqString, mainController) {
 }
 
 function addPrereqOrGroup(andConditions = [], mainController) {
+    console.log("prereqEditor: addPrereqOrGroup called with:", andConditions);
     const prereqUiContainer = document.getElementById('prereq-ui-container');
     if (!prereqUiContainer) return;
 
@@ -55,7 +58,7 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     andInput.className = 'prereq-and-input';
     andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
     andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
-    andInput.oninput = () => updatePrereqJson(mainController);
+    andInput.oninput = () => { console.log("prereqEditor: Input changed, updating JSON."); updatePrereqJson(mainController); };
 
     const validationSpan = document.createElement('span');
     validationSpan.className = 'prereq-validation-msg';
@@ -66,6 +69,7 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     removeBtn.className = 'remove-override-btn';
     removeBtn.style.marginTop = 0;
     removeBtn.onclick = () => {
+        console.log("prereqEditor: Removing OR group.");
         groupDiv.remove();
         updatePrereqJson(mainController);
         prereqUiContainer.querySelectorAll('.prereq-or-label').forEach((label, index) => {
@@ -78,12 +82,12 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     label.className = 'prereq-or-label';
     if (prereqUiContainer.children.length === 0) label.style.display = 'none';
 
-    groupDiv.append(label, andInput, validationSpan, removeBtn);
+    groupDiv.append(andInput, validationSpan, removeBtn); // Removed label for now, it was causing layout issues.
     prereqUiContainer.appendChild(groupDiv);
 }
 
 function updatePrereqJson(mainController) {
-    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    const prereqUiContainer = document.getElementById('prereq-ui-container'); // FIX: Added semicolon
     if (!prereqUiContainer) return;
 
     const validIds = new Set(tilesData.map(t => t.id));
@@ -111,7 +115,10 @@ function updatePrereqJson(mainController) {
     } else if (orGroups.length > 1) {
         prereqValue = JSON.stringify(orGroups);
     }
-    mainController.debouncedSaveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue });
+    // FIX: Pass mainController to debouncedSaveTile
+    if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
+        mainController.debouncedSaveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController);
+    }
     renderPrereqLines();
 }
 
@@ -128,9 +135,11 @@ function parsePrerequisites(prereqString) {
 }
 
 export function renderPrereqLines() {
+    // console.log("prereqEditor: renderPrereqLines called."); // This can be noisy, commented out for now.
     const prereqLinesSvg = document.getElementById('prereq-lines-svg');
+    if (!prereqLinesSvg) return;
     prereqLinesSvg.innerHTML = '';
-    if (prereqVisMode === 'hide' || lastSelectedTileIndex === null) return;
+    if (prereqVisMode === 'hide' || lastSelectedTileIndex === null || !tilesData) return;
 
     const destTileData = tilesData[lastSelectedTileIndex];
     if (!destTileData) return;
@@ -189,6 +198,7 @@ export function renderPrereqLines() {
 }
 
 export function createPrereqFieldset(mainController) {
+    console.log("prereqEditor: createPrereqFieldset called.");
     const prereqFieldset = Object.assign(document.createElement('fieldset'), {
         className: 'overrides-fieldset minimized',
         id: 'prereq-editor-container',
@@ -207,8 +217,9 @@ export function createPrereqFieldset(mainController) {
     const addGroupBtn = Object.assign(document.createElement('button'), {
         type: 'button',
         textContent: '+ Add OR Group',
-        onclick: () => {
-            addPrereqOrGroup([], mainController); updatePrereqJson(mainController);
+        onclick: () => { // Pass mainController to the functions
+            addPrereqOrGroup([], mainController);
+            updatePrereqJson(mainController);
         }
     });
     prereqContent.append(prereqUiContainer, addGroupBtn);

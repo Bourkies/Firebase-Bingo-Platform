@@ -24,46 +24,48 @@ function debounce(func, wait) {
     };
 }
 
+let debouncedUpdateOverrides;
+
 export function initializeOverrideEditor(mainController) {
-    const debouncedUpdateOverrides = debounce(() => {
-        if (mainController.lastSelectedTileIndex === null) return;
+    console.log("overrideEditor: Initializing...");
+    debouncedUpdateOverrides = debounce((mainController) => {
+        if (!mainController) return; // Guard against missing controller
         const index = mainController.lastSelectedTileIndex;
+        const overridesContainer = document.getElementById('overrides-container');
+        
+        if (index === null || !mainController.tilesData || !mainController.tilesData[index] || !overridesContainer) return;
 
         const overrides = {};
         document.querySelectorAll('#overrides-container .override-item').forEach(item => {
             const status = item.querySelector('.override-status-select').value;
             const key = item.querySelector('.override-key').value;
-            const valueContainer = item.querySelector('.override-value-container');
+            const valueEl = item.querySelector('.override-value');
 
-            if (status && key && valueContainer.hasChildNodes()) {
-                const inputElement = valueContainer.querySelector('.override-value');
-                if (!inputElement) return;
+            if (!status || !key || !valueEl) return;
 
-                let value = inputElement.type === 'checkbox' ? inputElement.checked : inputElement.value;
+            let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
+            if (valueEl.dataset.unit) value += valueEl.dataset.unit;
+            if (valueEl.tagName === 'SELECT' && value === '') return;
 
-                if (inputElement.dataset.unit) value += inputElement.dataset.unit;
-                if (inputElement.tagName === 'SELECT' && value === '') return;
-                if (!overrides[status]) overrides[status] = {};
+            if (!overrides[status]) overrides[status] = {};
 
-                if (value === 'true') { overrides[status][key] = true; }
-                else if (value === 'false') { overrides[status][key] = false; }
-                else { overrides[status][key] = value; }
-            }
+            if (value === 'true') overrides[status][key] = true;
+            else if (value === 'false') overrides[status][key] = false;
+            else overrides[status][key] = value;
         });
 
         const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
-        document.getElementById('overrides-json-textarea').value = newOverridesJson;
-        mainController.tilesData[index]['Overrides (JSON)'] = newOverridesJson;
-        mainController.debouncedSaveTile(mainController.tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson });
+        const textarea = document.getElementById('overrides-json-textarea');
+        if (textarea) textarea.value = newOverridesJson;
+
+        mainController.debouncedSaveTile(mainController.tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
         mainController.renderTiles();
     }, 500);
-
-    mainController.updateOverridesJsonFromCurrentTile = () => {
-        debouncedUpdateOverrides();
-    };
 }
 
 export function populateOverridesUI(overrides, mainController) {
+    console.log("overrideEditor: populateOverridesUI called.");
+    if (!document.getElementById('overrides-container')) return;
     const container = document.getElementById('overrides-container');
     container.innerHTML = '';
     if (typeof overrides !== 'object' || overrides === null) return;
@@ -78,6 +80,8 @@ export function populateOverridesUI(overrides, mainController) {
 }
 
 export function addOverrideRow(status = '', key = '', value = '', mainController) {
+    console.log(`overrideEditor: addOverrideRow called for ${status}, ${key}`);
+    if (!document.getElementById('overrides-container')) return;
     const container = document.getElementById('overrides-container');
     const item = document.createElement('div');
     item.className = 'override-item';
@@ -111,7 +115,8 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     item.append(statusSelect, keySelect, valueContainer, removeBtn);
     container.appendChild(item);
 
-    const updateCallback = () => mainController.updateOverridesJsonFromCurrentTile();
+    // FIX: Pass mainController to the update callback
+    const updateCallback = () => updateOverridesJsonFromCurrentTile(mainController);
     statusSelect.addEventListener('change', updateCallback);
     keySelect.addEventListener('change', () => {
         populateValueContainer(valueContainer, keySelect.value, '');
@@ -233,21 +238,31 @@ function populateValueContainer(container, propertyName, value) {
 }
 
 export function handleRawJsonOverrideChange(event, mainController) {
+    console.log("overrideEditor: handleRawJsonOverrideChange called.");
     const textarea = event.target;
+    if (!mainController) return;
     try {
         const jsonString = textarea.value;
         if (jsonString.trim() === '') {
             populateOverridesUI({}, mainController);
-            mainController.updateOverridesJsonFromCurrentTile();
+            updateOverridesJsonFromCurrentTile(mainController);
             textarea.style.borderColor = '';
             return;
         }
         const parsedOverrides = JSON.parse(jsonString);
         populateOverridesUI(parsedOverrides, mainController);
-        mainController.updateOverridesJsonFromCurrentTile();
+        updateOverridesJsonFromCurrentTile(mainController);
         textarea.style.borderColor = '';
     } catch (e) {
         textarea.style.borderColor = '#e57373';
+    }
+}
+
+export function updateOverridesJsonFromCurrentTile(mainController) {
+    // FIX: Guard against missing controller
+    if (!mainController) return;
+    if (debouncedUpdateOverrides) {
+        debouncedUpdateOverrides(mainController);
     }
 }
 
@@ -269,4 +284,32 @@ async function handleOverrideImageUpload(fileInput, textInput) {
     } finally {
         hideGlobalLoader();
     }
+}
+
+export function createOverrideFieldset(mainController) {
+    console.log("overrideEditor: createOverrideFieldset called.");
+    const fieldset = Object.assign(document.createElement('fieldset'), {
+        className: 'overrides-fieldset minimized',
+        id: 'overrides-editor-container',
+        style: 'grid-column: 1 / -1;',
+    });
+    const legend = Object.assign(document.createElement('legend'), {
+        innerHTML: `<span class="legend-toggle">[+]</span>Overrides (Advanced)`,
+        style: 'cursor: pointer;',
+        onclick: () => {
+            fieldset.classList.toggle('minimized');
+            legend.querySelector('.legend-toggle').textContent = fieldset.classList.contains('minimized') ? '[+]' : '[-]';
+        }
+    });
+    const content = Object.assign(document.createElement('div'), { className: 'fieldset-content' });
+    content.innerHTML = `
+        <div id="overrides-container" style="grid-column: 1 / -1;"></div>
+        <button type="button" id="add-override-btn" disabled>+ Add Override</button>
+        <div class="form-field" style="grid-column: 1 / -1;">
+            <label for="overrides-json-textarea">Raw JSON</label>
+            <textarea id="overrides-json-textarea" placeholder="You can also edit the raw JSON for the overrides here."></textarea>
+        </div>
+    `;
+    fieldset.append(legend, content);
+    return fieldset;
 }

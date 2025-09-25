@@ -87,10 +87,12 @@ export function initializeGlobalConfig(mainController) {
     const toggleTeamsBtn = document.getElementById('toggle-teams-btn');
     const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
 
-    toggleTeamsBtn.addEventListener('click', toggleTeams);
-    toggleGlobalStylesBtn.addEventListener('click', toggleGlobalStyles);
-    document.getElementById('global-style-form').addEventListener('input', (e) => handleGlobalStyleInputChange(e, mainController));
-    document.getElementById('add-team-btn').addEventListener('click', addNewTeam);
+    console.log("globalConfigEditor: Initializing...");
+    toggleTeamsBtn?.addEventListener('click', toggleTeams);
+    toggleGlobalStylesBtn?.addEventListener('click', toggleGlobalStyles);
+    // FIX: Pass mainController to the handler
+    document.getElementById('global-style-form')?.addEventListener('input', (e) => handleGlobalStyleInputChange(e, mainController)); 
+    document.getElementById('add-team-btn')?.addEventListener('click', addNewTeam);
 
     toggleTeams();
     toggleGlobalStyles();
@@ -103,9 +105,12 @@ export function updateGlobalConfigData(newConfig, newStyles, newUsers, newTeams)
     allTeams = newTeams;
 }
 
-export function renderGlobalConfig() {
+export function renderGlobalConfig(mainController) {
+    console.log("globalConfigEditor: renderGlobalConfig called.");
     const formContainer = document.getElementById('global-style-form');
-    formContainer.innerHTML = '';
+    if (!formContainer || !config) return; // Guard against running before config is loaded
+
+    formContainer.innerHTML = '<p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>';
 
     for (const [groupName, properties] of Object.entries(configGroups)) {
         const fieldset = document.createElement('fieldset');
@@ -138,15 +143,18 @@ export function renderGlobalConfig() {
     });
 
     formContainer.appendChild(stylesFieldset);
-    formContainer.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener('change', () => handleImageUpload(input)));
+    // Add listeners after the form is built
+    // FIX: Pass mainController to the handler
+    formContainer.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener('change', (e) => handleImageUpload(e.target, mainController)));
 }
 
 function handleGlobalStyleInputChange(event, mainController) {
     const input = event.target;
     const key = input.dataset.key;
+    // FIX: Check for mainController before using it.
     if (!key) return;
 
-    if (input.type === 'file') return;
+    if (input.type === 'file' || !mainController) return;
 
     const status = input.dataset.status;
     let newValue = input.type === 'checkbox' ? input.checked : input.value;
@@ -172,14 +180,16 @@ function handleGlobalStyleInputChange(event, mainController) {
         if (key === 'boardImageUrl') mainController.loadBoardImage(newValue);
         debouncedSaveConfig({ [key]: newValue });
     }
+    console.log("globalConfigEditor: Style/Config change detected, re-rendering tiles.");
     mainController.renderTiles();
 }
 
-async function handleImageUpload(input) {
+async function handleImageUpload(input, mainController) {
     const file = input.files[0];
+    console.log(`globalConfigEditor: handleImageUpload for ${input.dataset.path}`);
     if (!file) return;
     const storagePath = input.dataset.path;
-
+    if (!storagePath) return;
     const compoundDiv = input.closest('.form-field-compound');
     const textInput = compoundDiv.querySelector('input[type="text"]');
 
@@ -188,7 +198,7 @@ async function handleImageUpload(input) {
 
     try {
         const url = await configManager.uploadImage(storagePath, file, oldUrl);
-        textInput.value = url;
+        if (textInput) textInput.value = url;
         textInput.dispatchEvent(new Event('input', { bubbles: true }));
         showMessage(`Uploaded ${file.name}`, false);
     } catch (error) {
@@ -205,7 +215,9 @@ function toggleGlobalStyles() {
     document.getElementById('toggle-global-styles-btn').textContent = isHidden ? '-' : '+';
 }
 
-export function renderTeamsList() {
+export function renderTeamsList(users) {
+    console.log("globalConfigEditor: renderTeamsList called.");
+    if (users) allUsers = users; // Only update if new users are passed in
     const teamsContainer = document.getElementById('teams-container');
     let activeElement = document.activeElement;
     let activeTeamId = null, activeFieldClass = null, activeValue = null, selectionStart = null, selectionEnd = null;
@@ -223,7 +235,7 @@ export function renderTeamsList() {
     }
 
     teamsContainer.innerHTML = '';
-    if (!allTeams || Object.keys(allTeams).length === 0) return;
+    if (!allTeams || Object.keys(allTeams).length === 0) return; // Guard against allTeams not being ready
 
     const sortedTeamIds = Object.keys(allTeams).sort();
     sortedTeamIds.forEach(teamId => {

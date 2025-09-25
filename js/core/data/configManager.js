@@ -13,10 +13,10 @@ export function listenToConfigAndStyles(callback) {
     if (unsubscribeConfig) unsubscribeConfig();
     unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
         config = doc.exists() ? doc.data() : {};
-        callback({ config, styles: allStyles });
+        callback({ config, styles: allStyles, error: null });
     }, (error) => {
         console.error("Error listening to config:", error);
-        callback({ error });
+        callback({ config: {}, styles: {}, error });
     });
 
     if (unsubscribeStyles) unsubscribeStyles();
@@ -25,10 +25,10 @@ export function listenToConfigAndStyles(callback) {
         snapshot.docs.forEach(doc => {
             allStyles[doc.id] = doc.data();
         });
-        callback({ config, styles: allStyles });
+        callback({ config, styles: allStyles, error: null });
     }, (error) => {
         console.error("Error listening to styles:", error);
-        callback({ error });
+        callback({ config: {}, styles: {}, error });
     });
 }
 
