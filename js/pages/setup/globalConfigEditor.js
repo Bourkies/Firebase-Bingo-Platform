@@ -291,7 +291,7 @@ async function addNewTeam() {
     const newId = `team${String(maxNumber + 1).padStart(2, '0')}`;
 
     try {
-        await teamManager.createTeam(newId, { name: 'New Team', captainId: null });
+        await teamManager.createTeam(newId, { name: 'New Team', captainId: null, docId: newId });
         showMessage(`Team ${newId} created.`, false);
     } catch (err) {
         showMessage(`Error creating team: ${err.message}`, true);

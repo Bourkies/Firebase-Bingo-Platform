@@ -37,8 +37,18 @@ export function getTeams() {
  * @param {object} data - The initial team data (e.g., { name: 'New Team' }).
  * @returns {Promise}
  */
-export function addTeam(teamId, data) {
+export function createTeam(teamId, data) {
     return fb.setDoc(fb.doc(db, 'teams', teamId), data);
+}
+
+/**
+ * Updates a team document.
+ * @param {string} teamId - The ID of the team to update.
+ * @param {object} data - The data to merge into the team document.
+ * @returns {Promise}
+ */
+export function updateTeam(teamId, data) {
+    return fb.updateDoc(fb.doc(db, 'teams', teamId), data);
 }
 
 /**
