@@ -247,25 +247,6 @@ async function handleImport() {
         successfulRows.push({ docId: docId, data: tileData });
     });
 
-    if (failedRows.length > 0) {
-        showMessage(`Import failed with ${failedRows.length} errors. See details below.`, true);
-        console.error("Import validation errors:", failedRows);
-
-        // Display failure details
-        resultsContainer.style.display = 'block';
-        failureDiv.style.display = 'block';
-        failedRows.forEach(fail => {
-            const li = document.createElement('li');
-            li.textContent = `Row ${fail.rowNum} (ID: ${fail.id}): ${fail.reason}`;
-            failureList.appendChild(li);
-        });
-
-        hideGlobalLoader();
-        importBtn.disabled = false;
-        importBtn.textContent = 'Import Tiles';
-        return;
-    }
-
     const tilesToImport = successfulRows;
 
     try {
@@ -280,22 +261,38 @@ async function handleImport() {
             await batch.commit();
             showMessage(`Imported ${i + chunk.length} of ${tilesToImport.length} tiles...`, false);
         }
-        showMessage(`Successfully imported ${tilesToImport.length} tiles!`, false);
 
-        // Display success details
+        // --- NEW: Handle mixed success/failure reporting ---
         resultsContainer.style.display = 'block';
-        successDiv.style.display = 'block';
-        tilesToImport.forEach(tile => {
-            const li = document.createElement('li');
-            li.textContent = `Tile ID: ${tile.data.id} (Name: ${tile.data.Name || 'N/A'})`;
-            successList.appendChild(li);
-        });
+        if (tilesToImport.length > 0) {
+            successDiv.style.display = 'block';
+            tilesToImport.forEach(tile => {
+                const li = document.createElement('li');
+                li.textContent = `Tile ID: ${tile.data.id} (Name: ${tile.data.Name || 'N/A'})`;
+                successList.appendChild(li);
+            });
+        }
+
+        if (failedRows.length > 0) {
+            failureDiv.style.display = 'block';
+            failedRows.forEach(fail => {
+                const li = document.createElement('li');
+                li.textContent = `Row ${fail.rowNum} (ID: ${fail.id}): ${fail.reason}`;
+                failureList.appendChild(li);
+            });
+            showMessage(`Import complete with ${failedRows.length} error(s). See details below.`, true);
+        } else {
+            showMessage(`Successfully imported ${tilesToImport.length} tiles!`, false);
+        }
+        // --- END NEW ---
 
         // Reset UI for next import, keeping results visible
         document.getElementById('csv-file-input').value = '';
         document.getElementById('import-step-2').style.display = 'none';
         document.getElementById('import-btn').style.display = 'none';
-        document.getElementById('preview-container').style.display = 'none';
+        // Hide preview table, but keep the summary text
+        document.querySelector('#preview-table thead').innerHTML = '';
+        document.querySelector('#preview-table tbody').innerHTML = '';
     } catch (error) {
         showMessage(`Import failed during database write: ${error.message}`, true);
         console.error('Import error:', error);
