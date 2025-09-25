@@ -44,7 +44,7 @@ export function createTileElement(tile, status, config, allStyles, options) {
     tileEl.style.top = `${tile['Top (%)'] || 10}%`;
     tileEl.style.width = `${tile['Width (%)'] || 10}%`;
     tileEl.style.height = `${tile['Height (%)'] || 10}%`;
-    tileEl.style.transform = `rotate(${tile.Rotation || '0deg'})`;
+    tileEl.style.transform = `rotate(${tile.Rotation || 0}deg)`;
 
     // --- Dynamic Styling ---
     const color = getProp('color', status) || '#888888';

@@ -89,23 +89,31 @@ function initializeApp(authState) {
         if (!initialDataLoaded.config) {
             unsubs.push(tileManager.listenToTiles(newTiles => {
                 console.log("setupController: Tiles updated.");
-                const needsRender = tilesData.length !== newTiles.length;
+                const oldTileDocIds = new Set(tilesData.map(t => t.docId));
+                const wasTileAdded = newTiles.length > tilesData.length;
+
                 tilesData = newTiles;
                 updateTileEditorData(tilesData, lastSelectedTileIndex); // Update data in tileEditor
                 updatePrereqEditorData(tilesData, lastSelectedTileIndex); // Update data in prereqEditor
 
                 populateTileSelector();
+                renderTiles();
 
-                if (needsRender) {
-                    renderTiles();
-                }
-                
-                // Check if the currently selected tile was removed
-                if (lastSelectedTileIndex !== null && !tilesData[lastSelectedTileIndex]) {
-                    updateEditorPanel(null);
-                } else if (lastSelectedTileIndex !== null) {
-                    // If it still exists, refresh the editor panel with potentially new data
-                    updateEditorPanel(lastSelectedTileIndex);
+                if (wasTileAdded) {
+                    // Find the newly added tile and select it
+                    const newTile = tilesData.find(t => !oldTileDocIds.has(t.docId));
+                    if (newTile) {
+                        const newIndex = tilesData.findIndex(t => t.docId === newTile.docId);
+                        updateEditorPanel(newIndex);
+                    }
+                } else {
+                    // Check if the currently selected tile was removed
+                    if (lastSelectedTileIndex !== null && !tilesData[lastSelectedTileIndex]) {
+                        updateEditorPanel(null);
+                    } else if (lastSelectedTileIndex !== null) {
+                        // If it still exists, refresh the editor panel with potentially new data
+                        updateEditorPanel(lastSelectedTileIndex);
+                    }
                 }
 
                 if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
