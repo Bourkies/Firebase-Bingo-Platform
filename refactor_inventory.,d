@@ -1,0 +1,48 @@
+# Refactor Inventory (Phase 0)
+
+This document serves as a "before" snapshot of the Firebase Bingo Platform codebase prior to the modernization refactor. It provides a baseline for measuring the reduction in code duplication and the overall improvement in code organization.
+
+## Script Line Count per Page
+
+This table shows the approximate number of lines of JavaScript code contained within the `<script type="module">` block of each HTML file.
+
+| File | JavaScript Line Count | Notes |
+| :--- | :--- | :--- |
+| `setup.html` | 2989 | The largest and most complex file; a primary target for refactoring. |
+| `index.html` | 1373 | Significant player-facing logic. |
+| `overview.html` | 546 | Contains chart, feed, and leaderboard logic. |
+| `admin.html` | 684 | Logic for submission filtering and review modal. |
+| `import_tiles.html` | 509 | CSV parsing and batch import logic. |
+| `troubleshoot.html` | 431 | Diagnostic checks for all services. |
+| `import_config.html` | 400 | JSON import/export logic for configuration. |
+| `users.html` | 253 | User-to-team assignment logic. |
+| `permissions.html` | 250 | User permission management logic. |
+| **Total** | **7435** | **Total lines of JavaScript embedded in HTML files.** |
+
+## Major Duplicated Helper Functions
+
+The following utility functions are repeatedly defined across multiple files. Centralizing these into a single `utils.js` module is a key goal of Phase 1.
+
+### 1. Loader and Messaging Functions
+
+These are the most common duplicated functions, present in almost every file with a user-facing action.
+
+*   **`showGlobalLoader()`**
+    *   **Found in:** `overview.html`, `setup.html`, `admin.html`, `users.html`, `permissions.html`, `import_config.html`, `import_tiles.html`
+    *   **Note:** `index.html` also uses this, but it's noted as being imported from a `utils.js` that doesn't exist yet, highlighting the need for consolidation.
+
+*   **`hideGlobalLoader()`**
+    *   **Found in:** `overview.html`, `setup.html`, `admin.html`, `users.html`, `permissions.html`, `import_config.html`, `import_tiles.html`
+    *   **Note:** Same as `showGlobalLoader`.
+
+*   **`showMessage(text, isError)`**
+    *   **Found in:** `setup.html`, `index.html`, `import_config.html`, `import_tiles.html`
+
+### 2. Utility Functions
+
+*   **`hexToRgba(colorStr, alpha)`**
+    *   **Found in:** `setup.html`, `index.html`
+
+*   **`debounce(func, wait)`**
+    *   **Found in:** `setup.html` (but is a prime candidate for a shared utility).
+

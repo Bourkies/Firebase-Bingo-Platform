@@ -1,0 +1,217 @@
+/* prereqEditor.js */
+
+let tilesData = [];
+let lastSelectedTileIndex = null;
+let prereqVisMode = 'hide';
+
+export function initializePrereqEditor(mainController) {
+    const prereqVisModeSelect = document.getElementById('prereq-vis-mode');
+    prereqVisModeSelect.addEventListener('change', (event) => {
+        prereqVisMode = event.target.value;
+        renderPrereqLines();
+    });
+}
+
+export function updatePrereqEditorData(newTilesData, newLastSelectedTileIndex) {
+    tilesData = newTilesData;
+    lastSelectedTileIndex = newLastSelectedTileIndex;
+}
+
+export function populatePrereqUI(prereqString, mainController) {
+    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    if (!prereqUiContainer) return;
+    prereqUiContainer.innerHTML = '';
+
+    let orGroups = [];
+    let isNewFormat = false;
+
+    if (prereqString && prereqString.trim().startsWith('[')) {
+        try {
+            const parsed = JSON.parse(prereqString);
+            if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) {
+                orGroups = parsed;
+                isNewFormat = true;
+            }
+        } catch (e) { /* Not valid JSON, treat as old format */ }
+    }
+
+    if (isNewFormat) {
+        if (orGroups.length === 0) addPrereqOrGroup([], mainController);
+        else orGroups.forEach(andGroup => addPrereqOrGroup(andGroup, mainController));
+    } else {
+        addPrereqOrGroup(prereqString ? prereqString.split(',') : [], mainController);
+    }
+}
+
+function addPrereqOrGroup(andConditions = [], mainController) {
+    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    if (!prereqUiContainer) return;
+
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'prereq-or-group';
+
+    const andInput = document.createElement('textarea');
+    andInput.type = 'text';
+    andInput.className = 'prereq-and-input';
+    andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
+    andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
+    andInput.oninput = () => updatePrereqJson(mainController);
+
+    const validationSpan = document.createElement('span');
+    validationSpan.className = 'prereq-validation-msg';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '−';
+    removeBtn.className = 'remove-override-btn';
+    removeBtn.style.marginTop = 0;
+    removeBtn.onclick = () => {
+        groupDiv.remove();
+        updatePrereqJson(mainController);
+        prereqUiContainer.querySelectorAll('.prereq-or-label').forEach((label, index) => {
+            if (index > 0) label.style.display = 'block'; else label.style.display = 'none';
+        });
+    };
+
+    const label = document.createElement('span');
+    label.textContent = 'OR';
+    label.className = 'prereq-or-label';
+    if (prereqUiContainer.children.length === 0) label.style.display = 'none';
+
+    groupDiv.append(label, andInput, validationSpan, removeBtn);
+    prereqUiContainer.appendChild(groupDiv);
+}
+
+function updatePrereqJson(mainController) {
+    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    if (!prereqUiContainer) return;
+
+    const validIds = new Set(tilesData.map(t => t.id));
+
+    const orGroups = Array.from(prereqUiContainer.querySelectorAll('.prereq-or-group')).map(groupDiv => {
+        const input = groupDiv.querySelector('.prereq-and-input');
+        const validationSpan = groupDiv.querySelector('.prereq-validation-msg');
+        const ids = input.value.split(',').map(s => s.trim()).filter(Boolean);
+
+        const invalidIds = ids.filter(id => !validIds.has(id));
+        if (invalidIds.length > 0) {
+            validationSpan.textContent = `Invalid IDs: ${invalidIds.join(', ')}`;
+            input.style.borderColor = '#e57373';
+        } else {
+            validationSpan.textContent = '';
+            input.style.borderColor = '';
+        }
+
+        return ids;
+    }).filter(group => group.length > 0);
+
+    let prereqValue = '';
+    if (orGroups.length === 1) {
+        prereqValue = orGroups[0].join(',');
+    } else if (orGroups.length > 1) {
+        prereqValue = JSON.stringify(orGroups);
+    }
+    mainController.debouncedSaveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue });
+    renderPrereqLines();
+}
+
+function parsePrerequisites(prereqString) {
+    if (!prereqString || !prereqString.trim()) return [];
+    const trimmed = prereqString.trim();
+    if (trimmed.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) return parsed;
+        } catch (e) { /* fall through */ }
+    }
+    return [trimmed.split(',').map(s => s.trim()).filter(Boolean)];
+}
+
+export function renderPrereqLines() {
+    const prereqLinesSvg = document.getElementById('prereq-lines-svg');
+    prereqLinesSvg.innerHTML = '';
+    if (prereqVisMode === 'hide' || lastSelectedTileIndex === null) return;
+
+    const destTileData = tilesData[lastSelectedTileIndex];
+    if (!destTileData) return;
+
+    const orGroups = parsePrerequisites(destTileData['Prerequisites']);
+    if (orGroups.length === 0) return;
+
+    const destCenter = {
+        x: parseFloat(destTileData['Left (%)']) + parseFloat(destTileData['Width (%)']) / 2,
+        y: parseFloat(destTileData['Top (%)']) + parseFloat(destTileData['Height (%)']) / 2
+    };
+
+    const totalGroups = orGroups.length;
+    const baseStrokeWidth = 0.3;
+    const strokeWidthIncrement = 0.4;
+    const outlinePadding = 0.15;
+
+    orGroups.forEach((andGroup, orIndex) => {
+        const strokeWidth = baseStrokeWidth + (totalGroups - 1 - orIndex) * strokeWidthIncrement;
+        const outlineWidth = strokeWidth + outlinePadding;
+        const hue = (orIndex * 360) / totalGroups;
+        const color = `hsl(${hue}, 85%, 55%)`;
+
+        const outlinesFragment = document.createDocumentFragment();
+        const fillsFragment = document.createDocumentFragment();
+
+        andGroup.forEach(tileId => {
+            const sourceTileData = tilesData.find(t => t.id === tileId);
+            if (!sourceTileData) return;
+
+            const sourceCenter = {
+                x: parseFloat(sourceTileData['Left (%)']) + parseFloat(sourceTileData['Width (%)']) / 2,
+                y: parseFloat(sourceTileData['Top (%)']) + parseFloat(sourceTileData['Height (%)']) / 2
+            };
+
+            const outlineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            outlineLine.setAttribute('x1', `${sourceCenter.x}%`); outlineLine.setAttribute('y1', `${sourceCenter.y}%`);
+            outlineLine.setAttribute('x2', `${destCenter.x}%`); outlineLine.setAttribute('y2', `${destCenter.y}%`);
+            outlineLine.setAttribute('stroke', 'black');
+            outlineLine.setAttribute('stroke-width', `${outlineWidth}%`);
+            outlineLine.setAttribute('stroke-linecap', 'round');
+            outlinesFragment.appendChild(outlineLine);
+
+            const fillLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            fillLine.setAttribute('x1', `${sourceCenter.x}%`); fillLine.setAttribute('y1', `${sourceCenter.y}%`);
+            fillLine.setAttribute('x2', `${destCenter.x}%`); fillLine.setAttribute('y2', `${destCenter.y}%`);
+            fillLine.setAttribute('stroke', color);
+            fillLine.setAttribute('stroke-width', `${strokeWidth}%`);
+            fillLine.setAttribute('stroke-linecap', 'round');
+            fillsFragment.appendChild(fillLine);
+        });
+
+        prereqLinesSvg.appendChild(outlinesFragment);
+        prereqLinesSvg.appendChild(fillsFragment);
+    });
+}
+
+export function createPrereqFieldset(mainController) {
+    const prereqFieldset = Object.assign(document.createElement('fieldset'), {
+        className: 'overrides-fieldset minimized',
+        id: 'prereq-editor-container',
+        style: 'grid-column: 1 / -1;',
+    });
+    const prereqLegend = Object.assign(document.createElement('legend'), {
+        innerHTML: `<span class="legend-toggle">[+]</span>Prerequisites (Advanced)`,
+        style: 'cursor: pointer;',
+        onclick: () => {
+            prereqFieldset.classList.toggle('minimized');
+            prereqLegend.querySelector('.legend-toggle').textContent = prereqFieldset.classList.contains('minimized') ? '[+]' : '[-]';
+        }
+    });
+    const prereqContent = Object.assign(document.createElement('div'), { className: 'fieldset-content' });
+    const prereqUiContainer = Object.assign(document.createElement('div'), { id: 'prereq-ui-container' });
+    const addGroupBtn = Object.assign(document.createElement('button'), {
+        type: 'button',
+        textContent: '+ Add OR Group',
+        onclick: () => {
+            addPrereqOrGroup([], mainController); updatePrereqJson(mainController);
+        }
+    });
+    prereqContent.append(prereqUiContainer, addGroupBtn);
+    prereqFieldset.append(prereqLegend, prereqContent);
+    return prereqFieldset;
+}
