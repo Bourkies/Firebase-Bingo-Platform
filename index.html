@@ -870,7 +870,6 @@
           
           const color = getProp('color', status) || '#888888';
           const opacity = getProp('opacity', status) ?? 0.7; // Use nullish coalescing to allow opacity: 0
-          tileDiv.style.opacity = opacity;
           tileDiv.style.backgroundColor = hexToRgba(color, opacity);
           const shape = (getProp('shape', status) || 'Square').toLowerCase();
           const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
