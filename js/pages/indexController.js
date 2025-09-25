@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('login-request', openLoginModal);
     // Initialize data listeners first, then auth. This prevents race conditions.
     initializeApp();
-    document.getElementById('change-name-btn').addEventListener('click', () => showWelcomeModal(true));
     document.getElementById('login-google').addEventListener('click', () => { signInWithGoogle(); closeLoginModal(); });
     document.getElementById('login-anon').addEventListener('click', () => { signInAnonymously(); closeLoginModal(); });
     document.getElementById('welcome-form').addEventListener('submit', handleWelcomeFormSubmit);
@@ -40,6 +39,12 @@ async function onAuthStateChanged(newAuthState) {
     // When auth state changes, team visibility might change (especially for private boards).
     // We need to re-evaluate and re-populate the team selector.
     const loadFirstTeam = config.loadFirstTeamByDefault === true;
+
+    // If the auth callback was triggered by a team change, show a message.
+    if (newAuthState.teamChanged) {
+        const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
+        showMessage(`Your team has been changed to: ${newTeamName}. The board has been updated.`, false);
+    }
     populateTeamSelector(allTeams, loadFirstTeam);
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
@@ -50,6 +55,43 @@ async function onAuthStateChanged(newAuthState) {
         showWelcomeModal();
     }
 }
+
+// This function sets up the listener for tiles, respecting censorship rules.
+const setupTilesListener = () => {
+    if (unsubscribeTiles) unsubscribeTiles();
+    const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
+    const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
+    console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
+
+    unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
+        console.log("Tiles updated in real-time.");
+        tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        processAllData();
+        renderBoard(); // Render board with new tiles
+    }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
+};
+
+// This function sets up the listener for submissions, respecting privacy rules.
+const setupSubmissionsListener = () => {
+    if (unsubscribeSubmissions) unsubscribeSubmissions();
+    let submissionsQuery;
+    const isPrivateBoard = config.boardVisibility === 'private';
+    const isPlayerOnTeam = authState.isLoggedIn && authState.profile?.team;
+
+    if (isPrivateBoard && isPlayerOnTeam && !authState.isEventMod) {
+        console.log(`Private board detected. Fetching submissions for team: ${authState.profile.team}`);
+        submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', authState.profile.team));
+    } else {
+        submissionsQuery = fb.collection(db, 'submissions');
+    }
+
+    unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+        console.log("Submissions updated in real-time.");
+        submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        processAllData();
+        renderBoard(); // Re-render board with new submission data
+    }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
+};
 
 function initializeApp() {
     let unsubscribeTeams = null; // New listener for teams
@@ -95,45 +137,6 @@ function initializeApp() {
         if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
     }, (error) => { console.error("Error loading config:", error); hideGlobalLoader(); });
 
-    // This function sets up the listener for tiles, respecting censorship rules.
-    const setupTilesListener = () => {
-        if (unsubscribeTiles) unsubscribeTiles();
-        const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
-        const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
-        console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
-
-        unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
-            console.log("Tiles updated in real-time.");
-            tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-            processAllData();
-            renderBoard(); // Render board with new tiles
-            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-        }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
-    };
-
-    // This function sets up the listener for submissions, respecting privacy rules.
-    const setupSubmissionsListener = () => {
-        if (unsubscribeSubmissions) unsubscribeSubmissions();
-        let submissionsQuery;
-        const isPrivateBoard = config.boardVisibility === 'private';
-        const isPlayerOnTeam = authState.isLoggedIn && authState.profile?.team;
-
-        if (isPrivateBoard && isPlayerOnTeam && !authState.isEventMod) {
-            console.log(`Private board detected. Fetching submissions for team: ${authState.profile.team}`);
-            submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', authState.profile.team));
-        } else {
-            submissionsQuery = fb.collection(db, 'submissions');
-        }
-
-        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
-            console.log("Submissions updated in real-time.");
-            submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-            processAllData();
-            renderBoard(); // Re-render board with new submission data
-            if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
-        }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
-    };
-
     // Initial setup for listeners that don't depend on config.
     // They will be re-triggered by the config listener once it loads.
     setupTilesListener();
@@ -162,7 +165,7 @@ function initializeApp() {
         }
         handleTeamChange(); // Re-render board with new team data
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading teams:", error); hideGlobalLoader(); });
+    }, (error) => { console.error("Error loading teams:", error); });
 
     // Listener for the new styles collection
     unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
@@ -176,13 +179,17 @@ function initializeApp() {
 }
 
 function updatePageForAuth() {
+    // This button is part of the Navbar component, so we must wait for it to be rendered.
     const changeNameBtn = document.getElementById('change-name-btn');
-    if (authState.isLoggedIn) {
-        const profile = authState.profile || {};
-        const canChangeName = !profile.isNameLocked;
-        changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
-    } else {
-        changeNameBtn.style.display = 'none';
+    if (changeNameBtn) {
+        if (authState.isLoggedIn) {
+            const profile = authState.profile || {};
+            const canChangeName = !profile.isNameLocked;
+            changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
+            changeNameBtn.onclick = () => showWelcomeModal(true); // Attach listener here
+        } else {
+            changeNameBtn.style.display = 'none';
+        }
     }
 }
 
@@ -454,15 +461,17 @@ function renderBoard() {
 
       // In generic view, modals cannot be opened.
       const genericView = isGenericView();
-      const canOpenModal = !genericView && displayTeam && status !== 'Locked' && authState.isLoggedIn && authState.profile?.team === displayTeam;
+      const isMyTeam = authState.isLoggedIn && authState.profile?.team === displayTeam;
+      const canOpenModal = !genericView && isMyTeam && status !== 'Locked';
 
-
-        if (canOpenModal) {
-            tileDiv.onclick = () => openModal(tile, status);
-        } else if (!displayTeam) {
-            tileDiv.onclick = () => showMessage('Please select a team to interact with a tile.', true);
-        } else if (displayTeam && status !== 'Locked') {
-            // Tile is visible but not interactive for this user (e.g., public board, wrong team)
+      if (canOpenModal) {
+          tileDiv.onclick = () => openModal(tile, status);
+      } else if (status === 'Locked') {
+          // Tile is locked for everyone, do nothing to the cursor.
+      } else if (!displayTeam) {
+          tileDiv.onclick = () => showMessage('Please select your team to interact with a tile.', true);
+      } else if (!isMyTeam) {
+            // Tile is visible but not interactive for this user (e.g., public board, viewing another team)
             tileDiv.style.cursor = 'not-allowed';
         }
 

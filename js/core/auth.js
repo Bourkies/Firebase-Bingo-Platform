@@ -2,21 +2,38 @@ import { db, auth, fb } from './firebase-config.js';
 
 let currentUser = null;
 let userProfile = null;
-let onAuthChangeCallback = null;
+let authChangeListeners = []; // Use an array for multiple listeners
+let unsubscribeUserProfile = null; // To clean up the profile listener on logout
+let isAuthInitialized = false; // Prevent multiple initializations
 
 export function initAuth(callback) {
-    onAuthChangeCallback = callback;
+    if (!authChangeListeners.includes(callback)) {
+        authChangeListeners.push(callback);
+    }
+    // If auth is already initialized, immediately call back with the current state.
+    if (isAuthInitialized) {
+        callback(getAuthState());
+        return;
+    }
+    isAuthInitialized = true;
     fb.onAuthStateChanged(auth, async (user) => {
+        // Clean up any existing profile listener when auth state changes
+        if (unsubscribeUserProfile) {
+            unsubscribeUserProfile();
+            unsubscribeUserProfile = null;
+        }
+
         if (user) {
             currentUser = user; // Set currentUser immediately
-            // CRITICAL FIX: await the profile fetch before proceeding.
-            await fetchUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
+            // Immediately notify the page that the user is logged in, even before the profile is fetched.
+            notifyListeners();
+            // Set up a real-time listener for the user's profile
+            listenToUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
         } else {
             currentUser = null;
             userProfile = null;
-        }
-        if (onAuthChangeCallback) {
-            onAuthChangeCallback(getAuthState());
+            // When logged out, immediately notify the page
+            notifyListeners();
         }
     });
 }
@@ -42,33 +59,47 @@ export async function signInAnonymously() {
     }
 }
 
-async function fetchUserProfile(uid, isAnonymous = false, initialDisplayName = null, email = null) {
+function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', uid);
-    const userDocSnap = await fb.getDoc(userDocRef);
 
-    if (!userDocSnap.exists()) {
-        // Create a new user profile if it doesn't exist
-        const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
-        const newUserProfile = {
-            displayName: initialAuthDisplayName,
-            team: null,
-            isAdmin: false,
-            isEventMod: false,
-            isAnonymous: isAnonymous,
-            isNameLocked: false, // NEW: Add lock field
-            // For anonymous users, we don't prompt them to change their name. For new Google users, we do.
-            hasSetDisplayName: isAnonymous
-        };
-        
-        // We perform two separate operations: one to create the Firestore doc,
-        // and one to update the Auth user's profile.
-        await fb.setDoc(userDocRef, newUserProfile); 
-        await fb.updateProfile(auth.currentUser, { displayName: initialAuthDisplayName });
+    unsubscribeUserProfile = fb.onSnapshot(userDocRef, async (docSnap) => {
+        const oldTeam = userProfile?.team; // Store the old team before updating
 
-        userProfile = newUserProfile;
-    } else {
-        userProfile = userDocSnap.data();
-    }
+        if (!docSnap.exists()) {
+            // Create a new user profile if it doesn't exist
+            const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
+            const newUserProfile = {
+                displayName: initialAuthDisplayName,
+                team: null,
+                isAdmin: false,
+                isEventMod: false,
+                isAnonymous: isAnonymous,
+                isNameLocked: false,
+                hasSetDisplayName: isAnonymous
+            };
+            
+            try {
+                await fb.setDoc(userDocRef, newUserProfile);
+                // The listener will fire again with the newly created doc, so we don't set userProfile here.
+            } catch (error) {
+                console.error("Error creating user profile:", error);
+            }
+        } else {
+            userProfile = docSnap.data();
+        }
+
+        // After the profile is fetched or updated, notify the page controller.
+        const authState = getAuthState();
+        // Add a flag to the authState if the team was changed by this update
+        if (oldTeam !== undefined && oldTeam !== authState.profile?.team) {
+            authState.teamChanged = true;
+        }
+        notifyListeners(authState);
+    }, (error) => {
+        console.error("Error listening to user profile:", error);
+        // In case of error, still provide a callback with the current (possibly null) state
+        notifyListeners();
+    });
 }
 
 export async function updateUserDisplayName(newName) {
@@ -80,24 +111,22 @@ export async function updateUserDisplayName(newName) {
     }
 
     const userRef = fb.doc(db, 'users', currentUser.uid);
-    const authUser = auth.currentUser;
     try {
-        // Update both the auth profile and the firestore doc in parallel
         // The Firestore document is the single source of truth for the display name.
+        // The onSnapshot listener in listenToUserProfile will automatically detect this change
+        // and trigger the onAuthChangeCallback to update the UI across the app.
         await fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
-
-        // Manually update local state to reflect change immediately
-        // The onAuthStateChanged listener will handle UI updates by re-fetching the profile.
-        userProfile.displayName = newName;
-        userProfile.hasSetDisplayName = true;
-        // Notify the main app that auth state has changed
-        if (onAuthChangeCallback) {
-            onAuthChangeCallback(getAuthState());
-        }
     } catch (error) {
         console.error("Display name update error:", error);
         throw new Error("Failed to update display name: " + error.message);
     }
+}
+
+function notifyListeners(authState = null) {
+    const state = authState || getAuthState();
+    authChangeListeners.forEach(listener => {
+        listener(state);
+    });
 }
 
 export async function signOut() {
