@@ -167,6 +167,10 @@
         button:hover {
             background-color: #0088cc;
         }
+        .controls button {
+            /* NEW: Give buttons in the control bar a min-width to prevent layout shifts */
+            min-width: 110px;
+        }
         button:disabled {
             background-color: #555;
             cursor: not-allowed;
@@ -206,6 +210,11 @@
             font-size: 14px;
         }
         .zoom-control, .lock-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .id-vis-control {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -568,19 +577,20 @@
             <button id="reset-zoom">Reset</button>
         </div>
         <div class="prereq-vis-control">
-            <label for="prereq-vis-mode">Prerequisite Lines:</label>
-            <select id="prereq-vis-mode">
-                <option value="hide" selected>Hidden</option>
-                <option value="selected">Show for Selected</option>
-            </select>
+            <label for="prereq-vis-btn">Prerequisite Lines:</label>
+            <button id="prereq-vis-btn" title="Toggle visibility of prerequisite lines for the selected tile.">Hidden</button>
         </div>
         <div class="lock-control">
             <label for="lock-tiles-btn">Tile Editing:</label>
-            <button id="lock-tiles-btn">Unlock Tiles</button>
+            <button id="lock-tiles-btn" title="Lock/Unlock tiles to prevent accidental dragging and resizing.">Unlock Tiles</button>
+        </div>
+        <div class="id-vis-control">
+            <label for="show-tile-ids-btn">Tile IDs:</label>
+            <button id="show-tile-ids-btn" title="Toggle the visibility of tile IDs, which are useful for setting prerequisites.">Hide IDs</button>
         </div>
     </div>
 
-    <div class="container">
+    <div class="container" style="max-width: 1200px;">
         <div class="editor-panel">
             <div id="style-preview-controls"></div>
             <div id="board-container">

@@ -2,15 +2,9 @@
 
 let tilesData = [];
 let lastSelectedTileIndex = null;
-let prereqVisMode = 'hide';
 
 export function initializePrereqEditor(mainController) {
     console.log("prereqEditor: Initializing...");
-    const prereqVisModeSelect = document.getElementById('prereq-vis-mode');
-    prereqVisModeSelect?.addEventListener('change', (event) => {
-        prereqVisMode = event.target.value;
-        renderPrereqLines();
-    });
 }
 
 export function updatePrereqEditorData(newTilesData, newLastSelectedTileIndex) {
@@ -118,7 +112,7 @@ function updatePrereqJson(mainController) {
     if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
         mainController.debouncedSaveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController);
     }
-    renderPrereqLines();
+    mainController.renderPrereqLines(); // Call the main controller's method
 }
 
 function parsePrerequisites(prereqString) {
@@ -133,7 +127,7 @@ function parsePrerequisites(prereqString) {
     return [trimmed.split(',').map(s => s.trim()).filter(Boolean)];
 }
 
-export function renderPrereqLines() {
+export function renderPrereqLines(prereqVisMode) {
     // console.log("prereqEditor: renderPrereqLines called."); // This can be noisy, commented out for now.
     const prereqLinesSvg = document.getElementById('prereq-lines-svg');
     if (!prereqLinesSvg) return;

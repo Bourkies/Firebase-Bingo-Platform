@@ -150,11 +150,10 @@ export function renderGlobalConfig(mainController) {
 
 function handleGlobalStyleInputChange(event, mainController) {
     const input = event.target;
-    const key = input.dataset.key;
-    // FIX: Check for mainController before using it.
-    if (!key) return;
-
-    if (input.type === 'file' || !mainController) return;
+    const key = input.dataset.key;    
+    // If there's no key, it's not a field we manage. If it's a file, it's handled by handleImageUpload.
+    // If mainController isn't ready, we can't proceed.
+    if (!key || input.type === 'file' || !mainController) return;
 
     const status = input.dataset.status;
     let newValue = input.type === 'checkbox' ? input.checked : input.value;

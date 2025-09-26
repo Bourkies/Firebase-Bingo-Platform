@@ -21,6 +21,8 @@ let allStyles = {};
 export let lastSelectedTileIndex = null; // Export for sub-modules
 let currentPreviewStatus = null;
 let isTilesLocked = true;
+let showTileIds = true; // State for the new toggle
+let prereqVisMode = 'hide'; // State for the new prereq button
 
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
@@ -44,7 +46,19 @@ function onAuthStateChanged(authState) {
     if (authState.isAdmin) {
         document.getElementById('setup-view').style.display = 'flex';
         document.getElementById('access-denied').style.display = 'none';
-        document.getElementById('lock-tiles-btn')?.addEventListener('click', toggleTileLock);
+        document.getElementById('lock-tiles-btn')?.addEventListener('click', toggleTileLock);        
+        document.getElementById('show-tile-ids-btn')?.addEventListener('click', (e) => {
+            showTileIds = !showTileIds;
+            e.target.textContent = showTileIds ? 'Hide IDs' : 'Show IDs';
+            e.target.style.backgroundColor = showTileIds ? '' : '#555';
+            renderTiles();
+        });
+        document.getElementById('prereq-vis-btn')?.addEventListener('click', (e) => {
+            prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
+            e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
+            e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+            renderPrereqLines();
+        });
         createStylePreviewButtons();
         applyTileLockState();
         initializeApp(authState); // Pass the authState object here
@@ -174,10 +188,21 @@ function renderTiles() {
         });
 
         tileEl.dataset.index = index;
-        tileEl.textContent = tile.id;
 
-        if (tileEl.querySelector('div[style*="background-image"]')) {
-            tileEl.textContent = '';
+        // Render like the index page: show tile NAME based on config.
+        if (config.showTileNames === true && !tileEl.querySelector('.stamp-image')) {
+            const tileNameSpan = document.createElement('span');
+            tileNameSpan.textContent = tile.Name || tile.id; // Fallback to ID if name is missing
+            tileEl.appendChild(tileNameSpan);
+        }
+
+        // NEW: Add a separate, styled element for the tile ID if the toggle is on.
+        if (showTileIds) {
+            const idOverlay = document.createElement('div');
+            idOverlay.className = 'tile-id-overlay';
+            idOverlay.textContent = tile.id;
+            idOverlay.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 4px; z-index: 10; pointer-events: none;';
+            tileEl.appendChild(idOverlay);
         }
 
         boardContent.appendChild(tileEl);
@@ -293,10 +318,10 @@ function applyTileLockState() {
     const lockBtn = document.getElementById('lock-tiles-btn');
     if (isTilesLocked) {
         interact('.draggable-tile').draggable(false).resizable(false);
-        lockBtn.textContent = 'Unlock Tiles';
+        lockBtn.textContent = 'Locked';
     } else {
         interact('.draggable-tile').draggable(true).resizable(true);
-        lockBtn.textContent = 'Lock Tiles';
+        lockBtn.textContent = 'Unlocked';
     }
 }
 
@@ -349,8 +374,7 @@ boardContent.addEventListener('click', (event) => {
 
 function createStylePreviewButtons() {
     const container = document.getElementById('style-preview-controls');
-    const statuses = [...STATUSES, null];
-    statuses.forEach(status => {
+    STATUSES.forEach(status => {
         const btn = document.createElement('button');
         btn.textContent = status || 'Clear Preview';
         btn.onclick = () => {
