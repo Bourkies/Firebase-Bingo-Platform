@@ -111,11 +111,16 @@ export async function updateUserDisplayName(newName) {
     }
 
     const userRef = fb.doc(db, 'users', currentUser.uid);
+    const authProfileUpdate = fb.updateProfile(currentUser, { displayName: newName });
+    const firestoreUpdate = fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
+
     try {
-        // The Firestore document is the single source of truth for the display name.
-        // The onSnapshot listener in listenToUserProfile will automatically detect this change
+        // The onSnapshot listener in listenToUserProfile will automatically detect the Firestore change
         // and trigger the onAuthChangeCallback to update the UI across the app.
-        await fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
+        await Promise.all([
+            authProfileUpdate,
+            firestoreUpdate
+        ]);
     } catch (error) {
         console.error("Display name update error:", error);
         throw new Error("Failed to update display name: " + error.message);

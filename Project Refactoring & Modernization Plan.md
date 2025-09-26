@@ -316,8 +316,13 @@ This is the target architecture we are working towards. It separates shared serv
 - [x] Refactor `users.html` -> `js/pages/usersController.js`.
 
 ### Phase 5: Testing & Documentation
-- [ ] **5.1:** Initial page testing and bug fixing.
-- [ ] **5.1:** New Feature Implementation `TEST_PLAN.md`. 
+- [x] **5.1:** Initial page testing and bug fixing.
+- [ ] **5.1:** New Feature Implementation.
+  - [ ]  **5.1.1:** Reimplement name change modal to nav bar
+  - [ ]  **5.1.2:** Improver user/team management page
+  - [ ]  **5.1.3:**
+  - [ ]  **5.1.4:**
+  - [ ]  **5.1.5:**
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.

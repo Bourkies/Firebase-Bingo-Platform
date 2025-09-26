@@ -1,4 +1,4 @@
-import { initAuth, signOut, getAuthState } from '../core/auth.js';
+import { initAuth, signOut, getAuthState, updateUserDisplayName } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
 
 const template = document.createElement('template');
@@ -49,6 +49,17 @@ template.innerHTML = `
             font-size: 0.9rem;
             color: #a0a0a0;
         }
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; }
+        .modal-content h2 { margin-top: 0; color: var(--accent-color, #00aaff); }
+        .modal-content p { color: #ccc; }
+        .modal-content form { display: flex; flex-direction: column; gap: 1rem; }
+        .modal-content label { font-weight: bold; }
+        .modal-content input { width: 100%; background-color: #1e1e1e; color: #f0f0f0; border: 1px solid #444; padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }
+        .modal-content button[type="submit"] { background-color: var(--accent-color, #00aaff); color: #111; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .modal-content button[type="submit"]:disabled { background-color: #555; cursor: not-allowed; }
+        .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
     <div class="navbar">
         <div class="nav-links">
@@ -56,8 +67,22 @@ template.innerHTML = `
         </div>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
-            <!-- The change name button is page-specific and will remain in index.html -->
+            <button id="change-name-btn" style="display: none;">Change Name</button>
             <button id="auth-button">Login</button>
+        </div>
+    </div>
+
+    <!-- Name Change Modal -->
+    <div id="welcome-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Welcome!</h2>
+            <p id="welcome-modal-message">Please set your display name for the event. This will be shown on leaderboards and submissions.</p>
+            <form id="welcome-form">
+                <label for="welcome-display-name">Display Name</label>
+                <input type="text" id="welcome-display-name" required>
+                <button type="submit">Save and Continue</button>
+            </form>
         </div>
     </div>
 `;
@@ -71,6 +96,12 @@ class AppNavbar extends HTMLElement {
         this.authButton = this.shadowRoot.querySelector('#auth-button');
         this.userInfo = this.shadowRoot.querySelector('#user-info');
         this.navLinksContainer = this.shadowRoot.querySelector('.nav-links');
+        this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
+
+        // Modal elements
+        this.welcomeModal = this.shadowRoot.querySelector('#welcome-modal');
+        this.welcomeForm = this.shadowRoot.querySelector('#welcome-form');
+        this.closeWelcomeModalBtn = this.shadowRoot.querySelector('#welcome-modal .close-button');
 
         this.allTeams = {};
         this.config = {};
@@ -87,6 +118,11 @@ class AppNavbar extends HTMLElement {
                 this.dispatchEvent(new CustomEvent('login-request', { bubbles: true, composed: true }));
             }
         });
+
+        this.changeNameBtn.addEventListener('click', () => this.showWelcomeModal(true));
+        this.closeWelcomeModalBtn.addEventListener('click', () => this.welcomeModal.style.display = 'none');
+        this.welcomeForm.addEventListener('submit', (e) => this.handleWelcomeFormSubmit(e));
+
 
         // Listen to data
         this.unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
@@ -105,6 +141,10 @@ class AppNavbar extends HTMLElement {
         // Listen to auth changes
         initAuth(newAuthState => {
             this.authState = newAuthState;
+            // Check if we should show the welcome modal on first login
+            if (this.authState.isLoggedIn && this.authState.profile && this.config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
+                this.showWelcomeModal();
+            }
             this.render();
         });
     }
@@ -123,7 +163,11 @@ class AppNavbar extends HTMLElement {
     renderAuthInfo() {
         if (this.authState.isLoggedIn) {
             this.authButton.textContent = 'Logout';
+
+            // Show/hide change name button
             const profile = this.authState.profile || {};
+            const canChangeName = !profile.isAnonymous && !profile.isNameLocked;
+            this.changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
             const roles = [];
             if (profile.isAdmin) roles.push('Admin');
             else if (profile.isEventMod) roles.push('Event Mod');
@@ -134,6 +178,7 @@ class AppNavbar extends HTMLElement {
             this.userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
         } else {
             this.authButton.textContent = 'Login';
+            this.changeNameBtn.style.display = 'none';
             this.userInfo.textContent = '';
         }
     }
@@ -152,6 +197,45 @@ class AppNavbar extends HTMLElement {
             .filter(link => link.show)
             .map(link => `<a href="${link.href}" class="${link.href.includes(currentPage) ? 'active' : ''}">${link.text}</a>`)
             .join('');
+    }
+
+    showWelcomeModal(isUpdate = false) {
+        const messageEl = this.shadowRoot.getElementById('welcome-modal-message');
+        const nameInput = this.shadowRoot.getElementById('welcome-display-name');
+        const titleEl = this.welcomeModal.querySelector('h2');
+
+        const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
+
+        if (isUpdate) {
+            titleEl.textContent = 'Update Display Name';
+        } else {
+            titleEl.textContent = 'Welcome!';
+        }
+        messageEl.textContent = (this.config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
+        nameInput.value = this.authState.profile.displayName || '';
+        this.welcomeModal.style.display = 'flex';
+    }
+
+    async handleWelcomeFormSubmit(event) {
+        event.preventDefault();
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        const newName = this.shadowRoot.getElementById('welcome-display-name').value.trim();
+        if (!newName || !this.authState.isLoggedIn) return;
+
+        try {
+            await updateUserDisplayName(newName);
+            this.welcomeModal.style.display = 'none';
+            // Dispatch a success message event for the page to handle
+            this.dispatchEvent(new CustomEvent('show-message', {
+                bubbles: true, composed: true, detail: { message: 'Display name updated!', isError: false }
+            }));
+        } catch (error) {
+            console.error('Display name update error:', error);
+            alert('Failed to update display name: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+        }
     }
 }
 

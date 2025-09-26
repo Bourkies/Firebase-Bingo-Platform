@@ -1,6 +1,6 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
-import { initAuth, signInWithGoogle, signInAnonymously, getAuthState, updateUserDisplayName } from '../core/auth.js';
+import { initAuth, signInWithGoogle, signInAnonymously, getAuthState } from '../core/auth.js';
 import { createTileElement } from '../components/TileRenderer.js';
 import { calculateScoreboardData, renderScoreboard as renderScoreboardComponent } from '../components/Scoreboard.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from '../core/utils.js';
@@ -25,17 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.body.addEventListener('login-request', openLoginModal);
+    // Listen for messages from child components like the navbar
+    document.body.addEventListener('show-message', (e) => showMessage(e.detail.message, e.detail.isError));
+
     // Initialize data listeners first, then auth. This prevents race conditions.
     initializeApp();
     document.getElementById('login-google').addEventListener('click', () => { signInWithGoogle(); closeLoginModal(); });
     document.getElementById('login-anon').addEventListener('click', () => { signInAnonymously(); closeLoginModal(); });
-    document.getElementById('welcome-form').addEventListener('submit', handleWelcomeFormSubmit);
     initAuth(onAuthStateChanged);
 });
 
 async function onAuthStateChanged(newAuthState) {
     authState = newAuthState;
-    updatePageForAuth();
 
     // When auth state changes, team visibility might change (especially for private boards).
     // We need to re-evaluate and re-populate the team selector.
@@ -52,11 +53,6 @@ async function onAuthStateChanged(newAuthState) {
 
     // This is the key fix: After auth is confirmed, explicitly trigger a team change and board render.
     handleTeamChange();
-    // NEW: Welcome modal logic
-    // Check if user is logged in, config allows prompting, and user hasn't set their name yet.
-    if (authState.isLoggedIn && authState.profile && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
-        showWelcomeModal();
-    }
 }
 
 // This function sets up the listener for tiles, respecting censorship rules.
@@ -179,21 +175,6 @@ function initializeApp() {
         renderBoard(); // Re-render board with new styles
         if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
     }, (error) => { console.error("Error loading styles:", error); });
-}
-
-function updatePageForAuth() {
-    // This button is part of the Navbar component, so we must wait for it to be rendered.
-    const changeNameBtn = document.getElementById('change-name-btn');
-    if (changeNameBtn) {
-        if (authState.isLoggedIn) {
-            const profile = authState.profile || {};
-            const canChangeName = !profile.isNameLocked;
-            changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
-            changeNameBtn.onclick = () => showWelcomeModal(true); // Attach listener here
-        } else {
-            changeNameBtn.style.display = 'none';
-        }
-    }
 }
 
 // Listener for users collection, must be called after auth state is known
@@ -824,44 +805,6 @@ async function handleFormSubmit(event) {
       submitButton.disabled = false;
       hideGlobalLoader();
   }
-}
-
-// --- NEW: Welcome Modal Functions ---
-function showWelcomeModal(isUpdate = false) {
-    const modal = document.getElementById('welcome-modal');
-    const messageEl = document.getElementById('welcome-modal-message');
-    const nameInput = document.getElementById('welcome-display-name');
-    const titleEl = modal.querySelector('h2');
-
-    const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
-
-    if (isUpdate) {
-        titleEl.textContent = 'Update Display Name';
-    } else {
-        titleEl.textContent = 'Welcome!';
-    }
-    messageEl.textContent = (config.welcomeMessage || defaultMessage).replace('{displayName}', authState.profile.displayName || 'User');
-    nameInput.value = authState.profile.displayName || '';
-    modal.style.display = 'flex';
-}
-
-async function handleWelcomeFormSubmit(event) {
-    event.preventDefault();
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    const newName = document.getElementById('welcome-display-name').value.trim();
-    if (!newName || !authState.isLoggedIn) return;
-
-    try {
-        await updateUserDisplayName(newName);
-        document.getElementById('welcome-modal').style.display = 'none';
-        showMessage('Display name updated!', false);
-    } catch (error) {
-        showMessage('Failed to update display name: ' + error.message, true);
-        console.error('Display name update error:', error);
-    } finally {
-        submitBtn.disabled = false;
-    }
 }
 
 // --- NEW: Login Modal Functions ---
