@@ -1,5 +1,6 @@
 /* globalconfigEditor.js */
 import { createFormFields } from '../../components/FormBuilder.js';
+import { createTileElement } from '../../components/TileRenderer.js';
 import * as configManager from '../../core/data/configManager.js';
 import * as teamManager from '../../core/data/teamManager.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
@@ -136,6 +137,27 @@ export function renderGlobalConfig(mainController) {
         statusFieldset.className = 'stamp-fieldset';
         statusFieldset.append(Object.assign(document.createElement('legend'), { textContent: status }));
         const statusContent = document.createElement('div');
+
+        // NEW: Create and add a preview tile for this status
+        const previewContainer = document.createElement('div');
+        previewContainer.style.cssText = 'display: flex; justify-content: center; align-items: center; margin-bottom: 1rem; padding: 1rem; background-color: #1a1a1a; border-radius: 6px;';
+        const mockTile = { id: 'Preview' };
+        const tileEl = createTileElement(mockTile, status, config, allStyles, {});
+
+        // Override absolute positioning to make it fit in the form flow
+        tileEl.style.position = 'relative';
+        tileEl.style.width = '80px';
+        tileEl.style.height = '80px';
+        tileEl.style.left = 'auto';
+        tileEl.style.top = 'auto';
+        tileEl.style.cursor = 'default';
+
+        if (config.showTileNames && !tileEl.querySelector('.stamp-image')) {
+            tileEl.textContent = status;
+        }
+        previewContainer.appendChild(tileEl);
+        statusFieldset.appendChild(previewContainer);
+
         statusContent.className = 'config-grid';
         statusFieldset.appendChild(statusContent);
         createFormFields(statusContent, styleSchema, statusData, Object.keys(styleSchema), { status });
