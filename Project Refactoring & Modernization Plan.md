@@ -43,8 +43,9 @@ This is the target architecture we are working towards. It separates shared serv
 │   │
 │   ├── components/  
 │   │   ├── Navbar.js             \# Logic for the new universal navbar  
-│   │   └── TileRenderer.js       \# Shared tile rendering logic  
-│   │   └── FormBuilder.js        \# NEW: Generates forms from a schema for the setup page
+│   │   ├── Scoreboard.js         \# NEW: Centralized scoreboard calculation and rendering
+│   │   ├── TileRenderer.js       \# Shared tile rendering logic
+│   │   └── FormBuilder.js        \# NEW: Generates forms from a schema for the setup page  
 │   │  
 │   └── pages/  
 │       ├── indexController.js    \# Logic unique to index.html  
@@ -198,9 +199,19 @@ This is the target architecture we are working towards. It separates shared serv
 
 ## **Phase 4: Page-by-Page Refactoring**
 
-**Objective:** Systematically refactor each HTML page to use the new modular architecture. This process is repeatable for every page.
+#### **Action 3.3: Create Scoreboard.js**
 
-#### **The 4-Step Refactoring Process (for each page):**
+*   **Objective:** Centralize scoreboard calculation and rendering logic to eliminate bugs and ensure consistency across the index and overview pages.
+*   **Files Involved:** `js/components/Scoreboard.js` (new), `indexController.js`, `overviewController.js`
+*   **Task:**
+    1.  Create the `Scoreboard.js` module.
+    2.  Export a function `calculateScoreboardData(...)` that takes all necessary data (submissions, tiles, teams, config) and returns a sorted array of team scores. This becomes the single source of truth for score calculation.
+    3.  Export a function `renderScoreboard(...)` to render the scoreboard UI, handling different visibility rules (e.g., public vs. private boards, team-specific views).
+    4.  Refactor `indexController.js` and `overviewController.js` to import and use these new functions, removing their duplicated local logic.
+
+## **Phase 4: Page-by-Page Refactoring**
+
+**Objective:** Systematically refactor each HTML page to use the new modular architecture. This process is repeatable for every page.
 
 1. **Create Controller:** In js/pages/, create a new controller file (e.g., indexController.js).  
 2. **Migrate Logic:** Move the entire \<script type="module"\> block from the HTML file into its new controller file.  
@@ -216,6 +227,8 @@ This is the target architecture we are working towards. It separates shared serv
     *   **Initialize Components**: This step is now simplified. The navbar will initialize itself. The controller's job is to initialize its own page-specific logic.
     *   **Replace Direct DB Calls**: Replace all `fb.getDoc`, `fb.onSnapshot`, etc., calls with functions imported from your new data manager modules in `js/core/data/`.
     *   **Attach Event Listeners**: For every `onclick` you removed from the HTML, add a corresponding `document.getElementById('...').addEventListener('click', ...)` in your controller.
+
+#### **The 4-Step Refactoring Process (for each page):**
 
 #### **Action 4.1: Refactor index.html (Player View)**
 * **Files Involved:** index.html, js/pages/indexController.js (new)  
@@ -277,6 +290,7 @@ This is the target architecture we are working towards. It separates shared serv
 
 ### Phase 3: Reusable Tile Renderer
 - [x] **3.1:** Create `js/components/TileRenderer.js` and centralize tile creation logic.
+- [x] **3.2:** Create `js/components/Scoreboard.js` to centralize scoreboard logic.
 - [x] **3.2:** Create `js/components/FormBuilder.js` to simplify `setup.html` logic.
 
 ### Phase 4: Page Controllers
