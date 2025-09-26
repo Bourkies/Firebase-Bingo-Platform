@@ -15,7 +15,7 @@ const TILE_FIELD_DESCRIPTIONS = {
     'Description': 'A longer description of the tile task, shown in the submission modal.',
     'Prerequisites': 'The requirements to unlock this tile. Use the UI below to define AND/OR logic. Raw format: a comma-separated list for a single AND group (e.g., "A1,A2"), or a JSON array for complex OR groups (e.g., [["A1","A2"],["B1"]]).',
     'Points': 'The number of points this tile is worth when completed.',
-    'Rotation': 'The rotation of the tile on the board (e.g., "15deg").',
+    'Rotation': 'The rotation of the tile on the board in degrees.',
     'Top (%)': 'The position of the tile\'s top edge as a percentage of the board\'s height.',
     'Left (%)': 'The position of the tile\'s left edge as a percentage of the board\'s width.',
     'Width (%)': 'The width of the tile as a percentage of the board\'s width.',
@@ -203,7 +203,10 @@ function handleEditorInputChange(event, mainController) {
         const tile = tilesData[lastSelectedTileIndex];
         if (!tile) return;
 
-        const newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
+        let newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
+        // Append unit if the input element has a unit defined in its dataset
+        if (input.dataset.unit) newValue += input.dataset.unit;
+
         tile[key] = newValue;
 
         mainController.debouncedSaveTile(tile.docId, { [key]: newValue }, mainController);

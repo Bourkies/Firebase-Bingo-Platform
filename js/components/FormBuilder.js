@@ -116,30 +116,44 @@ function createField(key, schema, value, options = {}) {
             break;
         }
         case 'range': {
-            const val = value ?? schema.min;
+            const val = parseFloat(value) || schema.min;
             const compoundDiv = document.createElement('div');
             compoundDiv.className = 'form-field-compound';
 
             const rangeInput = document.createElement('input');
             rangeInput.type = 'range';
             rangeInput.className = 'config-input';
+            // The range input will trigger the save, so it gets the data attributes.
             rangeInput.dataset.key = key;
             if (status) rangeInput.dataset.status = status;
+            if (schema.unit) rangeInput.dataset.unit = schema.unit;
             rangeInput.value = val;
             rangeInput.min = schema.min;
             rangeInput.max = schema.max;
             rangeInput.step = schema.step;
 
-            const valueSpan = document.createElement('span');
-            valueSpan.style.width = '40px';
-            valueSpan.style.textAlign = 'left';
-            valueSpan.textContent = val;
+            const numberInput = document.createElement('input');
+            numberInput.type = 'number';
+            numberInput.className = 'config-input'; // Use same class for styling
+            numberInput.style.width = '70px'; // Give it a fixed width
+            numberInput.value = val;
+            numberInput.min = schema.min;
+            numberInput.max = schema.max;
+            numberInput.step = schema.step;
 
+            // Sync slider to number input
             rangeInput.addEventListener('input', () => {
-                valueSpan.textContent = rangeInput.value;
+                numberInput.value = rangeInput.value;
             });
 
-            compoundDiv.append(rangeInput, valueSpan);
+            // Sync number input to slider and trigger the main form input event
+            numberInput.addEventListener('input', () => {
+                rangeInput.value = numberInput.value;
+                // Manually dispatch an 'input' event on the slider so the form's main listener picks it up.
+                rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            compoundDiv.append(rangeInput, numberInput);
             fieldContainer.appendChild(compoundDiv);
             break;
         }
