@@ -80,8 +80,8 @@ export function createEditorForm(tileData, mainController) {
     const prereqFieldset = createPrereqFieldset(mainController);
 
     detailsForm.appendChild(overridesFieldset);
-    detailsForm.appendChild(prereqFieldset);
 
+    detailsForm.insertBefore(prereqFieldset, overridesFieldset);
     // Attach listeners to the newly created elements inside the overrides fieldset
     const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
     if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', mainController));
@@ -119,13 +119,6 @@ export function updateEditorPanelContent(index, mainController) {
     const deleteTileBtn = document.getElementById('delete-tile-btn');
     if (!deleteTileBtn || !mainController) return; // Guard against element not existing or controller not ready
 
-    // --- NEW: Preserve fieldset open/closed state ---
-    const prereqFieldset = document.getElementById('prereq-editor-container');
-    const overridesFieldset = document.getElementById('overrides-editor-container');
-    const wasPrereqMinimized = prereqFieldset ? prereqFieldset.classList.contains('minimized') : true;
-    const wasOverridesMinimized = overridesFieldset ? overridesFieldset.classList.contains('minimized') : true;
-    // --- END NEW ---
-
     if (index === null || !tilesData[index]) {
         deleteTileBtn.disabled = true;
         createEditorForm(null, mainController);
@@ -161,19 +154,6 @@ export function updateEditorPanelContent(index, mainController) {
     if (selector) {
         selector.value = index !== null ? index : '';
     }
-
-    // --- NEW: Restore fieldset state ---
-    const newPrereqFieldset = document.getElementById('prereq-editor-container');
-    const newOverridesFieldset = document.getElementById('overrides-editor-container');
-    if (newPrereqFieldset) {
-        newPrereqFieldset.classList.toggle('minimized', wasPrereqMinimized);
-        newPrereqFieldset.querySelector('.legend-toggle').textContent = wasPrereqMinimized ? '[+]' : '[-]';
-    }
-    if (newOverridesFieldset) {
-        newOverridesFieldset.classList.toggle('minimized', wasOverridesMinimized);
-        newOverridesFieldset.querySelector('.legend-toggle').textContent = wasOverridesMinimized ? '[+]' : '[-]';
-    }
-    // --- END NEW ---
 
     validateTileId();
 }

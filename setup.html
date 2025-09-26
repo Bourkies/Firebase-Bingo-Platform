@@ -515,13 +515,26 @@
         }
         #prereq-ui-container {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 10px;
+            width: 100%;
         }
         #prereq-editor-container {
             display: flex;
             flex-direction: column;
             gap: 10px;
+        }
+        #prereq-editor-container .fieldset-content {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        #add-prereq-group-btn {
+            margin-top: 0;
+            /* Revert to standard button size */
+            align-self: flex-start;
         }
         .prereq-and-input {
             flex-grow: 1;

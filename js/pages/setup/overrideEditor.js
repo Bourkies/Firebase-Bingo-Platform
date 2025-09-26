@@ -303,18 +303,20 @@ async function handleOverrideImageUpload(fileInput, textInput) {
 export function createOverrideFieldset(mainController) {
     console.log("overrideEditor: createOverrideFieldset called.");
     const fieldset = Object.assign(document.createElement('fieldset'), {
-        className: 'overrides-fieldset minimized',
+        className: 'overrides-fieldset',
         id: 'overrides-editor-container',
         style: 'grid-column: 1 / -1;',
     });
-    const legend = Object.assign(document.createElement('legend'), {
-        innerHTML: `<span class="legend-toggle">[+]</span>Overrides (Advanced)`,
-        style: 'cursor: pointer;',
-        onclick: () => {
-            fieldset.classList.toggle('minimized');
-            legend.querySelector('.legend-toggle').textContent = fieldset.classList.contains('minimized') ? '[+]' : '[-]';
-        }
+
+    const legend = document.createElement('legend');
+    const legendText = Object.assign(document.createElement('span'), { textContent: 'Overrides (Advanced)' });
+    const tooltip = Object.assign(document.createElement('span'), {
+        className: 'tooltip-icon',
+        textContent: '(?)',
+        title: `Apply unique styles to this specific tile that override the global status styles.\n- Select a Status (e.g., 'Verified').\n- Select a Property (e.g., 'color').\n- Set the desired value.\nThis tile will now use your new color when it is 'Verified', instead of the global 'Verified' color.`
     });
+    legend.append(legendText, tooltip);
+
     const content = Object.assign(document.createElement('div'), { className: 'fieldset-content' });
     content.innerHTML = `
         <div id="overrides-container" style="grid-column: 1 / -1;"></div>

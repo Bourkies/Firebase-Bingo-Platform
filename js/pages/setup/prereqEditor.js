@@ -65,18 +65,11 @@ function addPrereqOrGroup(andConditions = [], mainController) {
         console.log("prereqEditor: Removing OR group.");
         groupDiv.remove();
         updatePrereqJson(mainController);
-        prereqUiContainer.querySelectorAll('.prereq-or-label').forEach((label, index) => {
-            if (index > 0) label.style.display = 'block'; else label.style.display = 'none';
-        });
     };
 
-    const label = document.createElement('span');
-    label.textContent = 'OR';
-    label.className = 'prereq-or-label';
-    if (prereqUiContainer.children.length === 0) label.style.display = 'none';
-
-    groupDiv.append(andInput, validationSpan, removeBtn); // Removed label for now, it was causing layout issues.
-    prereqUiContainer.appendChild(groupDiv);
+    // The "OR" text is now removed for a cleaner, wrapping layout.
+    prereqUiContainer.append(groupDiv);
+    groupDiv.append(andInput, validationSpan, removeBtn);
 }
 
 function updatePrereqJson(mainController) {
@@ -193,29 +186,35 @@ export function renderPrereqLines(prereqVisMode) {
 export function createPrereqFieldset(mainController) {
     console.log("prereqEditor: createPrereqFieldset called.");
     const prereqFieldset = Object.assign(document.createElement('fieldset'), {
-        className: 'overrides-fieldset minimized',
+        className: 'overrides-fieldset',
         id: 'prereq-editor-container',
         style: 'grid-column: 1 / -1;',
     });
-    const prereqLegend = Object.assign(document.createElement('legend'), {
-        innerHTML: `<span class="legend-toggle">[+]</span>Prerequisites (Advanced)`,
-        style: 'cursor: pointer;',
-        onclick: () => {
-            prereqFieldset.classList.toggle('minimized');
-            prereqLegend.querySelector('.legend-toggle').textContent = prereqFieldset.classList.contains('minimized') ? '[+]' : '[-]';
-        }
+
+    const prereqLegend = document.createElement('legend');
+    const legendText = Object.assign(document.createElement('span'), { textContent: 'Prerequisites (Advanced)' });
+    const tooltip = Object.assign(document.createElement('span'), {
+        className: 'tooltip-icon',
+        textContent: '(?)',
+        title: `Define conditions to unlock this tile.\n- Each box is an "AND" group (e.g., "A1, A2" means A1 AND A2 are required).\n- Add more boxes with the "+" button to create "OR" conditions (e.g., Box 1 OR Box 2).`
     });
+    prereqLegend.append(legendText, tooltip);
+
     const prereqContent = Object.assign(document.createElement('div'), { className: 'fieldset-content' });
-    const prereqUiContainer = Object.assign(document.createElement('div'), { id: 'prereq-ui-container' });
     const addGroupBtn = Object.assign(document.createElement('button'), {
         type: 'button',
+        id: 'add-prereq-group-btn',
         textContent: '+ Add OR Group',
+        title: 'Add a new "OR" condition group. Each box is an "AND" group.',
         onclick: () => { // Pass mainController to the functions
             addPrereqOrGroup([], mainController);
             updatePrereqJson(mainController);
         }
     });
-    prereqContent.append(prereqUiContainer, addGroupBtn);
+
+    const prereqUiContainer = Object.assign(document.createElement('div'), { id: 'prereq-ui-container' });
+
+    prereqContent.append(addGroupBtn, prereqUiContainer);
     prereqFieldset.append(prereqLegend, prereqContent);
     return prereqFieldset;
 }
