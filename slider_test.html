@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slider Debugging Test Page</title>
+    <style>
+        :root { --accent-color: #00aaff; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            display: flex;
+            gap: 2rem;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .main-content { flex: 2; display: flex; flex-direction: column; gap: 1.5rem; }
+        .db-sidebar { flex: 1; background-color: #222; padding: 1rem; border-radius: 8px; }
+        h1, h2 { color: var(--accent-color); border-bottom: 1px solid #444; padding-bottom: 0.5rem; }
+        fieldset { border: 1px solid #444; border-radius: 4px; padding: 10px 15px; }
+        legend { color: var(--accent-color); }
+        .form-field { display: flex; flex-direction: column; margin-bottom: 1rem; }
+        .form-field label { margin-bottom: 5px; font-size: 14px; color: #aaa; }
+        .form-field-compound { display: flex; align-items: center; gap: 10px; }
+        .form-field-compound input[type="range"] { flex-grow: 1; }
+        .form-field-compound input[type="number"] { width: 70px; }
+        .form-field-compound input, .form-field-compound select {
+            padding: 8px; box-sizing: border-box; background-color: #1a1a1a;
+            color: #f0f0f0; border: 1px solid #444; border-radius: 4px;
+        }
+        .override-item { display: grid; grid-template-columns: 150px 150px 1fr 40px; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .remove-override-btn { background-color: #c0392b; padding: 8px; border: none; color: white; border-radius: 4px; cursor: pointer; }
+        #db-display { background-color: #111; border: 1px solid #444; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
+        button { background-color: #00aaff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .tooltip-icon { margin-left: 8px; color: #888; cursor: help; font-size: 0.8em; border-bottom: 1px dotted #888; }
+    </style>
+</head>
+<body>
+
+<div class="main-content">
+    <h1>Slider Bug Simulation</h1>
+    <p>This page simulates the creation of sliders from your project to isolate the "integer jump" bug. Edit values using the sliders and see the "Simulated DB" update. Then, click "Sync from DB" to simulate a re-render and observe the bug.</p>
+
+    <button id="sync-from-db-btn">Sync from DB (Simulate Re-render)</button>
+
+    <fieldset>
+        <legend>Tile Status Styles (from FormBuilder.js)</legend>
+        <div id="global-styles-container"></div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Edit Tile Details (from FormBuilder.js)</legend>
+        <div id="tile-editor-container"></div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Edit Tile Details - Overrides (from overrideEditor.js)</legend>
+        <div id="overrides-container"></div>
+        <button id="add-override-btn">+ Add Override</button>
+    </fieldset>
+</div>
+
+<div class="db-sidebar">
+    <h2>Simulated DB</h2>
+    <pre id="db-display"></pre>
+</div>
+
+<script type="module">
+    // ===================================================================================
+    // SECTION 1: SIMULATED DATABASE & SCHEMAS
+    // This section mimics your Firestore data and schemas locally.
+    // ===================================================================================
+
+    let simulatedDB = {
+        styles: {
+            Verified: {
+                opacity: 0.75,
+                stampScale: 1.25,
+                stampRotation: '45deg'
+            }
+        },
+        tile: {
+            'Left (%)': 10.5,
+            'Top (%)': 20.25,
+            'Width (%)': 15.75,
+            'Height (%)': 15.75,
+            'Rotation': '15deg',
+            'Overrides (JSON)': JSON.stringify({
+                "Unlocked": {
+                    "opacity": 0.5,
+                    "stampScale": 0.9,
+                    "stampRotation": "345deg"
+                }
+            }, null, 2)
+        }
+    };
+
+    const styleSchema = {
+        opacity: { label: 'Tile fill opacity', type: 'range', min: 0, max: 1, step: 0.01 },
+        stampScale: { label: `Stamp Scale`, type: 'range', min: 0, max: 3, step: 0.05 },
+        stampRotation: { label: `Stamp Rotation`, type: 'range', min: 0, max: 360, step: 1, unit: 'deg' },
+    };
+
+    const tileEditorSchema = {
+        'Left (%)': { label: 'Left (%)', type: 'range', min: 0, max: 100, step: 0.01 },
+        'Top (%)': { label: 'Top (%)', type: 'range', min: 0, max: 100, step: 0.01 },
+        'Width (%)': { label: 'Width (%)', type: 'range', min: 0, max: 100, step: 0.01 },
+        'Height (%)': { label: 'Height (%)', type: 'range', min: 0, max: 100, step: 0.01 },
+        Rotation: { label: 'Rotation', type: 'range', min: 0, max: 360, step: 1, unit: 'deg' },
+    };
+
+    const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+    const VALID_OVERRIDE_PROPERTIES = ['opacity', 'stampScale', 'stampRotation', 'shape', 'color', 'borderWidth', 'borderColor', 'hoverBorderWidth', 'hoverBorderColor', 'useStampByDefault', 'stampImageUrl', 'stampPosition'].sort();
+
+    // ===================================================================================
+    // SECTION 2: LOGIC FROM /js/components/FormBuilder.js
+    // These functions are responsible for creating most of the sliders.
+    // ===================================================================================
+
+    function createTooltip(description) {
+        if (!description) return null;
+        const tooltipSpan = document.createElement('span');
+        tooltipSpan.className = 'tooltip-icon';
+        tooltipSpan.textContent = '(?)';
+        tooltipSpan.title = description;
+        return tooltipSpan;
+    }
+
+    function createField(key, schema, value, options = {}) {
+        const fieldContainer = document.createElement('div');
+        fieldContainer.className = 'form-field';
+        fieldContainer.dataset.key = key;
+
+        const label = document.createElement('label');
+        label.textContent = schema.label;
+        const tooltip = createTooltip(schema.description);
+        if (tooltip) label.appendChild(tooltip);
+        fieldContainer.appendChild(label);
+
+        const { status } = options;
+
+        if (schema.type === 'range') {
+            const val = parseFloat(value) || schema.min;
+            const compoundDiv = document.createElement('div');
+            compoundDiv.className = 'form-field-compound';
+
+            const rangeInput = document.createElement('input');
+            rangeInput.type = 'range';
+            rangeInput.dataset.key = key;
+            if (status) rangeInput.dataset.status = status;
+            if (schema.unit) rangeInput.dataset.unit = schema.unit;
+            rangeInput.value = val;
+            rangeInput.min = schema.min;
+            rangeInput.max = schema.max;
+            rangeInput.step = schema.step;
+
+            const numberInput = document.createElement('input');
+            numberInput.type = 'number';
+            numberInput.value = val;
+            numberInput.min = schema.min;
+            numberInput.max = schema.max;
+            numberInput.step = schema.step;
+
+            rangeInput.addEventListener('input', () => {
+                numberInput.value = rangeInput.value;
+            });
+
+            numberInput.addEventListener('input', () => {
+                rangeInput.value = numberInput.value;
+                rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            // SIMULATED DB SYNC (UI -> DB)
+            rangeInput.addEventListener('input', (e) => {
+                let newValue = e.target.value;
+                if (e.target.dataset.unit) newValue += e.target.dataset.unit;
+
+                if (status) { // It's a style property
+                    simulatedDB.styles[status][key] = newValue;
+                } else { // It's a tile property
+                    simulatedDB.tile[key] = newValue;
+                }
+                updateDbDisplay();
+            });
+
+            compoundDiv.append(rangeInput, numberInput);
+            fieldContainer.appendChild(compoundDiv);
+        }
+        return fieldContainer;
+    }
+
+    function createFormFields(container, schema, data, properties, options = {}) {
+        properties.forEach(prop => {
+            const propSchema = schema[prop];
+            if (!propSchema) return;
+            const value = data[prop] ?? propSchema.min;
+            const field = createField(prop, propSchema, value, options);
+            container.appendChild(field);
+        });
+    }
+
+    // ===================================================================================
+    // SECTION 3: LOGIC FROM /js/pages/setup/overrideEditor.js
+    // These functions create the dynamically-added override sliders.
+    // ===================================================================================
+
+    function addOverrideRow(status = '', key = '', value = '') {
+        const container = document.getElementById('overrides-container');
+        const item = document.createElement('div');
+        item.className = 'override-item';
+
+        const statusSelect = document.createElement('select');
+        statusSelect.className = 'override-status-select';
+        statusSelect.innerHTML = `<option value="">Select Status</option>` + STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('');
+
+        const keySelect = document.createElement('select');
+        keySelect.className = 'override-key';
+        keySelect.innerHTML = `<option value="">Select Property</option>` + VALID_OVERRIDE_PROPERTIES.map(p => `<option value="${p}" ${p === key ? 'selected' : ''}>${p}</option>`).join('');
+
+        const valueContainer = document.createElement('div');
+        valueContainer.className = 'override-value-container';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'remove-override-btn';
+        removeBtn.textContent = '−';
+
+        item.append(statusSelect, keySelect, valueContainer, removeBtn);
+        container.appendChild(item);
+
+        const updateCallback = () => updateOverridesJson();
+        statusSelect.addEventListener('change', updateCallback);
+        keySelect.addEventListener('change', () => {
+            populateValueContainer(valueContainer, keySelect.value, '');
+            updateCallback();
+        });
+        valueContainer.addEventListener('input', updateCallback);
+        removeBtn.addEventListener('click', () => {
+            item.remove();
+            updateCallback();
+        });
+
+        populateValueContainer(valueContainer, key, value);
+    }
+
+    function populateValueContainer(container, propertyName, value) {
+        container.innerHTML = '';
+        const isOpacity = propertyName === 'opacity';
+        const isScale = propertyName === 'stampScale';
+        const isRotation = propertyName === 'stampRotation';
+
+        if (isOpacity || isScale || isRotation) {
+            let schema;
+            if (isOpacity) schema = { min: 0, max: 1, step: 0.01 };
+            else if (isScale) schema = { min: 0, max: 3, step: 0.05 };
+            else schema = { min: 0, max: 360, step: 1, unit: 'deg' };
+
+            const val = parseFloat(value) || schema.min;
+
+            const compoundDiv = document.createElement('div');
+            compoundDiv.className = 'form-field-compound';
+
+            const rangeInput = document.createElement('input');
+            rangeInput.type = 'range';
+            rangeInput.className = 'override-value';
+            rangeInput.value = val;
+            if (schema.unit) rangeInput.dataset.unit = schema.unit;
+            rangeInput.min = schema.min; rangeInput.max = schema.max; rangeInput.step = schema.step;
+
+            const numberInput = document.createElement('input');
+            numberInput.type = 'number';
+            numberInput.value = val;
+            numberInput.min = schema.min; numberInput.max = schema.max; numberInput.step = schema.step;
+
+            rangeInput.addEventListener('input', () => numberInput.value = rangeInput.value);
+            numberInput.addEventListener('input', () => {
+                rangeInput.value = numberInput.value;
+                rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            compoundDiv.append(rangeInput, numberInput);
+            container.appendChild(compoundDiv);
+        } else {
+            container.innerHTML = `<input type="text" class="override-value" value="${value || ''}">`;
+        }
+    }
+
+    function updateOverridesJson() {
+        const overrides = {};
+        document.querySelectorAll('#overrides-container .override-item').forEach(item => {
+            const status = item.querySelector('.override-status-select').value;
+            const key = item.querySelector('.override-key').value;
+            const valueEl = item.querySelector('.override-value');
+            if (!status || !key || !valueEl) return;
+
+            let value = valueEl.value;
+            if (valueEl.dataset.unit) value += valueEl.dataset.unit;
+
+            if (!overrides[status]) overrides[status] = {};
+            overrides[status][key] = value;
+        });
+        const newJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
+        simulatedDB.tile['Overrides (JSON)'] = newJson;
+        updateDbDisplay();
+    }
+
+    // ===================================================================================
+    // SECTION 4: TEST PAGE INITIALIZATION & CONTROLS
+    // ===================================================================================
+
+    const globalStylesContainer = document.getElementById('global-styles-container');
+    const tileEditorContainer = document.getElementById('tile-editor-container');
+    const dbDisplay = document.getElementById('db-display');
+
+    function renderAllForms() {
+        // Clear existing forms
+        globalStylesContainer.innerHTML = '';
+        tileEditorContainer.innerHTML = '';
+        document.getElementById('overrides-container').innerHTML = '';
+
+        // Render Global Style Sliders
+        const statusData = simulatedDB.styles.Verified || {};
+        createFormFields(globalStylesContainer, styleSchema, statusData, Object.keys(styleSchema), { status: 'Verified' });
+
+        // Render Tile Editor Sliders
+        const tileData = simulatedDB.tile || {};
+        createFormFields(tileEditorContainer, tileEditorSchema, tileData, Object.keys(tileEditorSchema));
+
+        // Render Override Sliders
+        let overrides = {};
+        try {
+            if (simulatedDB.tile['Overrides (JSON)']) {
+                overrides = JSON.parse(simulatedDB.tile['Overrides (JSON)']);
+            }
+        } catch (e) { /* ignore */ }
+
+        for (const [status, properties] of Object.entries(overrides)) {
+            for (const [key, value] of Object.entries(properties)) {
+                addOverrideRow(status, key, value);
+            }
+        }
+    }
+
+    function updateDbDisplay() {
+        dbDisplay.textContent = JSON.stringify(simulatedDB, null, 2);
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('sync-from-db-btn').addEventListener('click', renderAllForms);
+    document.getElementById('add-override-btn').addEventListener('click', () => addOverrideRow());
+
+    // --- Initial Load ---
+    renderAllForms();
+    updateDbDisplay();
+
+</script>
+</body>
+</html>
