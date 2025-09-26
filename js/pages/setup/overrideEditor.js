@@ -184,10 +184,31 @@ function populateValueContainer(container, propertyName, value) {
                      </div>`;
     } else if (isOpacity || isScale) {
         const schema = isOpacity ? { min: 0, max: 1, step: 0.01 } : styleSchema.stampScale;
-        inputHtml = `<div class="form-field-compound">
-                        <input type="range" class="override-value" value="${value || schema.min}" min="${schema.min}" max="${schema.max}" step="${schema.step}">
-                        <span style="width: 40px; text-align: left;">${value || schema.min}</span>
-                     </div>`;
+        const val = value || schema.min;
+
+        const compoundDiv = document.createElement('div');
+        compoundDiv.className = 'form-field-compound';
+
+        const rangeInput = document.createElement('input');
+        rangeInput.type = 'range';
+        rangeInput.className = 'override-value'; // This triggers the update
+        rangeInput.value = val;
+        rangeInput.min = schema.min; rangeInput.max = schema.max; rangeInput.step = schema.step;
+
+        const numberInput = document.createElement('input');
+        numberInput.type = 'number';
+        numberInput.style.width = '70px';
+        numberInput.value = val;
+        numberInput.min = schema.min; numberInput.max = schema.max; numberInput.step = schema.step;
+
+        rangeInput.addEventListener('input', () => numberInput.value = rangeInput.value);
+        numberInput.addEventListener('input', () => {
+            rangeInput.value = numberInput.value;
+            rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        compoundDiv.append(rangeInput, numberInput);
+        container.appendChild(compoundDiv);
+        return; // Exit early as we've already appended the element
     } else if (isBoolean) {
         const isTrue = value === true || String(value).toLowerCase() === 'true';
         const isFalse = value === false || String(value).toLowerCase() === 'false';
@@ -228,13 +249,6 @@ function populateValueContainer(container, propertyName, value) {
     }
 
     container.innerHTML = inputHtml;
-
-    const rangeInput = container.querySelector('input[type="range"]');
-    if (rangeInput) {
-        rangeInput.addEventListener('input', (e) => {
-            e.target.nextElementSibling.textContent = e.target.value;
-        });
-    }
 }
 
 export function handleRawJsonOverrideChange(event, mainController) {

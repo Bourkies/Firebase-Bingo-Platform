@@ -193,11 +193,26 @@ function createField(key, schema, value, options = {}) {
             opacityInput.dataset.key = 'opacity';
             opacityInput.value = opacityVal;
             opacityInput.min = 0; opacityInput.max = 1; opacityInput.step = 0.01;
-            const opacitySpan = document.createElement('span');
-            opacitySpan.style.cssText = 'width: 40px; text-align: left; margin-left: 10px;';
-            opacitySpan.textContent = opacityVal;
-            opacityInput.addEventListener('input', () => opacitySpan.textContent = opacityInput.value);
-            opacityDiv.append(opacityInput, opacitySpan);
+
+            const opacityNumber = document.createElement('input');
+            opacityNumber.type = 'number';
+            opacityNumber.className = 'config-input';
+            opacityNumber.style.width = '70px';
+            opacityNumber.value = opacityVal;
+            opacityNumber.min = 0; opacityNumber.max = 1; opacityNumber.step = 0.01;
+
+            // Sync slider to number input
+            opacityInput.addEventListener('input', () => {
+                opacityNumber.value = opacityInput.value;
+            });
+
+            // Sync number input to slider and trigger the main form input event
+            opacityNumber.addEventListener('input', () => {
+                opacityInput.value = opacityNumber.value;
+                opacityInput.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            opacityDiv.append(opacityInput, opacityNumber);
 
             wrapper.append(colorDiv, opacityDiv);
             fieldContainer.appendChild(wrapper);
