@@ -44,13 +44,15 @@ function initializeApp() {
     const unsubs = [];
 
     unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
-        console.log("Overview: Config updated in real-time.");
-        if (!newConfig.main) {
+        console.log("Overview: Config/Styles updated in real-time. Received:", newConfig);
+        // FIX: The new configManager returns an object with `config` and `styles` properties.
+        // The old code expected a `main` property directly on the returned object.
+        if (!newConfig || !newConfig.config) {
             document.body.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error-color);">Configuration not found.</div>`;
             hideGlobalLoader();
             return;
         }
-        config = newConfig.main;
+        config = newConfig.config;
 
         if (config.enableOverviewPage !== true && !authState.isEventMod) {
             document.getElementById('page-disabled').style.display = 'block';
@@ -82,7 +84,7 @@ function initializeApp() {
         allUsers = newUsers;
         processAllData();
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, authState));
+    }, authState)); // FIX: The listenToUsers manager expects (callback, authState)
 
     const setupTilesListener = () => {
         unsubs.push(tileManager.listenToTiles(newTiles => {
@@ -90,7 +92,7 @@ function initializeApp() {
             tiles = newTiles;
             processAllData();
             if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-        }, authState, config));
+        }, authState, config, false)); // Correct call: (callback, authState, config, includeDocId)
     };
 
     const setupSubmissionsListener = () => {
@@ -99,7 +101,7 @@ function initializeApp() {
             submissions = newSubmissions;
             processAllData();
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
-        }, authState, config));
+        }, authState, config)); // FIX: The listenToSubmissions manager expects (callback, authState, config)
     };
 
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());

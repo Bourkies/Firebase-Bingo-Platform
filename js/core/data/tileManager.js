@@ -2,17 +2,14 @@ import { db, fb } from '../firebase-config.js';
 
 /**
  * Listens for real-time updates to the tiles collection.
- * @param {function} callback - The function to call with the new tiles data.
+ * @param {function(Array<object>)} callback - The function to call with the new tiles data.
  * @param {object} [authState] - Optional auth state.
  * @param {object} [config] - Optional main config object.
  * @param {boolean} [includeDocId=false] - Whether to include the Firestore document ID.
  * @returns {function} An unsubscribe function.
  */
 export function listenToTiles(callback, authState, config, includeDocId = false) {
-    // FIX: Correctly handle optional arguments.
-    // The original call from setupController was passing multiple arguments,
-    // causing the function to misinterpret them. This implementation correctly
-    // uses the arguments as intended.
+    console.log(`tileManager.listenToTiles called with:`, { authState, config, includeDocId });
 
     const isCensored = config?.censorTilesBeforeEvent === true && !authState?.isEventMod;
     const collectionName = isCensored ? 'public_tiles' : 'tiles';

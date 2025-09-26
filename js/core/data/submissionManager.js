@@ -6,10 +6,10 @@ let unsubscribeSubmissions = null;
 /**
  * Listens to submissions, filtering based on auth state and board privacy.
  * @param {object} authState - The current authentication state from auth.js.
- * @param {object} config - The main application config object.
  * @param {function} callback - Function to call with the submissions data.
+ * @param {object} config - The main application config object.
  */
-export function listenToSubmissions(authState, config, callback) {
+export function listenToSubmissions(callback, authState, config) {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
 
     let submissionsQuery;
