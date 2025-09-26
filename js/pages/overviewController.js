@@ -70,12 +70,14 @@ function initializeApp() {
         if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
     }));
 
+    // For the public overview page, we always want to fetch all users to display names in the feed.
+    // We call listenToUsers without an authState to get the default "fetch all" behavior.
     unsubs.push(teamManager.listenToTeams(newTeams => {
         console.log("Overview: Teams updated in real-time.");
         allTeams = newTeams;
         teamColorMap = generateTeamColors(Object.keys(allTeams));
         populateFeedFilter(allTeams);
-        processAllData();
+        if (initialDataLoaded.users && initialDataLoaded.tiles && initialDataLoaded.submissions) processAllData();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }));
 
@@ -83,14 +85,14 @@ function initializeApp() {
         console.log("Overview: Users updated in real-time.");
         allUsers = newUsers;
         processAllData();
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, authState)); // FIX: The listenToUsers manager expects (callback, authState)
+        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); } 
+    }));
 
     const setupTilesListener = () => {
         unsubs.push(tileManager.listenToTiles(newTiles => {
             console.log("Overview: Tiles updated in real-time.");
             tiles = newTiles;
-            processAllData();
+            if (initialDataLoaded.users && initialDataLoaded.teams && initialDataLoaded.submissions) processAllData();
             if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
         }, authState, config, false)); // Correct call: (callback, authState, config, includeDocId)
     };
@@ -99,7 +101,7 @@ function initializeApp() {
         unsubs.push(submissionManager.listenToSubmissions(newSubmissions => {
             console.log("Overview: Submissions updated in real-time.");
             submissions = newSubmissions;
-            processAllData();
+            if (initialDataLoaded.users && initialDataLoaded.teams && initialDataLoaded.tiles) processAllData();
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
         }, authState, config)); // FIX: The listenToSubmissions manager expects (callback, authState, config)
     };
@@ -108,7 +110,13 @@ function initializeApp() {
 }
 
 function processAllData() {
-    if (!config.pageTitle || tiles.length === 0 || submissions.length === 0 || Object.keys(allUsers).length === 0) return;
+    // Guard against processing until all necessary data is loaded.
+    if (
+        !config.pageTitle || 
+        tiles.length === 0 || 
+        Object.keys(allTeams).length === 0 ||
+        Object.keys(allUsers).length === 0
+    ) return;
 
     const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
     const allTeamIds = Object.keys(allTeams);
@@ -138,7 +146,7 @@ function processAllData() {
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : sub.IsComplete;
             return {
                 playerIds: sub.PlayerIDs || [],
                 additionalPlayerNames: sub.AdditionalPlayerNames || '',
@@ -155,7 +163,7 @@ function processAllData() {
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : sub.IsComplete;
             return {
                 teamId: sub.Team,
                 points: isScored ? (parseInt(tile?.Points) || 0) : 0,
@@ -224,7 +232,9 @@ function renderFeed() {
         div.className = 'feed-item';
         const teamColor = teamColorMap[item.teamId] || 'var(--accent-color)';
         div.style.borderLeftColor = teamColor;
-        const teamName = allTeams[item.teamId]?.name || item.teamId;
+        const teamName = allTeams[item.teamId]?.name || item.teamId; 
+        // Convert user IDs to names. Since allUsers is now a list from userManager, we need to find by uid.
+        const usersById = allUsers.reduce((acc, user) => { acc[user.uid] = user; return acc; }, {});
         const playerNames = (item.playerIds || []).map(uid => allUsers[uid]?.displayName || `[${uid.substring(0, 5)}]`).join(', ');
         const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
         const tileNameDisplay = item.tileName || '';
