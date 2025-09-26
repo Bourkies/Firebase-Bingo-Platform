@@ -318,9 +318,9 @@ This is the target architecture we are working towards. It separates shared serv
 ### Phase 5: Testing & Documentation
 - [x] **5.1:** Initial page testing and bug fixing.
 - [ ] **5.1:** New Feature Implementation.
-  - [ ]  **5.1.1:** Reimplement name change modal to nav bar
+  - [x]  **5.1.1:** Reimplement name change modal to nav bar
   - [ ]  **5.1.2:** Improver user/team management page
-  - [ ]  **5.1.3:**
+  - [ ]  **5.1.3:** Add team captian page - allow captian to asign users (that arent in a team) to their team
   - [ ]  **5.1.4:**
   - [ ]  **5.1.5:**
 - [ ] **5.2:** Update `TEST_PLAN.md`.
