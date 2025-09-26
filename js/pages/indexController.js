@@ -2,9 +2,10 @@ import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { initAuth, signInWithGoogle, signInAnonymously, getAuthState, updateUserDisplayName } from '../core/auth.js';
 import { createTileElement } from '../components/TileRenderer.js';
+import { calculateScoreboardData, renderScoreboard as renderScoreboardComponent } from '../components/Scoreboard.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from '../core/utils.js';
 
-let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboard = [], currentTeam = '', authState = {}, allUsers = [];
+let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [];
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -130,7 +131,7 @@ function initializeApp() {
         
         applyGlobalStyles();
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
-        populateTeamSelector(allTeams, loadFirstTeam);
+        populateTeamSelector(allTeams, loadFirstTeam); // This is correct
         if (authState.isLoggedIn || config.boardVisibility !== 'private') handleTeamChange();
 
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
@@ -218,7 +219,6 @@ function setupUsersListener() {
 
 function processAllData() {
     teamData = {};
-    const newScoreboard = [];
     const teamIds = allTeams ? Object.keys(allTeams) : [];
 
     teamIds.forEach(teamId => {
@@ -238,24 +238,8 @@ function processAllData() {
         teamData[teamId] = { tileStates };
     });
 
-    // Calculate scoreboard
-    teamIds.forEach(teamId => {
-        let score = 0;
-        let completedTiles = 0;
-        tiles.forEach(tile => {
-            const status = getTileStatus(tile, teamId);
-            const scoreOnVerified = config.scoreOnVerifiedOnly === true;
-            const isScored = scoreOnVerified ? status === 'Verified' : (status === 'Verified' || status === 'Submitted');
-
-            if (isScored) {
-                score += parseInt(tile.Points) || 0;
-                completedTiles++;
-            }
-        });
-        newScoreboard.push({ teamId: teamId, score, completedTiles });
-    });
-
-    scoreboard = newScoreboard.sort((a, b) => b.score - a.score);
+    // NEW: Use the centralized scoreboard calculation function
+    scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
 }
 
 function applyGlobalStyles() {
@@ -569,51 +553,9 @@ function renderColorKey() {
 }
 
 function renderScoreboard() {
+    // NEW: Use the centralized scoreboard rendering component
     const container = document.getElementById('scoreboard-container');
-    if (!config || config.showScoreboard !== true) {
-        container.style.display = 'none'; return;
-    }
-    container.style.display = 'flex';
-    container.innerHTML = '<h2>Scoreboard</h2>';
-
-    let dataToRender = scoreboard;
-    // FIX: On a private board, the team to display is from the auth profile, not the dropdown.
-    const isPrivate = config.boardVisibility === 'private';
-    const teamToDisplay = isPrivate ? authState.profile?.team : currentTeam;
-
-    // Filter scoreboard data for private boards
-    if (isPrivate) {
-        dataToRender = teamToDisplay ? scoreboard.filter(item => item.teamId === teamToDisplay) : [];
-    }
-
-    if (!teamToDisplay && !isPrivate) {
-        dataToRender = []; // On a public board, if no team is selected, show no scores.
-    }
-
-    if (dataToRender.length === 0) {
-        const noScoreItem = document.createElement('div');
-        noScoreItem.textContent = 'No scores to display.';
-        noScoreItem.style.textAlign = 'center';
-        noScoreItem.style.color = '#888';
-        container.appendChild(noScoreItem);
-    } else {
-        dataToRender.forEach((team) => {
-            const item = document.createElement('div');
-            item.className = 'scoreboard-item';
-            const teamName = (allTeams && allTeams[team.teamId]) ? allTeams[team.teamId].name : team.teamId;
-            if (isPrivate) {
-                // For private boards, hide rank and adjust grid
-                item.style.gridTemplateColumns = '1fr 60px';
-                item.innerHTML = `<div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
-            } else {
-                // For public boards, show rank as normal
-                const originalIndex = scoreboard.findIndex(item => item.teamId === team.teamId);
-                const rank = originalIndex !== -1 ? originalIndex + 1 : '-';
-                item.innerHTML = `<div class="scoreboard-rank">${rank}.</div><div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
-            }
-            container.appendChild(item);
-        });
-    }
+    renderScoreboardComponent(container, scoreboardData, allTeams, config, authState, currentTeam);
 }
 
 // --- NEW: Dynamic Evidence Field Functions ---

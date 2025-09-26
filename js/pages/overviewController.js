@@ -8,6 +8,7 @@ import * as teamManager from '../core/data/teamManager.js';
 import * as tileManager from '../core/data/tileManager.js';
 import * as submissionManager from '../core/data/submissionManager.js';
 import * as userManager from '../core/data/userManager.js';
+import { calculateScoreboardData } from '../components/Scoreboard.js';
 
 let config = {}, allTeams = {}, allUsers = {}, tiles = [], submissions = [];
 let authState = {};
@@ -128,30 +129,13 @@ function initializeApp() {
 function processAllData() {
     // Guard against processing until all necessary data is loaded.
     if (!initialDataLoaded.config || !initialDataLoaded.teams || !initialDataLoaded.users || !initialDataLoaded.tiles) return;
-
-    const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
-    const allTeamIds = Object.keys(allTeams);
-
     const tilesByVisibleId = tiles.reduce((acc, tile) => {
         if (tile.id) acc[tile.id] = tile;
         return acc;
     }, {});
-
-    const leaderboardData = allTeamIds.map(teamId => {
-        let score = 0;
-        let completedTiles = 0;
-        const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
-        tiles.forEach(tile => {
-            const sub = teamSubmissions.find(s => s.id === tile.id);
-            if (!sub) return;
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
-            if (isScored) {
-                score += parseInt(tile.Points) || 0;
-                completedTiles++;
-            }
-        });
-        return { teamId: teamId, score, completedTiles };
-    }).sort((a, b) => b.score - a.score);
+    const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
+    const allTeamIds = Object.keys(allTeams);
+    const leaderboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
 
     // Filter leaderboard for private boards if user is not a mod
     let finalLeaderboardData = leaderboardData;
