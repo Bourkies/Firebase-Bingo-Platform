@@ -31,4 +31,15 @@ export function listenToUsers(callback, authState) {
     });
 }
 
-// Other user management functions like updateUser would go here.
+/**
+ * Updates a specific user document in Firestore.
+ * @param {string} uid - The ID of the user to update.
+ * @param {object} data - An object containing the fields to update.
+ */
+export async function updateUser(uid, data) {
+    if (!uid) {
+        throw new Error("User ID is required to update a user.");
+    }
+    const userRef = fb.doc(db, 'users', uid);
+    await fb.updateDoc(userRef, data);
+}
