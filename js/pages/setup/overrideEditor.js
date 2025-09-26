@@ -13,6 +13,7 @@ const VALID_OVERRIDE_PROPERTIES = [
 const styleSchema = {
     shape: { label: 'Tile Shape', type: 'select', options: ['Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'], description: 'The overall shape of the tiles.' },
     stampScale: { label: `Stamp Scale`, type: 'range', min: 0, max: 3, step: 0.05, description: `Size multiplier for the stamp (e.g., 1 is 100%, 0.5 is 50%).` },
+    stampRotation: { label: `Stamp Rotation`, type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: 'Rotation of the stamp in degrees.' },
 };
 
 function debounce(func, wait) {
@@ -141,6 +142,7 @@ function populateValueContainer(container, propertyName, value) {
     const isBoolean = propertyName === 'useStampByDefault';
     const isWidth = propertyName.toLowerCase().includes('width');
     const isScale = propertyName === 'stampScale';
+    const isRotation = propertyName === 'stampRotation';
     const isImage = propertyName === 'stampImageUrl';
 
     let inputHtml = '';
@@ -182,9 +184,18 @@ function populateValueContainer(container, propertyName, value) {
                         <input type="number" class="override-value" value="${parseFloat(value) || 0}" data-unit="px" min="0" max="20" step="1">
                         <span style="margin-left: 5px;">px</span>
                      </div>`;
-    } else if (isOpacity || isScale) {
-        const schema = isOpacity ? { min: 0, max: 1, step: 0.01 } : styleSchema.stampScale;
-        const val = value || schema.min;
+    } else if (isOpacity || isScale || isRotation) {
+        let schema;
+        if (isOpacity) {
+            schema = { min: 0, max: 1, step: 0.01 };
+        } else if (isScale) {
+            schema = styleSchema.stampScale;
+        } else { // isRotation
+            schema = styleSchema.stampRotation;
+        }
+        // FIX: Parse the float value to handle units like 'deg'.
+        // The number input box will clear if it's given a non-numeric string.
+        const val = parseFloat(value) || schema.min;
 
         const compoundDiv = document.createElement('div');
         compoundDiv.className = 'form-field-compound';
@@ -193,6 +204,7 @@ function populateValueContainer(container, propertyName, value) {
         rangeInput.type = 'range';
         rangeInput.className = 'override-value'; // This triggers the update
         rangeInput.value = val;
+        if (schema.unit) rangeInput.dataset.unit = schema.unit;
         rangeInput.min = schema.min; rangeInput.max = schema.max; rangeInput.step = schema.step;
 
         const numberInput = document.createElement('input');
