@@ -1,49 +1,49 @@
 # Firebase Bingo Platform
 
-An interactive, real-time platform for bingo competitions built with Firebase. This project provides a complete solution for hosting community bingo events, featuring a player-facing board, an admin verification panel, a live overview dashboard, and a powerful graphical setup editor.
+An interactive, real-time platform for bingo competitions built with Firebase. This project provides a complete solution for hosting community bingo events, featuring a player-facing board, an admin verification panel, a live overview dashboard, and a powerful graphical setup editor. It has been refactored into a modern, modular architecture for improved maintainability and scalability.
 
 ## Key Features
 
 *   **Real-Time Updates**: All data is synchronized in real-time using Firestore, ensuring players and admins always see the latest information.
-*   **Secure Authentication**: Manages user access with Firebase Authentication (Google Sign-In), protecting sensitive admin and setup pages.
+*   **Modular & Maintainable**: The codebase is broken down into core services, reusable UI components, and page-specific controllers, making it easy to manage and extend.
+*   **Secure Authentication**: Manages user access with Firebase Authentication (Google & Anonymous), protecting sensitive admin and setup pages.
 *   **Role-Based Permissions**: A flexible four-tier permission system (Admin, Event Mod, Captain, Player) controls who can perform which actions.
 *   **Visual Board Editor**: A graphical interface (`setup.html`) for admins to visually arrange tiles, manage users, and configure all event settings directly in the browser.
-*   **Mass Tile Import/Export**: A dedicated page (`import.html`) to bulk import tiles from a CSV file with dynamic column mapping, and export all existing tiles to a CSV.
+*   **Mass Data Import/Export**: Dedicated pages to bulk import/export tiles, config, and submissions via CSV.
 *   **Direct Image Uploads**: Upload the board background and custom stamp images directly to Firebase Storage from the setup page.
 *   **Live Overview Dashboard**: A public-facing page (`overview.html`) with a leaderboard, activity feed, and score-over-time chart that can be toggled on or off.
+*   **Automated Deployments**: Pre-configured GitHub Actions workflows for automatically deploying the site on pushes to `main` and creating preview deployments for pull requests.
 
 ## Part 1: Firebase Setup
 
-### Project Structure
+### New Project Structure
 
-The repository is organized into the following key files:
+The repository has been refactored into a modular structure that separates concerns.
 
--   **`index.html`**: The main player-facing bingo board.
--   **`admin.html`**: The dashboard for admins/mods to manage users and verify submissions.
--   **`overview.html`**: The public-facing dashboard with leaderboards and activity charts.
--   **`setup.html`**: The powerful graphical editor for admins to configure the entire event.
--   **`import.html`**: The page for bulk importing and exporting tile data.
-
--   **`auth.js`**: Handles all user authentication logic (sign-in, sign-out, role checking).
--   **`firebase-config.js`**: Contains the Firebase project configuration. **(Requires your keys)**.
--   **`firebase-config.example.js`**: A template for the configuration file.
--   **`.gitignore`**: Specifies files for Git to ignore, like your config and private notes.
--   **`firestore.rules`**: Security rules for the Firestore database.
--   **`storage.rules`**: Security rules for Firebase Storage (image uploads).
-
--   **`TEST_PLAN.md`**: A comprehensive test plan for the entire application.
--   **`README.md`**: This file, containing setup and usage instructions.
+*   **`/` (Root)**: Contains all the `.html` pages, Firebase rules, and project documentation.
+*   **`.github/workflows/`**: Contains example templates for automated deployment via GitHub Actions.
+*   **`js/core/`**: Central, shared logic.
+    *   `auth.js`: Manages user authentication.
+    *   `utils.js`: Shared helper functions (e.g., `showMessage`).
+    *   `data/`: Modules for managing specific Firestore collections (e.g., `tileManager.js`, `userManager.js`).
+    *   `firebase-config.js`: **(Requires your keys)** Contains the Firebase project configuration.
+    *   `firebase-config.example.js`: A template for the configuration file.
+*   **`js/components/`**: Reusable UI elements.
+    *   `Navbar.js`: The universal navigation bar used on every page.
+    *   `TileRenderer.js`: Logic for rendering a single bingo tile consistently.
+    *   `Scoreboard.js`: Logic for calculating and rendering the scoreboard.
+*   **`js/pages/`**: Page-specific logic. Each `.html` file has a corresponding controller here (e.g., `indexController.js` for `index.html`).
 
 ### Step 1: Create and Configure Firebase Project
 
 1.  **Create Firebase Project**: Go to the Firebase Console and create a new project.
 2.  **Prepare Local Config File**:
-    *   In your project folder, create a copy of `firebase-config.example.js` and rename it to `firebase-config.js`. This file will hold your project keys and is already listed in `.gitignore` to keep them secure.
+    *   In your project folder, create a copy of `js/core/firebase-config.example.js` and rename it to `js/core/firebase-config.js`. This file will hold your project keys and is already listed in `.gitignore` to keep them secure.
 3.  **Add a Web App & Get Keys**:
     *   In your project's dashboard, click the `</>` (Web) icon to register a new web app. Give it an easy-to-type nickname (e.g., `bingo-app`). This is for your reference in the console and is not user-facing.
     *   Leave "Also set up Firebase Hosting for this app." unchecked. This will be handled later during deployment.
     *   After registering, you will see an "Add Firebase SDK" section with two options: **npm** and **`<script>`**. This project uses direct imports, so select the **`<script>`** tab to see your configuration keys.
-    *   Open your local `firebase-config.js` file and replace the placeholder `firebaseConfig` object with the one from the console.
+    *   Open your local `js/core/firebase-config.js` file and replace the placeholder `firebaseConfig` object with the one from the console.
         > **Important:** Copy only the object itself (from `const firebaseConfig = {` to the closing `};`), not the entire script with `import` statements.
 4.  **Enable Backend Services**:
     *   **Authentication**:
@@ -115,10 +115,11 @@ First, install the Firebase CLI: `npm install -g firebase-tools` and log in with
 
 #### Option 2: Automated Deployment with GitHub (Production Workflow)
 This is the ideal workflow for a live event. It allows you to push changes to your main branch on GitHub and have them automatically deploy to Firebase Hosting.
+This template includes example workflow files in `.github/workflows/` that make this process straightforward.
 
 **Core Concepts for Reusability**
 
-This template is designed to be forked and reused. The automated deployment relies on two types of secrets stored in your GitHub repository settings (`Settings > Secrets and variables > Actions`):
+The automated deployment relies on two types of secrets stored in your GitHub repository settings (`Settings > Secrets and variables > Actions`):
 
 1.  `FIREBASE_CONFIG_JS`: You create this manually. It holds your web app keys.
 2.  `FIREBASE_SERVICE_ACCOUNT_...`: This is created *automatically* when you link your repository to Firebase.
@@ -127,24 +128,25 @@ This template is designed to be forked and reused. The automated deployment reli
 
 **One-Time Setup Steps (For the original owner AND for each new fork):**
 
-These steps must be performed from a local clone of the repository.
-
 1.  **Clone Your Repository**: If you have just forked this project, clone *your fork* to your local machine.
     ```bash
     git clone https://github.com/YOUR_USERNAME/YOUR_FORKED_REPO_NAME.git
     cd YOUR_FORKED_REPO_NAME
     ```
-
+2.  **Copy Example Workflows**:
+    *   In the `.github/workflows/` directory, make copies of the example files:
+        *   Copy `firebase-hosting-merge.example.yml` to `firebase-hosting-merge.yml`.
+        *   Copy `firebase-hosting-pr.example.yml` to `firebase-hosting-pr.yml`.
+    *   These files are already ignored by `.gitignore` so you won't commit your project-specific details.
 2.  **Set Up `FIREBASE_CONFIG_JS` Secret**:
     *   In *your* GitHub repository, go to `Settings > Secrets and variables > Actions`.
     *   Click "New repository secret".
     *   **Name**: `FIREBASE_CONFIG_JS`
-    *   **Value**: Copy the *entire contents* of your local `firebase-config.js` file and paste it here.
+    *   **Value**: Copy the *entire contents* of your local `js/core/firebase-config.js` file and paste it here.
     *   Click "Add secret".
 
-3.  **Initialize Firebase Hosting Locally**:
-    *   This step creates the `firebase.json` configuration file required for deployment.
-    *   In your terminal, from the project's root directory, run:
+4.  **Initialize Firebase Hosting Locally**:
+    *   In your terminal, from the project's root directory, run the following to create the `firebase.json` and `.firebaserc` files:
         ```bash
         firebase init hosting
         ```
@@ -155,9 +157,8 @@ These steps must be performed from a local clone of the repository.
         *   Set up automatic builds and deploys with GitHub? **No** (we will do this in the next step).
         *   When asked `File ./index.html already exists. Overwrite?`, choose **No**. This preserves the project's main HTML file.
 
-4.  **Link Repository to Firebase for GitHub Actions**:
-    *   Now that `firebase.json` exists, you can link your repository.
-    *   In your terminal, from the project's root directory, run:
+5.  **Link Repository to Firebase for GitHub Actions**:
+    *   This critical step creates the `FIREBASE_SERVICE_ACCOUNT_...` secret in your GitHub repository. In your terminal, run:
         ```bash
         firebase init hosting:github
         ```
@@ -166,36 +167,20 @@ These steps must be performed from a local clone of the repository.
         *   When asked "What script should be run before every deploy?", leave it blank and press Enter.
         *   Set up a workflow to deploy on push? **Yes**.
         *   Choose the branch to deploy from (e.g., `main`).
-    *   This command is critical: it creates/overwrites the workflow file and creates the necessary `FIREBASE_SERVICE_ACCOUNT_...` secret in *your* repository.
+        *   When asked to overwrite the workflow file, choose **Yes**.
 
-5.  **Modify the Generated Workflow File**:
-    *   The previous step created/updated a file at `.github/workflows/firebase-hosting-merge.yml`. Open this file.
-    *   Find the `steps:` section. Just before the deployment step (`- uses: FirebaseExtended/action-hosting-deploy@...`), add a new step to create the config file from your secret:
-        ```yaml
-        - name: Create Firebase Config
-          run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
-        ```
-    *   The final `steps` section should look something like this:
-        ```yaml
-        steps:
-          - uses: actions/checkout@v4
-          - name: Create Firebase Config
-            run: echo "${{ secrets.FIREBASE_CONFIG_JS }}" > firebase-config.js
-          - uses: FirebaseExtended/action-hosting-deploy@v0
-            with:
-              repoToken: '${{ secrets.GITHUB_TOKEN }}'
-              firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_your-project-id }}' # This is created for you
-              channelId: live
-              projectId: your-project-id # This is your project ID
-        ```
+6.  **Update Workflow Files with Your Project ID**:
+    *   Open your new `firebase-hosting-merge.yml` and `firebase-hosting-pr.yml` files.
+    *   In both files, find the `projectId` and `firebaseServiceAccount` lines.
+    *   Replace `YOUR_PROJECT_ID` with your actual Firebase Project ID. The service account secret name should also be updated to match the one that was just created for you.
 
-6.  **Commit and Push**: Commit the updated workflow file and the new Firebase config files to your repository.
+7.  **Commit and Push**: Commit the new Firebase config files to your repository.
     ```bash
-    git add .github/workflows/firebase-hosting-merge.yml firebase.json .firebaserc
+    git add firebase.json .firebaserc
     git commit -m "Configure GitHub Actions for Firebase deployment"
     git push
     ```
-    Any future `git push` to your main branch will now automatically and securely deploy your site.
+    Any future `git push` to your main branch will now automatically and securely deploy your site using the workflows you configured.
 
 ## Part 3: Accessing Your Site
 
@@ -234,11 +219,11 @@ After setting up your Firebase project and serving the application (either local
 
 ## Part 5: How to Use
 
-All pages contain a navigation bar at the top to easily switch between the Player, Overview, and Admin views.
+All pages contain a universal navigation bar at the top to easily switch between the Player, Overview, and Admin views.
 
 ### **Player View**
 
-* Players open the main Web app URL, select their team, and click on an unlocked tile.  
+*   Players open the main Web app URL, select their team, and click on an unlocked tile.
 * They can fill out the form and update their submission as many times as they need.
 
 ### **Overview Page**
@@ -254,16 +239,16 @@ This is the central hub for event administrators. It provides a graphical interf
 -   **Live Tile Editor**: Drag, resize, and edit tiles directly on a visual representation of the board. All changes are saved automatically.
 -   **Global Configuration**: Edit event-wide settings like the page title, board background image, and gameplay rules.
 -   **Team Management**: Create, rename, and delete teams.
--   **Mass Import / Export**: A link to the dedicated `import.html` page to manage tiles in bulk.
+-   **Mass Import / Export**: Links to dedicated pages to manage tiles, config, and submissions in bulk.
 -   **Mass Deletion**: A "Delete All Tiles" button with a strong confirmation modal to safely clear the board.
 
 #### ⚠️ **Security Warning**
 
 The `setup.html` page provides full administrative control over the bingo board's configuration. Access is protected by Firebase Authentication, and only users with the `Admin` role can view and use this page. Ensure that the `Admin` role is assigned only to trusted individuals.
 
-### **Import/Export Page (`import.html`)**
+### **Import/Export Pages**
 
-This page provides powerful tools for managing tile data in bulk. It is accessible from the **Board Setup** page and is restricted to `Admin` users.
+The `import_*.html` pages provide powerful tools for managing data in bulk. They are accessible from the **Board Setup** page and are restricted to `Admin` users.
 
 -   **Export to CSV**: Download all current tiles into a single CSV file. This file serves as a perfect template for editing and re-importing.
 -   **Import from CSV**:
@@ -277,15 +262,24 @@ This page provides powerful tools for managing tile data in bulk. It is accessib
 
 This page is for managing user roles and verifying submissions. Access is restricted to authenticated users with the `Captain`, `Event Mod`, or `Admin` role.
 *   **Log in** with an authorized Google account.
-*   **User Management**: Admins and Event Mods can assign roles and teams to users. Captains can assign players to their own team.
+*   **User Management**: On the `users.html` page, Admins and Event Mods can assign teams to users. Captains can assign players to their own team.
+*   **Permission Management**: On the `permissions.html` page, Admins can grant or revoke Mod and Admin roles.
 *   **Submission Review**: Event Mods and Admins will see a list of all submissions. You can filter them by status, click any row to open an edit modal, and update the verification status.
 
-### **Data Management**
+## Developer's Guide
 
-With the introduction of the **Import/Export Page**, managing data is now primarily done through the web interface.
+This project follows a modular architecture. Here are the key conventions:
 
--   **For New Events**: The recommended workflow is to use the `setup.html` page for initial configuration and the `import.html` page for bulk-adding tiles from a CSV.
--   **For Data Migration**: The old `migration-script.js` is still available for developers comfortable with Node.js or for migrating from a specific legacy Google Sheets format. However, for most use cases, exporting your old data to CSV and using the new import tool is the easier path.
+*   **Core Services (`js/core/`)**: Any logic that is shared across multiple pages and is not a UI component belongs here. Data management is further broken down by collection in `js/core/data/`.
+*   **UI Components (`js/components/`)**: Reusable pieces of the user interface, like the navbar or tile renderer.
+*   **Page Controllers (`js/pages/`)**: Each `.html` file has a corresponding controller in this directory. The controller is responsible for all logic unique to that page, such as initializing components and attaching event listeners.
+
+### Adding a New Page
+
+1.  Create your new `mypage.html` file in the root directory.
+2.  Create a corresponding `js/pages/mypageController.js` file.
+3.  In `mypage.html`, add `<app-navbar></app-navbar>` for the navigation and include your controller script at the end of the body: `<script type="module" src="/js/pages/mypageController.js"></script>`.
+4.  In `mypageController.js`, the first line should be `import '../components/Navbar.js';` to register the navbar component. Then, import any other core services or components you need and write your page-specific logic.
 
 ## Note on AI Generation
 
@@ -293,4 +287,4 @@ This project was created collaboratively with Google's Gemini. While the logic a
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
