@@ -18,6 +18,7 @@ let myScoreChart = null;
 let fullChartData = [];
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 
+let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, users: false };
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('feed-team-filter').addEventListener('change', handleFilterChange);
     initializeApp();
@@ -30,15 +31,34 @@ function onAuthStateChanged(newAuthState) {
     initializeApp();
 }
 
+/**
+ * A centralized handler for all data updates. It updates the relevant
+ * state variable and triggers a re-processing of all data if the initial
+ * load is complete.
+ * @param {string} dataType - The type of data being updated (e.g., 'teams', 'users').
+ * @param {*} newData - The new data from the listener.
+ */
+function handleDataUpdateAndRender(dataType, newData) {
+    // Update the corresponding global variable
+    if (dataType === 'teams') allTeams = newData;
+    else if (dataType === 'users') allUsers = newData;
+    else if (dataType === 'tiles') tiles = newData;
+    else if (dataType === 'submissions') submissions = newData;
+
+    if (initialDataLoaded.config && initialDataLoaded.teams && initialDataLoaded.users && initialDataLoaded.tiles && initialDataLoaded.submissions) {
+        processAllData();
+    }
+}
+
 function initializeApp() {
-    let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, users: false };
     const checkAllLoaded = () => {
         if (Object.values(initialDataLoaded).every(Boolean)) {
             hideGlobalLoader();
             document.getElementById('main-content').style.display = 'grid';
+            processAllData(); // Initial process call
         }
     };
-
+    
     showGlobalLoader();
     unsubscribeFromAll(); // Unsubscribe from any previous listeners
     const unsubs = [];
@@ -70,38 +90,34 @@ function initializeApp() {
         if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
     }));
 
-    // For the public overview page, we always want to fetch all users to display names in the feed.
-    // We call listenToUsers without an authState to get the default "fetch all" behavior.
     unsubs.push(teamManager.listenToTeams(newTeams => {
-        console.log("Overview: Teams updated in real-time.");
-        allTeams = newTeams;
-        teamColorMap = generateTeamColors(Object.keys(allTeams));
-        populateFeedFilter(allTeams);
-        if (initialDataLoaded.users && initialDataLoaded.tiles && initialDataLoaded.submissions) processAllData();
+        console.log("Overview: Teams updated.");
+        teamColorMap = generateTeamColors(Object.keys(newTeams));
+        populateFeedFilter(newTeams);
+        handleDataUpdateAndRender('teams', newTeams);
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }));
 
+    // For the public overview page, we always want to fetch all users to display names in the feed.
+    // We call listenToUsers without an authState to get the default "fetch all" behavior.
     unsubs.push(userManager.listenToUsers(newUsers => {
-        console.log("Overview: Users updated in real-time.");
-        allUsers = newUsers;
-        processAllData();
+        console.log("Overview: Users updated.");
+        handleDataUpdateAndRender('users', newUsers);
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); } 
     }));
 
     const setupTilesListener = () => {
         unsubs.push(tileManager.listenToTiles(newTiles => {
-            console.log("Overview: Tiles updated in real-time.");
-            tiles = newTiles;
-            if (initialDataLoaded.users && initialDataLoaded.teams && initialDataLoaded.submissions) processAllData();
+            console.log("Overview: Tiles updated.");
+            handleDataUpdateAndRender('tiles', newTiles);
             if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
         }, authState, config, false)); // Correct call: (callback, authState, config, includeDocId)
     };
 
     const setupSubmissionsListener = () => {
         unsubs.push(submissionManager.listenToSubmissions(newSubmissions => {
-            console.log("Overview: Submissions updated in real-time.");
-            submissions = newSubmissions;
-            if (initialDataLoaded.users && initialDataLoaded.teams && initialDataLoaded.tiles) processAllData();
+            console.log("Overview: Submissions updated.");
+            handleDataUpdateAndRender('submissions', newSubmissions);
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
         }, authState, config)); // FIX: The listenToSubmissions manager expects (callback, authState, config)
     };
@@ -111,12 +127,7 @@ function initializeApp() {
 
 function processAllData() {
     // Guard against processing until all necessary data is loaded.
-    if (
-        !config.pageTitle || 
-        tiles.length === 0 || 
-        Object.keys(allTeams).length === 0 ||
-        Object.keys(allUsers).length === 0
-    ) return;
+    if (!initialDataLoaded.config || !initialDataLoaded.teams || !initialDataLoaded.users || !initialDataLoaded.tiles) return;
 
     const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
     const allTeamIds = Object.keys(allTeams);
