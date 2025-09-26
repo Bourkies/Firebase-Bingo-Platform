@@ -1,0 +1,31 @@
+# This is an example workflow file.
+#
+# 1. Copy this file to `firebase-hosting-merge.yml`.
+# 2. Replace `YOUR_PROJECT_ID` with your actual Firebase Project ID.
+# 3. The `FIREBASE_SERVICE_ACCOUNT_YOUR_PROJECT_ID` secret is created automatically
+#    when you run `firebase init hosting:github`.
+#
+# This workflow deploys your site to Firebase Hosting when a change is pushed to the `main` branch.
+
+name: Deploy to Firebase Hosting on merge
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Firebase Config
+        run: |
+          cat <<'EOF' > js/core/firebase-config.js
+          ${{ secrets.FIREBASE_CONFIG_JS }}
+          EOF
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_YOUR_PROJECT_ID }}
+          cache: false
+          channelId: live
+          projectId: YOUR_PROJECT_ID

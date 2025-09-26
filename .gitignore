@@ -6,6 +6,9 @@
 *.json
 !firebase.json
 firebase-config.js
+.github/workflows/*.yml
+!.github/workflows/*.example.yml
+
 
 # Custom user files
 project-notes.md

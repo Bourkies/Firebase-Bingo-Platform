@@ -1,0 +1,35 @@
+# This is an example workflow file.
+#
+# 1. Copy this file to `firebase-hosting-pr.yml`.
+# 2. Replace `YOUR_PROJECT_ID` with your actual Firebase Project ID.
+# 3. The `FIREBASE_SERVICE_ACCOUNT_YOUR_PROJECT_ID` secret is created automatically
+#    when you run `firebase init hosting:github`.
+#
+# This workflow deploys a preview channel to Firebase Hosting when a pull request is opened.
+
+name: Deploy to Firebase Hosting on PR
+on: pull_request
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+jobs:
+  build_and_preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Firebase Config
+        run: |
+          cat <<'EOF' > js/core/firebase-config.js
+          ${{ secrets.FIREBASE_CONFIG_JS }}
+          EOF
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_YOUR_PROJECT_ID }}
+          projectId: YOUR_PROJECT_ID
+
+
+
+

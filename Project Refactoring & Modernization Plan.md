@@ -28,6 +28,11 @@ This is the target architecture we are working towards. It separates shared serv
 ├── TEST_PLAN.md  
 ├── Project Refactoring & Modernization Plan.md  
 ├── README.md  
+│
+├── .github/
+│   └── workflows/
+│       ├── firebase-hosting-merge.example.yml # Template for main branch deployment
+│       └── firebase-hosting-pr.example.yml    # Template for pull request previews
 │  
 ├── js/  
 │   ├── core/  
