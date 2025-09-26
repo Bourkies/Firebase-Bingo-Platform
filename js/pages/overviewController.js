@@ -273,9 +273,8 @@ function renderFeed() {
         const teamColor = teamColorMap[item.teamId] || 'var(--accent-color)';
         div.style.borderLeftColor = teamColor;
         const teamName = allTeams[item.teamId]?.name || item.teamId; 
-        // Convert user IDs to names. Since allUsers is now a list from userManager, we need to find by uid.
-        const usersById = allUsers.reduce((acc, user) => { acc[user.uid] = user.displayName; return acc; }, {});
-        const playerNames = (item.playerIds || []).map(uid => allUsers[uid]?.displayName || `[${uid.substring(0, 5)}]`).join(', ');
+        const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
+        const playerNames = (item.playerIds || []).map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`).join(', ');
         const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
         const tileNameDisplay = item.tileName || '';
 
