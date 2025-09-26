@@ -6,8 +6,8 @@
 *.json
 !firebase.json
 firebase-config.js
-.github/workflows/*.yml
-!.github/workflows/*.example.yml
+.github/workflows/*.yml # Ignore active workflows
+!.github/workflows/*.txt # But DO track our .txt templates
 
 
 # Custom user files
