@@ -43,12 +43,14 @@ async function onAuthStateChanged(newAuthState) {
     // If the auth callback was triggered by a team change, show a message.
     if (newAuthState.teamChanged) {
         const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
-        showMessage(`Your team has been changed to: ${newTeamName}. The board has been updated.`, false);
+        showMessage(`Your team has been changed to: ${newTeamName}. The board is updating.`, false);
     }
     populateTeamSelector(allTeams, loadFirstTeam);
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
+    // This is the key fix: After auth is confirmed, explicitly trigger a team change and board render.
+    handleTeamChange();
     // NEW: Welcome modal logic
     // Check if user is logged in, config allows prompting, and user hasn't set their name yet.
     if (authState.isLoggedIn && authState.profile && config.promptForDisplayNameOnLogin === true && authState.profile.hasSetDisplayName !== true) {
@@ -129,7 +131,7 @@ function initializeApp() {
         applyGlobalStyles();
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         populateTeamSelector(allTeams, loadFirstTeam);
-        handleTeamChange();
+        if (authState.isLoggedIn || config.boardVisibility !== 'private') handleTeamChange();
 
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
         renderColorKey();
@@ -163,7 +165,7 @@ function initializeApp() {
                 selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
             }
         }
-        handleTeamChange(); // Re-render board with new team data
+        handleTeamChange();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }, (error) => { console.error("Error loading teams:", error); });
 
@@ -329,17 +331,31 @@ function populateTeamSelector(teams = {}, loadFirstTeam = false) {
 }
 
 function isGenericView() {
-    // Scenario 1: Board is private, and the user is either not logged in or not on a team.
-    if (config.boardVisibility === 'private' && (!authState.isLoggedIn || !authState.profile?.team)) return true;
-    // Scenario 2: Board is public, but no team is selected and the config doesn't load one by default.
-    if (config.boardVisibility !== 'private' && !currentTeam && config.loadFirstTeamByDefault !== true) return true;
+    const isPrivate = config.boardVisibility === 'private';
+    const isPublic = !isPrivate;
+    const isLoggedInWithTeam = authState.isLoggedIn && authState.profile?.team;
+
+    // It's a generic view if the board is private AND the user isn't on a team.
+    if (isPrivate && !isLoggedInWithTeam) return true;
+    // It's a generic view if the board is public AND no team is selected from the dropdown.
+    if (isPublic && !currentTeam) return true;
     return false;
 }
 
 function handleTeamChange() {
-  const selector = document.getElementById('team-selector');
-  currentTeam = selector.value;
-  renderBoard();
+    const selector = document.getElementById('team-selector');
+    const isPrivate = config.boardVisibility === 'private';
+
+    // On a private board, the "current team" is always the user's team from their profile.
+    // We must wait for authState to be populated before setting this.
+    if (isPrivate) {
+        if (authState.isLoggedIn && authState.profile?.team) {
+            currentTeam = authState.profile.team;
+        }
+    } else {
+        currentTeam = selector.value;
+    }
+    renderBoard();
 }
 
 function getTileStatus(tile, teamName) {
@@ -409,6 +425,12 @@ function getTileStatus(tile, teamName) {
 }
 
 function renderBoard() {
+  // NEW: Add a guard to prevent rendering before essential data is loaded.
+  // The config must be loaded. If the board is private, auth must also be ready.
+  if (!config || (config.boardVisibility === 'private' && !authState.isLoggedIn)) {
+      return;
+  }
+
   const shouldShowGeneric = isGenericView();
   // Clear the board if there are no tiles, OR if no team is selected AND we are not in a generic view.
   if (!tiles || tiles.length === 0 || (!currentTeam && !shouldShowGeneric)) {
@@ -419,10 +441,12 @@ function renderBoard() {
 
   const container = document.getElementById('board-container');
   container.innerHTML = '';
-  const displayTeam = currentTeam;
+  // FIX: On a private board, the display team is always the user's team, not the dropdown value.
+  const isPrivate = config.boardVisibility === 'private';
+  const displayTeam = isPrivate ? authState.profile?.team : currentTeam;
   const displayTeamName = (displayTeam && allTeams) ? (allTeams[displayTeam]?.name || displayTeam) : '';
   
-  if (displayTeam) {
+  if (displayTeamName) {
     document.title = `${config.pageTitle || 'Bingo'} : ${displayTeamName}`;
   } else {
     document.title = config.pageTitle || 'Bingo';
@@ -553,17 +577,17 @@ function renderScoreboard() {
     container.innerHTML = '<h2>Scoreboard</h2>';
 
     let dataToRender = scoreboard;
+    // FIX: On a private board, the team to display is from the auth profile, not the dropdown.
     const isPrivate = config.boardVisibility === 'private';
+    const teamToDisplay = isPrivate ? authState.profile?.team : currentTeam;
 
     // Filter scoreboard data for private boards
     if (isPrivate) {
-        if (authState.isLoggedIn && authState.profile?.team) {
-            // User is on a team, show only their team
-            dataToRender = scoreboard.filter(item => item.teamId === authState.profile.team);
-        } else {
-            // User not on a team, show no scores
-            dataToRender = [];
-        }
+        dataToRender = teamToDisplay ? scoreboard.filter(item => item.teamId === teamToDisplay) : [];
+    }
+
+    if (!teamToDisplay && !isPrivate) {
+        dataToRender = []; // On a public board, if no team is selected, show no scores.
     }
 
     if (dataToRender.length === 0) {

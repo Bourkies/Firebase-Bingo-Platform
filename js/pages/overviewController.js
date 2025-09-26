@@ -153,7 +153,26 @@ function processAllData() {
         return { teamId: teamId, score, completedTiles };
     }).sort((a, b) => b.score - a.score);
 
-    fullFeedData = submissions
+    // Filter leaderboard for private boards if user is not a mod
+    let finalLeaderboardData = leaderboardData;
+    const isPrivate = config.boardVisibility === 'private';
+    if (isPrivate) { // This logic is now consistent for all users, including admins/mods
+        if (authState.isLoggedIn && authState.profile?.team) {
+            // User is on a team, show only their team
+            finalLeaderboardData = leaderboardData.filter(item => item.teamId === authState.profile.team);
+        } else {
+            // User not on a team, show no scores
+            finalLeaderboardData = [];
+        }
+    }
+
+    // Filter submissions for private boards before processing feed and chart data
+    let relevantSubmissions = submissions;
+    if (isPrivate && authState.isLoggedIn && authState.profile?.team) {
+        relevantSubmissions = submissions.filter(sub => sub.Team === authState.profile.team);
+    }
+
+    fullFeedData = relevantSubmissions
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
@@ -170,7 +189,7 @@ function processAllData() {
         })
         .sort((a, b) => b.timestamp - a.timestamp);
 
-    const scoredEvents = submissions
+    const scoredEvents = relevantSubmissions
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
@@ -192,7 +211,7 @@ function processAllData() {
         return { timestamp: event.timestamp, ...teamScores };
     });
 
-    renderLeaderboard(leaderboardData);
+    renderLeaderboard(finalLeaderboardData);
     handleFilterChange();
 }
 
@@ -217,13 +236,39 @@ function renderLeaderboard(leaderboardData) {
 
 function populateFeedFilter(teams = {}) {
     const select = document.getElementById('feed-team-filter');
-    select.innerHTML = '<option value="all">All Teams</option>';
-    Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
-        const option = document.createElement('option');
-        option.value = id;
-        option.textContent = teamData.name;
-        select.appendChild(option);
-    });
+    select.innerHTML = '';
+    select.disabled = false;
+
+    const isPrivate = config.boardVisibility === 'private';
+
+    if (isPrivate) {
+        if (authState.isLoggedIn && authState.profile?.team) {
+            // Private board, user is on a team: Lock to their team.
+            const teamId = authState.profile.team;
+            const teamData = teams[teamId];
+            if (teamData) {
+                const option = document.createElement('option');
+                option.value = teamId;
+                option.textContent = teamData.name;
+                select.appendChild(option);
+                select.value = teamId;
+            }
+            select.disabled = true;
+        } else {
+            // Private board, user not on a team: Show disabled placeholder.
+            select.innerHTML = '<option value="" selected disabled>No Team Data</option>';
+            select.disabled = true;
+        }
+    } else {
+        // Public board: Original behavior
+        select.innerHTML = '<option value="all">All Teams</option>';
+        Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = teamData.name;
+            select.appendChild(option);
+        });
+    }
 }
 
 function renderFeed() {
@@ -245,7 +290,7 @@ function renderFeed() {
         div.style.borderLeftColor = teamColor;
         const teamName = allTeams[item.teamId]?.name || item.teamId; 
         // Convert user IDs to names. Since allUsers is now a list from userManager, we need to find by uid.
-        const usersById = allUsers.reduce((acc, user) => { acc[user.uid] = user; return acc; }, {});
+        const usersById = allUsers.reduce((acc, user) => { acc[user.uid] = user.displayName; return acc; }, {});
         const playerNames = (item.playerIds || []).map(uid => allUsers[uid]?.displayName || `[${uid.substring(0, 5)}]`).join(', ');
         const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
         const tileNameDisplay = item.tileName || '';
