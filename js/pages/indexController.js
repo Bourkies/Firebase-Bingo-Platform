@@ -37,17 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function onAuthStateChanged(newAuthState) {
     authState = newAuthState;
-
-    // When auth state changes, team visibility might change (especially for private boards).
-    // We need to re-evaluate and re-populate the team selector.
     const loadFirstTeam = config.loadFirstTeamByDefault === true;
 
-    // If the auth callback was triggered by a team change, show a message.
     if (newAuthState.teamChanged) {
         const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
         showMessage(`Your team has been changed to: ${newTeamName}. The board is updating.`, false);
     }
+
+    // Re-populate the selector to handle visibility changes (e.g., private boards).
     populateTeamSelector(allTeams, loadFirstTeam);
+
+    // NEW: Logic to set the default selected team is now here.
+    // This ensures authState.profile is available before we try to use it.
+    const selector = document.getElementById('team-selector');
+    if (selector.disabled) {
+        // The value is already set by populateTeamSelector for private boards.
+    } else if (authState.isLoggedIn && authState.profile?.team) {
+        // If logged in and on a team (on a public board), select their team.
+        selector.value = authState.profile.team;
+    } else if (loadFirstTeam && Object.keys(allTeams).length > 0 && !selector.value) {
+        // As a fallback, if the setting is enabled, select the first team in the list.
+        selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
+    }
+
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
@@ -149,19 +161,14 @@ function initializeApp() {
         snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         const selector = document.getElementById('team-selector');
-        const previouslySelected = selector.value; // Keep this to preserve selection on public boards
 
         populateTeamSelector(allTeams, loadFirstTeam);
-
-        // If the selector is now disabled, its value was set correctly inside populateTeamSelector and we should not touch it.
-        // If it's not disabled (public board), try to preserve the previous selection.
-        if (!selector.disabled) {
-            if (Object.keys(allTeams).includes(previouslySelected)) {
-                selector.value = previouslySelected;
-            } else if (loadFirstTeam && Object.keys(allTeams).length > 0) {
-                selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
-            }
+        // If no team is selected yet and the config is set, select the first one.
+        if (!selector.value && loadFirstTeam && Object.keys(allTeams).length > 0) {
+            // As a fallback, if the setting is enabled, select the first team in the list.
+            selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
         }
+
         handleTeamChange();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }, (error) => { console.error("Error loading teams:", error); });
