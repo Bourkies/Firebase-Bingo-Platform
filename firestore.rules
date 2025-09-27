@@ -83,6 +83,11 @@ service cloud.firestore {
       // 2. You are reading your own profile.
       // 3. You are reading the profile of a teammate.
       allow read: if isEventMod() || (isAuth() && request.auth.uid == userId) || (isAuth() && getUserData().team != null && getUserData().team == resource.data.team);
+      
+      // FIX: Add a 'list' rule to allow a user to query for their teammates.
+      // This is what allows the `where('team', '==', ...)` query to succeed for non-admins.
+      allow list: if isEventMod() || (isAuth() && request.query.where.team == getUserData().team);
+
       allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
 
       // Update is allowed if:

@@ -11,13 +11,14 @@ export function listenToUsers(callback, authState) {
 
     // FIX: Correctly handle optional authState argument.
     // If authState is not provided or the user is an admin/mod, fetch all users.
-    if (!authState || authState.isEventMod) {
+    if (!authState || authState.isEventMod || !authState.isLoggedIn) {
         usersQuery = fb.collection(db, 'users');
     } else if (authState.isLoggedIn && authState.profile?.team) {
         // If a regular user is logged in and on a team, fetch only their teammates.
         usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', authState.profile.team));
     } else {
         // If logged out or not on a team, return an empty list and don't listen.
+        console.log("userManager: User is logged out or not on a team. Returning empty user list.");
         callback([]);
         return () => {}; // Return a no-op unsubscribe function.
     }

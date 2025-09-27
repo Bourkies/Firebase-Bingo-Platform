@@ -9,8 +9,6 @@ import { db, fb } from '../firebase-config.js';
  * @returns {function} An unsubscribe function.
  */
 export function listenToTiles(callback, authState, config, includeDocId = false) {
-    console.log(`tileManager.listenToTiles called with:`, { authState, config, includeDocId });
-
     const isCensored = config?.censorTilesBeforeEvent === true && !authState?.isEventMod;
     const collectionName = isCensored ? 'public_tiles' : 'tiles';
     console.log(`tileManager: Listening to '${collectionName}' collection (censored: ${isCensored})`);

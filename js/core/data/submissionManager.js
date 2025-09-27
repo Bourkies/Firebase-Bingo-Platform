@@ -51,11 +51,19 @@ export function getSubmissions() {
  * @returns {Promise}
  */
 export function saveSubmission(docId, data) {
+    // Create a shallow copy to avoid modifying the original object
+    const dataToSave = { ...data };
+
+    // Convert Date objects back to Firestore Timestamps before saving
+    if (dataToSave.Timestamp instanceof Date) dataToSave.Timestamp = fb.Timestamp.fromDate(dataToSave.Timestamp);
+    if (dataToSave.CompletionTimestamp instanceof Date) dataToSave.CompletionTimestamp = fb.Timestamp.fromDate(dataToSave.CompletionTimestamp);
+    if (Array.isArray(dataToSave.history)) dataToSave.history = dataToSave.history.map(entry => entry.timestamp instanceof Date ? { ...entry, timestamp: fb.Timestamp.fromDate(entry.timestamp) } : entry);
+
     if (docId) {
         const subRef = fb.doc(db, 'submissions', docId);
-        return fb.updateDoc(subRef, data);
+        return fb.updateDoc(subRef, dataToSave);
     } else {
-        return fb.addDoc(fb.collection(db, 'submissions'), data);
+        return fb.addDoc(fb.collection(db, 'submissions'), dataToSave);
     }
 }
 

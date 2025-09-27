@@ -1,6 +1,11 @@
 import '../components/Navbar.js';
-import { db, fb } from '../core/firebase-config.js';
 import { initAuth, signInWithGoogle, signInAnonymously, getAuthState } from '../core/auth.js';
+// Import the new data managers
+import * as userManager from '../core/data/userManager.js';
+import * as tileManager from '../core/data/tileManager.js';
+import * as configManager from '../core/data/configManager.js';
+import * as teamManager from '../core/data/teamManager.js';
+import * as submissionManager from '../core/data/submissionManager.js';
 import { createTileElement } from '../components/TileRenderer.js';
 import { calculateScoreboardData, renderScoreboard as renderScoreboardComponent } from '../components/Scoreboard.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from '../core/utils.js';
@@ -70,38 +75,26 @@ async function onAuthStateChanged(newAuthState) {
 // This function sets up the listener for tiles, respecting censorship rules.
 const setupTilesListener = () => {
     if (unsubscribeTiles) unsubscribeTiles();
-    const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
-    const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
-    console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
-
-    unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
+    // Use the centralized tileManager to handle fetching tiles based on permissions and config.
+    unsubscribeTiles = tileManager.listenToTiles((newTiles) => {
         console.log("Tiles updated in real-time.");
-        tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        tiles = newTiles;
         processAllData();
         renderBoard(); // Render board with new tiles
-    }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
+    }, authState, config, true); // Pass true for includeDocId
 };
 
 // This function sets up the listener for submissions, respecting privacy rules.
 const setupSubmissionsListener = () => {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
-    let submissionsQuery;
-    const isPrivateBoard = config.boardVisibility === 'private';
-    const isPlayerOnTeam = authState.isLoggedIn && authState.profile?.team;
-
-    if (isPrivateBoard && isPlayerOnTeam && !authState.isEventMod) {
-        console.log(`Private board detected. Fetching submissions for team: ${authState.profile.team}`);
-        submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', authState.profile.team));
-    } else {
-        submissionsQuery = fb.collection(db, 'submissions');
-    }
-
-    unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+    // Use the centralized submissionManager to handle fetching submissions based on permissions and config.
+    unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => {
         console.log("Submissions updated in real-time.");
-        submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        // The manager already converts timestamps, so we just assign the data.
+        submissions = newSubmissions;
         processAllData();
         renderBoard(); // Re-render board with new submission data
-    }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
+    }, authState, config);
 };
 
 function initializeApp() {
@@ -124,14 +117,15 @@ function initializeApp() {
     if (unsubscribeUsers) unsubscribeUsers();
 
     // Listener for the main configuration document
-    unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+    unsubscribeConfig = configManager.listenToConfigAndStyles((newConfigData) => {
         console.log("Config updated in real-time.");
-        if (!doc.exists()) {
+        if (newConfigData.error || !newConfigData.config) {
             document.getElementById('board-container').innerHTML = `<div class="error-message">Board configuration not found. Please contact an admin.</div>`;
             hideGlobalLoader();
             return;
         }
-        config = doc.data();
+        config = newConfigData.config;
+        allStyles = newConfigData.styles;
 
         // After config is loaded, we can set up the other listeners that depend on it.
         setupTilesListener();
@@ -145,20 +139,13 @@ function initializeApp() {
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
         renderColorKey();
         renderScoreboard();
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading config:", error); hideGlobalLoader(); });
-
-    // Initial setup for listeners that don't depend on config.
-    // They will be re-triggered by the config listener once it loads.
-    setupTilesListener();
-    setupSubmissionsListener();
+        if (!initialDataLoaded.config) { initialDataLoaded.config = true; initialDataLoaded.styles = true; checkAllLoaded(); }
+    });
 
     // Listener for the new teams collection
-    const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
-    unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+    unsubscribeTeams = teamManager.listenToTeams((newTeams) => {
         console.log("Teams updated in real-time.");
-        allTeams = {};
-        snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+        allTeams = newTeams;
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         const selector = document.getElementById('team-selector');
 
@@ -171,38 +158,20 @@ function initializeApp() {
 
         handleTeamChange();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading teams:", error); });
-
-    // Listener for the new styles collection
-    unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
-        console.log("Styles updated in real-time.");
-        allStyles = {};
-        snapshot.docs.forEach(doc => { allStyles[doc.id] = doc.data(); });
-        renderColorKey();
-        renderBoard(); // Re-render board with new styles
-        if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading styles:", error); });
+    });
 }
 
 // Listener for users collection, must be called after auth state is known
 function setupUsersListener() {
     if (unsubscribeUsers) unsubscribeUsers();
-    let usersQuery;
-    // Admins/mods can see all users. Regular players can only see their own teammates.
-    if (authState.isEventMod) {
-        usersQuery = fb.collection(db, 'users');
-    } else if (authState.isLoggedIn && authState.profile?.team) {
-        usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', authState.profile.team));
-    } else {
-        allUsers = []; // Logged out user can't see anyone.
-        return;
-    }
-    unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
-        console.log("Users updated in real-time.");
-        allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+
+    // Use the centralized userManager to handle fetching users based on permissions.
+    unsubscribeUsers = userManager.listenToUsers((newUsers) => {
+        console.log(`indexController: Users updated. Received ${newUsers.length} users.`);
+        allUsers = newUsers;
         // The navbar component has its own user listener, so no need to call an update here.
         // No need to check initialDataLoaded here as it's part of the auth flow
-    }, (error) => { console.error("Error loading users:", error); });
+    }, authState); // Pass authState to determine which users to fetch.
 }
 
 function processAllData() {
@@ -775,33 +744,32 @@ async function handleFormSubmit(event) {
 
   try {
       if (existingSubmission) {
-          // Use the correct document ID to get the reference for updating.
-          const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
           // Log specific changes by comparing against original values
           if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
           if (JSON.stringify(dataToSave.PlayerIDs) !== JSON.stringify(existingSubmission.PlayerIDs || [])) historyEntry.changes.push({ field: 'PlayerIDs', from: 'Previous players', to: 'New players' });
           if (dataToSave.AdditionalPlayerNames !== (existingSubmission.AdditionalPlayerNames || '')) historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: existingSubmission.AdditionalPlayerNames || '', to: dataToSave.AdditionalPlayerNames });
           if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
-          const oldEvidence = existingSubmission.Evidence || '[]';
+          const oldEvidence = existingSubmission.Evidence || '[]'; // Evidence is stored as a string
           if (dataToSave.Evidence !== oldEvidence) historyEntry.changes.push({ field: 'Evidence', from: 'Previous evidence', to: 'New evidence' }); // Keep it simple for evidence
 
           // Only add history if there were actual changes
           if (historyEntry.changes.length > 0) {
-              dataToSave.history = fb.arrayUnion(historyEntry);
+              // The manager expects raw data, not special Firestore field values
+              dataToSave.history = [...(existingSubmission.history || []), historyEntry];
           }
 
           if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
-              dataToSave.CompletionTimestamp = fb.serverTimestamp();
+              dataToSave.CompletionTimestamp = new Date(); // The manager will handle server timestamps if needed
           }
-          await fb.updateDoc(subRef, dataToSave);
+          await submissionManager.saveSubmission(existingSubmission.docId, dataToSave);
       } else {
-          dataToSave.Timestamp = fb.serverTimestamp(); // This call is correct
+          dataToSave.Timestamp = new Date();
           if (dataToSave.IsComplete) {
-              dataToSave.CompletionTimestamp = fb.serverTimestamp();
+              dataToSave.CompletionTimestamp = new Date();
           }
           historyEntry.action = 'Player Create';
           dataToSave.history = [historyEntry];
-          await fb.addDoc(fb.collection(db, 'submissions'), dataToSave);
+          await submissionManager.saveSubmission(null, dataToSave);
       }
       showMessage('Submission saved!', false);
       closeModal();
