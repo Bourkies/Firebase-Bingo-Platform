@@ -292,15 +292,11 @@ function openSubmissionModal(submissionId) {
         sortedHistory.forEach(entry => {
             const date = entry.timestamp?.toDate();
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
-            let changesText = '';
-
-            // NEW: Make history log more readable by hiding redundant "changes" on creation.
-            const isCreationEvent = entry.action?.toLowerCase().includes('create');
-            if (entry.changes && !isCreationEvent) {
-                changesText = entry.changes.map(c =>
+            // Always show changes if they exist, including for creation events.
+            const changesText = (entry.changes && entry.changes.length > 0)
+                ? entry.changes.map(c =>
                     `'${c.field}' from '${c.from}' to '${c.to}'`
-                ).join(', ');
-            }
+                ).join(', ') : '';
 
             const item = document.createElement('div');
             item.className = 'history-item';
