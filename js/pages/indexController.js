@@ -764,13 +764,27 @@ function validateEvidenceLink(urlString) {
 
 async function handleAcknowledgeFeedback() {
     const tileId = document.getElementById('modal-tile-id').value;
-    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
+    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived); // prettier-ignore
     if (!existingSubmission) return;
 
-    const dataToUpdate = { RequiresAction: false, IsComplete: false }; // Revert to a draft state
+    const historyEntry = {
+        timestamp: new Date(),
+        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        action: 'Acknowledge Feedback',
+        changes: [
+            { field: 'RequiresAction', from: true, to: false },
+            { field: 'IsComplete', from: true, to: false }
+        ]
+    };
+
+    const dataToUpdate = {
+        RequiresAction: false,
+        IsComplete: false,
+        history: [...(existingSubmission.history || []), historyEntry]
+    };
     await submissionManager.saveSubmission(existingSubmission.docId, dataToUpdate);
     showMessage('Feedback acknowledged. You can now edit and resubmit.', false);
-    closeModal(); // Close and re-open to refresh the state
+    closeModal();
 }
 
 async function handleFormSubmit(event) {
@@ -841,14 +855,24 @@ async function handleFormSubmit(event) {
       changes: []
   };
 
-  // If this was a "Requires Action" tile and we are now submitting, log it.
-  if (existingSubmission?.RequiresAction && dataToSave.IsComplete) {
-      historyEntry.action = 'Player Resubmission';
-      historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
-      dataToSave.RequiresAction = false; // Player has addressed the issue
-  } else {
-      historyEntry.action = 'Player Update';
-  }
+    // NEW: More descriptive history actions
+    if (action === 'draft') {
+        historyEntry.action = existingSubmission ? 'Revert to Draft' : 'Create Draft';
+    } else if (action === 'submit') {
+        if (existingSubmission?.RequiresAction) {
+            historyEntry.action = 'Resubmit for Review';
+            historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
+            dataToSave.RequiresAction = false; // Player has addressed the issue
+        } else if (existingSubmission) {
+            historyEntry.action = 'Submit Draft';
+        } else {
+            historyEntry.action = 'Create Submission';
+        }
+    } else if (action === 'update') {
+        historyEntry.action = 'Update Submission';
+    } else {
+        historyEntry.action = 'Player Update'; // Fallback
+    }
 
   try {
       if (existingSubmission) {
@@ -875,7 +899,13 @@ async function handleFormSubmit(event) {
           if (dataToSave.IsComplete) {
               dataToSave.CompletionTimestamp = new Date();
           }
-          historyEntry.action = 'Player Create';
+          // For creation, log the initial state of all fields.
+          historyEntry.changes.push({ field: 'IsComplete', from: 'N/A', to: dataToSave.IsComplete });
+          historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: 'Initial players' });
+          historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: 'N/A', to: dataToSave.AdditionalPlayerNames });
+          historyEntry.changes.push({ field: 'Notes', from: 'N/A', to: dataToSave.Notes });
+          historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: 'Initial evidence' });
+
           dataToSave.history = [historyEntry];
           await submissionManager.saveSubmission(null, dataToSave);
       }

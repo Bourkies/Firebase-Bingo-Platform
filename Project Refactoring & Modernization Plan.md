@@ -316,8 +316,7 @@ This is the target architecture we are working towards. It separates shared serv
 - [x] Refactor `users.html` -> `js/pages/usersController.js`.
 
 ### Phase 5: Testing & Documentation
-- [x] **5.1:** Initial page testing and bug fixing.
-- [ ] **5.1:** New Feature Implementation.
+- [x] **5.1:** Initial page testing and bug fixing and New Feature Implementation.
   - [x]  **5.1.1:** Reimplement name change modal to nav bar
   - [ ]  **5.1.2:** Improver user/team management page
   - [ ]  **5.1.3:** Add team captian page - allow captian to assign users (that arent in a team) to their team
@@ -326,7 +325,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [ ]  **5.1.6:** revamp submission review - allow easy checking of history, add utc toggle
   - [x]  **5.1.7:** revamp submission forum - maintain admin feedback pannel, add input forum checking
   - [ ]  **5.1.8:** remove image uploading
-  - [ ]  **5.1.9:**
+  - [ ]  **5.1.9:** Fix setup import/expot page not loading.
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.
