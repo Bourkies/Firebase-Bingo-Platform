@@ -345,6 +345,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [ ]  **5.1.4:** Replace debounce timers with content specific events (eg when deselecting text box)
     - [ ]  **5.1.4.1** Setup page
     - [ ]  **5.1.4.1** user's page
+    - [ ]  
   - [x]  **5.1.5:** Show own teams board by default, if in team
   - [x]  **5.1.6:** Revamp submission review - allow easy checking of history, add utc toggle
   - [x]  **5.1.7:** revamp submission forum - maintain admin feedback pannel, add input forum checking
