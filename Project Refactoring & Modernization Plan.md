@@ -340,7 +340,7 @@ This is the target architecture we are working towards. It separates shared serv
 ### Phase 5: Testing & Documentation
 - [x] **5.1:** Initial page testing and bug fixing and New Feature Implementation.
   - [x]  **5.1.1:** Reimplement name change modal to nav bar
-  - [ ]  **5.1.2:** Improver user/team management page
+  - [x]  **5.1.2:** Improver user/team management page
   - [ ]  **5.1.3:** Add team captian page - allow captian to assign users (that arent in a team) to their team
   - [ ]  **5.1.4:** Replace debounce timers with content specific events (eg when deselecting text box)
   - [x]  **5.1.5:** Show own teams board by default, if in team
