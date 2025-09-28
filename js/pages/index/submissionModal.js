@@ -320,10 +320,21 @@ async function handleFormSubmit(event) {
             dataToSave.Timestamp = new Date();
             if (dataToSave.IsComplete) dataToSave.CompletionTimestamp = new Date();
             historyEntry.changes.push({ field: 'IsComplete', from: 'N/A', to: dataToSave.IsComplete });
-            historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: 'Initial players' });
+            
+            const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
+            const playerNames = (dataToSave.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
+            const playerSummary = playerNames ? `Added: ${playerNames}` : 'None';
+            historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: playerSummary });
+
             historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: 'N/A', to: dataToSave.AdditionalPlayerNames });
             historyEntry.changes.push({ field: 'Notes', from: 'N/A', to: dataToSave.Notes });
-            const evidenceSummary = evidenceItems.map(item => `${item.name || 'No Name'}`).join('; ');
+            // NEW: Create a more detailed summary including the link.
+            const evidenceSummary = evidenceItems.map(item => {
+                if (item.name && item.link) {
+                    return `${item.name} (${item.link})`;
+                }
+                return item.link || item.name; // Fallback if one is missing
+            }).join('; ');
             historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: evidenceSummary || 'None' });
             dataToSave.history = [historyEntry];
             await submissionManager.saveSubmission(null, dataToSave);

@@ -327,13 +327,20 @@ async function handleSubmissionUpdate(event) {
     const originalFeedback = existingSub.AdminFeedback || '';
     const newFeedback = document.getElementById('modal-admin-feedback').value;
 
+    // NEW: Get original IsComplete status
+    const originalIsComplete = !!existingSub.IsComplete;
+
     const historyEntry = {
         timestamp: new Date(),
         user: { uid: authState.user.uid, name: authState.profile.displayName },
         action: 'Admin Update',
         changes: []
     };
-
+    
+    // NEW: Determine the new IsComplete status
+    // It becomes false if RequiresAction is checked, otherwise it remains as it was.
+    const newIsComplete = newRequiresAction ? false : originalIsComplete;
+    
     if (newVerified !== originalVerified) historyEntry.changes.push({ field: 'AdminVerified', from: originalVerified, to: newVerified });
     if (newRequiresAction !== originalRequiresAction) historyEntry.changes.push({ field: 'RequiresAction', from: originalRequiresAction, to: newRequiresAction });
     if (newFeedback !== originalFeedback) historyEntry.changes.push({ field: 'AdminFeedback', from: `"${originalFeedback}"`, to: `"${newFeedback}"` });
@@ -341,10 +348,8 @@ async function handleSubmissionUpdate(event) {
     const dataToUpdate = { AdminVerified: newVerified, RequiresAction: newRequiresAction, AdminFeedback: newRequiresAction ? newFeedback : '' };
 
     // NEW: If Requires Action is checked, automatically set IsComplete to false.
-    if (newRequiresAction && existingSub.IsComplete) {
-        dataToUpdate.IsComplete = false;
-        historyEntry.changes.push({ field: 'IsComplete', from: true, to: false });
-    }
+    if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
+    if (newRequiresAction) dataToUpdate.IsComplete = false;
 
     const subRef = fb.doc(db, 'submissions', submissionId);
     try {

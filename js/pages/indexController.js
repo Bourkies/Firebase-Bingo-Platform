@@ -305,21 +305,30 @@ const mainControllerInterface = {
             } catch (e) {
                 if (oldEvidence) oldEvidenceArray = [{ link: oldEvidence, name: '' }];
             }
-            const newEvidenceArray = evidenceItems;
-            const oldLinks = new Set(oldEvidenceArray.map(e => e.link));
-            const newLinks = new Set(newEvidenceArray.map(e => e.link));
-            const addedCount = [...newLinks].filter(link => !oldLinks.has(link)).length;
-            const removedCount = [...oldLinks].filter(link => !newLinks.has(link)).length;
-            let modifiedCount = 0;
-            oldEvidenceArray.forEach(oldItem => {
-                const newItem = newEvidenceArray.find(newItem => newItem.link === oldItem.link);
-                if (newItem && newItem.name !== oldItem.name) modifiedCount++;
+            const newEvidenceArray = evidenceItems; // This is already an array of objects
+
+            const oldEvidenceMap = new Map(oldEvidenceArray.map(item => [item.link, item.name]));
+            const newEvidenceMap = new Map(newEvidenceArray.map(item => [item.link, item.name]));
+
+            const changesSummary = [];
+
+            // Check for added evidence
+            newEvidenceMap.forEach((name, link) => {
+                if (!oldEvidenceMap.has(link)) {
+                    changesSummary.push(`Added: ${name || 'No Name'} (${link})`);
+                }
             });
-            const changes = [];
-            if (addedCount > 0) changes.push(`Added ${addedCount}`);
-            if (removedCount > 0) changes.push(`Removed ${removedCount}`);
-            if (modifiedCount > 0) changes.push(`Modified ${modifiedCount}`);
-            historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changes.join(', ')}` });
+
+            // Check for removed evidence
+            oldEvidenceMap.forEach((name, link) => {
+                if (!newEvidenceMap.has(link)) {
+                    changesSummary.push(`Removed: ${name || 'No Name'} (${link})`);
+                } else if (newEvidenceMap.get(link) !== name) { // Check for modified description
+                    changesSummary.push(`Modified: '${name}' to '${newEvidenceMap.get(link)}' for link (${link})`);
+                }
+            });
+
+            if (changesSummary.length > 0) historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changesSummary.join('; ')}` });
         }
     }
 };
