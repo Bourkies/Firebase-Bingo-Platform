@@ -688,6 +688,54 @@ function closeModal() {
   document.getElementById('submission-modal').style.display = 'none';
 }
 
+/**
+ * Validates if a given URL is an acceptable image link.
+ * @param {string} urlString The URL to validate.
+ * @returns {{isValid: boolean, message: string}}
+ */
+function validateEvidenceLink(urlString) {
+    if (!urlString) {
+        return { isValid: true, message: '' }; // An empty link is not an error.
+    }
+
+    try {
+        const url = new URL(urlString);
+        const hostname = url.hostname.toLowerCase();
+        const pathname = url.pathname.toLowerCase();
+
+        // Rule 1: Allow specific Discord channel links
+        if (hostname === 'discord.com' && pathname.startsWith('/channels/')) {
+            return { isValid: true, message: '' };
+        }
+
+        // Rule 2: Block links from video/clip sharing sites
+        const blockedDomains = ['medal.tv', 'youtube.com', 'youtu.be', 'twitch.tv', 'streamable.com'];
+        if (blockedDomains.some(domain => hostname.includes(domain))) {
+            return { isValid: false, message: `Links from ${hostname} are not permitted as they are for video clips.` };
+        }
+
+        // Rule 3: Allow direct image links from common hosts
+        const allowedImageHosts = ['i.imgur.com', 'i.gyazo.com', 'i.postimg.cc', 'cdn.discordapp.com', 'media.discordapp.net', 'i.prntscr.com', 'i.ibb.co'];
+        if (allowedImageHosts.some(host => hostname.endsWith(host))) {
+            // Further check for valid image extensions on these hosts
+            if (/\.(png|jpg|jpeg|webp)$/.test(pathname)) {
+                return { isValid: true, message: '' };
+            }
+            return { isValid: false, message: 'Link must be a direct image (png, jpg, jpeg, webp).' };
+        }
+
+        // Rule 4: General rule for any other link - must end in a valid image extension
+        if (/\.(png|jpg|jpeg|webp)$/.test(pathname)) {
+            return { isValid: true, message: '' };
+        }
+
+        return { isValid: false, message: 'Link must be a direct image (e.g., ending in .png or .jpg) or a Discord message link.' };
+
+    } catch (e) {
+        return { isValid: false, message: 'Invalid URL format.' };
+    }
+}
+
 async function handleFormSubmit(event) {
   event.preventDefault();
   const submitButton = document.getElementById('submit-button');
@@ -695,14 +743,32 @@ async function handleFormSubmit(event) {
   showGlobalLoader();
 
   // --- NEW: Collect evidence data ---
+  let allLinksAreValid = true;
   const evidenceItems = [];
   document.querySelectorAll('#evidence-container .evidence-item').forEach(item => {
       const link = item.querySelector('.evidence-link').value.trim();
       const name = item.querySelector('.evidence-name').value.trim();
+
+      // --- NEW: Validate each link ---
+      const validationResult = validateEvidenceLink(link);
+      if (!validationResult.isValid) {
+          allLinksAreValid = false;
+          showMessage(validationResult.message, true);
+          item.querySelector('.evidence-link').style.borderColor = 'var(--error-color)';
+      } else {
+          item.querySelector('.evidence-link').style.borderColor = ''; // Clear error style
+      }
+
       if (link || name) { // Only add if at least one field is filled
           evidenceItems.push({ link, name });
       }
   });
+
+  if (!allLinksAreValid) {
+      submitButton.disabled = false;
+      hideGlobalLoader();
+      return; // Stop submission if any link is invalid
+  }
 
   const canSubmit = authState.isLoggedIn && authState.profile?.team === currentTeam;
   if (!canSubmit) {
