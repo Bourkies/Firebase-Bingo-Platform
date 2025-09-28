@@ -323,7 +323,8 @@ async function handleFormSubmit(event) {
             historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: 'Initial players' });
             historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: 'N/A', to: dataToSave.AdditionalPlayerNames });
             historyEntry.changes.push({ field: 'Notes', from: 'N/A', to: dataToSave.Notes });
-            historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: 'Initial evidence' });
+            const evidenceSummary = evidenceItems.map(item => `${item.name || 'No Name'}`).join('; ');
+            historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: evidenceSummary || 'None' });
             dataToSave.history = [historyEntry];
             await submissionManager.saveSubmission(null, dataToSave);
         }
