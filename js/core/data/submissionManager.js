@@ -1,4 +1,4 @@
-import { db, fb } from '../firebase-config.js';
+import { db, fb, Timestamp } from '../firebase-config.js';
 
 let submissions = [];
 let unsubscribeSubmissions = null;
@@ -55,9 +55,9 @@ export function saveSubmission(docId, data) {
     const dataToSave = { ...data };
 
     // Convert Date objects back to Firestore Timestamps before saving
-    if (dataToSave.Timestamp instanceof Date) dataToSave.Timestamp = fb.Timestamp.fromDate(dataToSave.Timestamp);
-    if (dataToSave.CompletionTimestamp instanceof Date) dataToSave.CompletionTimestamp = fb.Timestamp.fromDate(dataToSave.CompletionTimestamp);
-    if (Array.isArray(dataToSave.history)) dataToSave.history = dataToSave.history.map(entry => entry.timestamp instanceof Date ? { ...entry, timestamp: fb.Timestamp.fromDate(entry.timestamp) } : entry);
+    if (dataToSave.Timestamp instanceof Date) dataToSave.Timestamp = Timestamp.fromDate(dataToSave.Timestamp);
+    if (dataToSave.CompletionTimestamp instanceof Date) dataToSave.CompletionTimestamp = Timestamp.fromDate(dataToSave.CompletionTimestamp);
+    if (Array.isArray(dataToSave.history)) dataToSave.history = dataToSave.history.map(entry => entry.timestamp instanceof Date ? { ...entry, timestamp: Timestamp.fromDate(entry.timestamp) } : entry);
 
     if (docId) {
         const subRef = fb.doc(db, 'submissions', docId);
