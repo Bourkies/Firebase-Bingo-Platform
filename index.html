@@ -122,6 +122,16 @@
     #submission-form button.resubmit-btn:hover {
         background-color: #e74c3c;
     }
+    /* NEW: Secondary button style */
+    #submission-form button.secondary-btn {
+        background-color: #555;
+        color: var(--text-light);
+    }
+    #submission-form button.secondary-btn:hover {
+        background-color: #666;
+    }
+    /* NEW: Adjust width for side-by-side buttons */
+    #modal-action-buttons button { width: auto; flex-grow: 1; }
     #submission-form button:disabled { background-color: #555; cursor: not-allowed; }
     /* --- NEW: Evidence Input Styling --- */
     #player-name-container {
@@ -311,11 +321,14 @@
         <button type="button" id="add-evidence-btn">+ Add Evidence Item</button>
         <label for="notes">Notes and Comments:</label>
         <textarea id="notes" rows="3"></textarea>
-        <div class="checkbox-container">
-            <input type="checkbox" id="mark-as-complete">
-            <label for="mark-as-complete">Mark as complete and ready for review</label>
+        <!-- NEW: Button container for dynamic actions -->
+        <div id="modal-action-buttons" style="display: flex; flex-direction: row-reverse; gap: 0.75rem; margin-top: 1.5rem;">
+            <!-- Acknowledge button will be dynamically shown/hidden -->
+            <button type="button" id="acknowledge-feedback-btn" class="resubmit-btn" style="display: none;">Acknowledge Feedback</button>
+            <!-- Main action buttons will be populated by JS -->
+            <button type="submit" id="submit-button-main">Submit for Review</button>
+            <button type="submit" id="submit-button-secondary" class="secondary-btn">Save as Draft</button>
         </div>
-        <button type="submit" id="submit-button">Save Progress</button>
       </form>
     </div>
   </div>

@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
     document.getElementById('add-evidence-btn').addEventListener('click', () => addEvidenceInput());
     document.querySelector('#login-modal .close-button').addEventListener('click', closeLoginModal);
+    document.getElementById('acknowledge-feedback-btn').addEventListener('click', handleAcknowledgeFeedback);
 
     // Use event delegation for dynamically created elements
     document.getElementById('evidence-container').addEventListener('click', (event) => {
@@ -628,6 +629,7 @@ function openModal(tile, status) {
   const modal = document.getElementById('submission-modal');
   const form = document.getElementById('submission-form');
   form.reset();
+  // Always show feedback if it exists, not just for "Requires Action" status
   document.getElementById('admin-feedback-display').style.display = 'none'; // Hide feedback by default
 
   document.getElementById('modal-tile-id').value = tile.id; // The user-facing ID
@@ -641,12 +643,10 @@ function openModal(tile, status) {
   const isEditable = status !== 'Verified';
 
   const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
+  let evidenceData = [];
 
   populatePlayerNameSelector(existingSubmission?.PlayerIDs || [], existingSubmission?.AdditionalPlayerNames || '');
   document.getElementById('notes').value = existingSubmission?.Notes || '';
-  document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
-
-  let evidenceData = [];
   if (existingSubmission?.Evidence) {
       try {
           evidenceData = JSON.parse(existingSubmission.Evidence);
@@ -663,24 +663,50 @@ function openModal(tile, status) {
       addEvidenceInput();
   }
 
+  // --- NEW: Dynamic Button and Form State Logic ---
   const formElements = document.querySelectorAll('#submission-form input, #submission-form textarea, #submission-form button');
-  const submitButton = document.getElementById('submit-button');
-  submitButton.className = ''; // Reset button style
+  const mainButton = document.getElementById('submit-button-main');
+  const secondaryButton = document.getElementById('submit-button-secondary');
+  const ackButton = document.getElementById('acknowledge-feedback-btn');
 
-  if (isEditable) {
-      formElements.forEach(el => el.disabled = false);
-      // NEW: Check for admin feedback to change button text/style
-      if (existingSubmission?.AdminFeedback) {
-          document.getElementById('admin-feedback-display').style.display = 'block';
-          document.getElementById('admin-feedback-text').textContent = existingSubmission.AdminFeedback;
-          submitButton.textContent = 'Resubmit for Review';
-          submitButton.classList.add('resubmit-btn');
-      } else {
-          submitButton.textContent = 'Save Progress';
-      }
-  } else {
+  // Always show feedback if it exists
+  if (existingSubmission?.AdminFeedback) {
+      document.getElementById('admin-feedback-display').style.display = 'block';
+      document.getElementById('admin-feedback-text').textContent = existingSubmission.AdminFeedback;
+  }
+
+  // Default to enabled
+  formElements.forEach(el => el.disabled = false);
+  mainButton.style.display = 'block';
+  secondaryButton.style.display = 'block';
+  ackButton.style.display = 'none';
+
+  if (status === 'Verified') {
       formElements.forEach(el => el.disabled = true);
-      submitButton.textContent = 'Verified (Locked)';
+      mainButton.textContent = 'Verified (Locked)';
+      secondaryButton.style.display = 'none'; // Hide secondary button
+  } else if (status === 'Requires Action') {
+      // Only show the acknowledge button, disable the rest of the form until acknowledged
+      formElements.forEach(el => el.disabled = true);
+      ackButton.disabled = false;
+      ackButton.style.display = 'block';
+      mainButton.style.display = 'none';
+      secondaryButton.style.display = 'none';
+  } else if (status === 'Submitted') {
+      mainButton.textContent = 'Update Submission';
+      mainButton.dataset.action = 'update';
+      secondaryButton.textContent = 'Revert to Draft';
+      secondaryButton.dataset.action = 'draft';
+  } else if (status === 'Partially Complete') {
+      mainButton.textContent = 'Submit for Review';
+      mainButton.dataset.action = 'submit';
+      secondaryButton.textContent = 'Update Draft';
+      secondaryButton.dataset.action = 'draft';
+  } else { // Unlocked / New Submission
+      mainButton.textContent = 'Submit for Review';
+      mainButton.dataset.action = 'submit';
+      secondaryButton.textContent = 'Save as Draft';
+      secondaryButton.dataset.action = 'draft';
   }
 }
 
@@ -736,10 +762,20 @@ function validateEvidenceLink(urlString) {
     }
 }
 
+async function handleAcknowledgeFeedback() {
+    const tileId = document.getElementById('modal-tile-id').value;
+    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
+    if (!existingSubmission) return;
+
+    const dataToUpdate = { RequiresAction: false, IsComplete: false }; // Revert to a draft state
+    await submissionManager.saveSubmission(existingSubmission.docId, dataToUpdate);
+    showMessage('Feedback acknowledged. You can now edit and resubmit.', false);
+    closeModal(); // Close and re-open to refresh the state
+}
+
 async function handleFormSubmit(event) {
   event.preventDefault();
-  const submitButton = document.getElementById('submit-button');
-  submitButton.disabled = true;
+  document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = true);
   showGlobalLoader();
 
   // --- NEW: Collect evidence data ---
@@ -765,7 +801,7 @@ async function handleFormSubmit(event) {
   });
 
   if (!allLinksAreValid) {
-      submitButton.disabled = false;
+      document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
       hideGlobalLoader();
       return; // Stop submission if any link is invalid
   }
@@ -773,7 +809,7 @@ async function handleFormSubmit(event) {
   const canSubmit = authState.isLoggedIn && authState.profile?.team === currentTeam;
   if (!canSubmit) {
       showMessage('You do not have permission to submit for this team.', true);
-      submitButton.disabled = false;
+      document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
       hideGlobalLoader();
       return;
   }
@@ -781,14 +817,21 @@ async function handleFormSubmit(event) {
   const tileId = document.getElementById('modal-tile-id').value;
   const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
 
+  // Determine if the main or secondary button was clicked
+  const clickedButton = event.submitter;
+  const action = clickedButton.dataset.action;
+
   const dataToSave = {
     PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
     AdditionalPlayerNames: document.getElementById('additional-players-value').value,
     Evidence: JSON.stringify(evidenceItems),
     Notes: document.getElementById('notes').value,
     Team: currentTeam,
-    id: tileId, // Save the user-facing tile ID
-    IsComplete: document.getElementById('mark-as-complete').checked,
+    id: tileId,
+    // NEW: Set IsComplete based on which button was clicked
+    IsComplete: action === 'submit' || action === 'update',
+    // When reverting to draft, clear RequiresAction flag if it exists
+    RequiresAction: action === 'draft' ? false : (existingSubmission?.RequiresAction || false),
   };
   
   // FIX: Define historyEntry before using it.
@@ -798,12 +841,11 @@ async function handleFormSubmit(event) {
       changes: []
   };
 
-  // If this is a resubmission, clear the feedback and "Requires Action" flag
-  if (existingSubmission?.AdminFeedback) {
+  // If this was a "Requires Action" tile and we are now submitting, log it.
+  if (existingSubmission?.RequiresAction && dataToSave.IsComplete) {
       historyEntry.action = 'Player Resubmission';
       historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
       dataToSave.RequiresAction = false; // Player has addressed the issue
-      dataToSave.AdminFeedback = ''; // Clear the feedback message
   } else {
       historyEntry.action = 'Player Update';
   }
@@ -843,7 +885,7 @@ async function handleFormSubmit(event) {
       showMessage('Submission failed: ' + error.message, true);
       console.error("Submission error:", error);
   } finally {
-      submitButton.disabled = false;
+      document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
       hideGlobalLoader();
   }
 }
