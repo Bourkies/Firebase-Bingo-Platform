@@ -180,8 +180,8 @@ function renderSubmissionsTable() {
         const status = getSubmissionStatus(sub);
         const tileName = tilesByVisibleId[sub.id]?.Name || sub.id; // Use the new map
         const teamName = allTeams[sub.Team]?.name || sub.Team;
-        const date = sub.Timestamp?.toDate();
-        const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
+        const date = sub.CompletionTimestamp?.toDate() || sub.Timestamp?.toDate(); // Prefer completion time
+        const timestamp = formatCustomDateTime(date, useUtcTime);
 
         // NEW: Generate player name string from IDs
         const playerNames = (sub.PlayerIDs || [])
@@ -192,12 +192,12 @@ function renderSubmissionsTable() {
 
         return `
             <tr data-id="${sub.docId}">
-                <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
-                <td>${sub.id}</td>
-                <td title="${tileName}">${tileName}</td>
-                <td>${teamName}</td>
-                <td title="${finalPlayerString}">${finalPlayerString}</td>
-                <td>${timestamp}</td>
+                <td data-label="Status"><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
+                <td data-label="Tile ID">${sub.id}</td>
+                <td data-label="Tile" title="${tileName}">${tileName}</td>
+                <td data-label="Team">${teamName}</td>
+                <td data-label="Player(s)" title="${finalPlayerString}">${finalPlayerString}</td>
+                <td data-label="Submitted">${timestamp}</td>
             </tr>
         `;
     }).join('');
