@@ -292,13 +292,19 @@ function openSubmissionModal(submissionId) {
         sortedHistory.forEach(entry => {
             const date = entry.timestamp?.toDate();
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
-            const changesText = entry.changes?.map(c => 
-                `'${c.field}' from '${c.from}' to '${c.to}'`
-            ).join(', ') || '';
+            let changesText = '';
+
+            // NEW: Make history log more readable by hiding redundant "changes" on creation.
+            const isCreationEvent = entry.action?.toLowerCase().includes('create');
+            if (entry.changes && !isCreationEvent) {
+                changesText = entry.changes.map(c =>
+                    `'${c.field}' from '${c.from}' to '${c.to}'`
+                ).join(', ');
+            }
 
             const item = document.createElement('div');
             item.className = 'history-item';
-            item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action} ${changesText}`;
+            item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action || 'Update'} ${changesText}`;
             historyContent.appendChild(item);
         });
     } else {

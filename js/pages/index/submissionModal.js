@@ -1,0 +1,339 @@
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
+import * as submissionManager from '../../core/data/submissionManager.js';
+
+let mainController;
+
+export function initializeSubmissionModal(controller) {
+    mainController = controller;
+    document.querySelector('#submission-modal .close-button').addEventListener('click', closeModal);
+    document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
+    document.getElementById('add-evidence-btn').addEventListener('click', () => addEvidenceInput());
+    document.getElementById('acknowledge-feedback-btn').addEventListener('click', handleAcknowledgeFeedback);
+
+    document.getElementById('evidence-container').addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-evidence-btn')) {
+            event.target.closest('.evidence-item').remove();
+            renumberEvidenceItems();
+        }
+    });
+}
+
+export function openModal(tile, status) {
+    const { config, allTeams, currentTeam, submissions } = mainController.getState();
+    const modal = document.getElementById('submission-modal');
+    const form = document.getElementById('submission-form');
+    form.reset();
+    document.getElementById('admin-feedback-display').style.display = 'none';
+
+    document.getElementById('modal-tile-id').value = tile.id;
+    document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name || 'Censored'}`;
+    const teamName = (allTeams && allTeams[currentTeam]) ? allTeams[currentTeam].name : currentTeam;
+    document.getElementById('modal-team-name').textContent = `Team: ${teamName}`;
+    document.getElementById('modal-tile-desc').textContent = tile.Description || 'This tile is hidden until the event begins.';
+    document.getElementById('evidence-label').textContent = config.evidenceFieldLabel || 'Evidence:';
+
+    modal.style.display = 'flex';
+    const isEditable = status !== 'Verified';
+
+    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
+    let evidenceData = [];
+
+    populatePlayerNameSelector(existingSubmission?.PlayerIDs || [], existingSubmission?.AdditionalPlayerNames || '');
+    document.getElementById('notes').value = existingSubmission?.Notes || '';
+    if (existingSubmission?.Evidence) {
+        try {
+            evidenceData = JSON.parse(existingSubmission.Evidence);
+            if (!Array.isArray(evidenceData)) throw new Error("Not an array");
+        } catch (e) {
+            if (existingSubmission.Evidence) evidenceData = [{ link: existingSubmission.Evidence, name: '' }];
+        }
+    }
+
+    clearEvidenceInputs();
+    if (evidenceData.length > 0) {
+        evidenceData.forEach(item => addEvidenceInput(item.link, item.name));
+    } else if (isEditable) {
+        addEvidenceInput();
+    }
+
+    const formElements = document.querySelectorAll('#submission-form input, #submission-form textarea, #submission-form button');
+    const mainButton = document.getElementById('submit-button-main');
+    const secondaryButton = document.getElementById('submit-button-secondary');
+    const ackButton = document.getElementById('acknowledge-feedback-btn');
+
+    if (existingSubmission?.AdminFeedback) {
+        document.getElementById('admin-feedback-display').style.display = 'block';
+        document.getElementById('admin-feedback-text').textContent = existingSubmission.AdminFeedback;
+    }
+
+    formElements.forEach(el => el.disabled = false);
+    mainButton.style.display = 'block';
+    secondaryButton.style.display = 'block';
+    ackButton.style.display = 'none';
+
+    if (status === 'Verified') {
+        formElements.forEach(el => el.disabled = true);
+        mainButton.textContent = 'Verified (Locked)';
+        secondaryButton.style.display = 'none';
+    } else if (status === 'Requires Action') {
+        formElements.forEach(el => el.disabled = true);
+        ackButton.disabled = false;
+        ackButton.style.display = 'block';
+        mainButton.style.display = 'none';
+        secondaryButton.style.display = 'none';
+    } else if (status === 'Submitted') {
+        mainButton.textContent = 'Update Submission';
+        mainButton.dataset.action = 'update';
+        secondaryButton.textContent = 'Revert to Draft';
+        secondaryButton.dataset.action = 'draft';
+    } else if (status === 'Partially Complete') {
+        mainButton.textContent = 'Submit for Review';
+        mainButton.dataset.action = 'submit';
+        secondaryButton.textContent = 'Update Draft';
+        secondaryButton.dataset.action = 'draft';
+    } else {
+        mainButton.textContent = 'Submit for Review';
+        mainButton.dataset.action = 'submit';
+        secondaryButton.textContent = 'Save as Draft';
+        secondaryButton.dataset.action = 'draft';
+    }
+}
+
+export function closeModal() {
+    document.getElementById('submission-modal').style.display = 'none';
+}
+
+function addEvidenceInput(link = '', name = '') {
+    const container = document.getElementById('evidence-container');
+    const itemCount = container.children.length;
+
+    const evidenceItemDiv = document.createElement('div');
+    evidenceItemDiv.className = 'evidence-item';
+
+    evidenceItemDiv.innerHTML = `
+        <div class="evidence-item-header">
+            <label>Evidence #${itemCount + 1}</label>
+            <button type="button" class="remove-evidence-btn">&times;</button>
+        </div>
+        <input type="text" class="evidence-name" placeholder="Optional: name or short description" value="${name}">
+        <input type="text" class="evidence-link" placeholder="Link (e.g., https://discord...)" value="${link}">
+    `;
+    container.appendChild(evidenceItemDiv);
+}
+
+function renumberEvidenceItems() {
+    const container = document.getElementById('evidence-container');
+    const items = container.querySelectorAll('.evidence-item');
+    items.forEach((item, index) => {
+        const label = item.querySelector('label');
+        if (label) {
+            label.textContent = `Evidence #${index + 1}`;
+        }
+    });
+}
+
+function clearEvidenceInputs() {
+    document.getElementById('evidence-container').innerHTML = '';
+}
+
+function populatePlayerNameSelector(savedPlayerIDs = [], savedAdditionalNames = '') {
+    const { allUsers, currentTeam } = mainController.getState();
+    const membersContainer = document.getElementById('team-members-checkboxes');
+    const teamCheckbox = document.getElementById('team-submission-checkbox');
+    const manualInput = document.getElementById('manual-player-name');
+
+    membersContainer.innerHTML = '';
+    teamCheckbox.checked = false;
+    manualInput.value = '';
+
+    const teamMembers = allUsers.filter(u => u.team === currentTeam);
+    teamMembers.forEach(member => {
+        const id = `player-check-${member.uid}`;
+        const item = document.createElement('div');
+        item.className = 'player-checkbox-item';
+        item.innerHTML = `<input type="checkbox" id="${id}" data-uid="${member.uid}"><label for="${id}">${member.displayName}</label>`;
+        membersContainer.appendChild(item);
+    });
+
+    const { allTeams } = mainController.getState();
+    const teamName = allTeams[currentTeam]?.name || currentTeam;
+    if (savedAdditionalNames === teamName && savedPlayerIDs.length === 0) {
+        teamCheckbox.checked = true;
+    } else {
+        savedPlayerIDs.forEach(uid => {
+            const memberCheckbox = membersContainer.querySelector(`[data-uid="${uid}"]`);
+            if (memberCheckbox) memberCheckbox.checked = true;
+        });
+        manualInput.value = savedAdditionalNames;
+    }
+
+    const container = document.getElementById('player-name-container');
+    container.removeEventListener('input', updatePlayerNameField);
+    container.addEventListener('input', updatePlayerNameField);
+    updatePlayerNameField();
+}
+
+function updatePlayerNameField() {
+    const { allTeams, currentTeam } = mainController.getState();
+    const membersContainer = document.getElementById('team-members-checkboxes');
+    const teamCheckbox = document.getElementById('team-submission-checkbox');
+    const manualInput = document.getElementById('manual-player-name');
+    const playerIdsInput = document.getElementById('player-ids-value');
+    const additionalNamesInput = document.getElementById('additional-players-value');
+
+    const teamName = allTeams[currentTeam]?.name || currentTeam;
+
+    if (teamCheckbox.checked) {
+        playerIdsInput.value = JSON.stringify([]);
+        additionalNamesInput.value = teamName;
+        membersContainer.querySelectorAll('input').forEach(i => { i.checked = false; i.disabled = true; });
+        manualInput.value = ''; manualInput.disabled = true;
+        return;
+    }
+
+    membersContainer.querySelectorAll('input').forEach(i => i.disabled = false);
+    manualInput.disabled = false;
+    const selectedUIDs = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.uid);
+    playerIdsInput.value = JSON.stringify(selectedUIDs);
+    additionalNamesInput.value = manualInput.value.trim();
+}
+
+function validateEvidenceLink(urlString) {
+    if (!urlString) return { isValid: true, message: '' };
+    try {
+        const url = new URL(urlString);
+        const hostname = url.hostname.toLowerCase();
+        const pathname = url.pathname.toLowerCase();
+        if (hostname === 'discord.com' && pathname.startsWith('/channels/')) return { isValid: true, message: '' };
+        const blockedDomains = ['medal.tv', 'youtube.com', 'youtu.be', 'twitch.tv', 'streamable.com'];
+        if (blockedDomains.some(domain => hostname.includes(domain))) return { isValid: false, message: `Links from ${hostname} are not permitted.` };
+        const allowedImageHosts = ['i.imgur.com', 'i.gyazo.com', 'i.postimg.cc', 'cdn.discordapp.com', 'media.discordapp.net', 'i.prntscr.com', 'i.ibb.co'];
+        if (allowedImageHosts.some(host => hostname.endsWith(host))) {
+            if (/\.(png|jpg|jpeg|webp)$/.test(pathname)) return { isValid: true, message: '' };
+            return { isValid: false, message: 'Link must be a direct image (png, jpg, jpeg, webp).' };
+        }
+        if (/\.(png|jpg|jpeg|webp)$/.test(pathname)) return { isValid: true, message: '' };
+        return { isValid: false, message: 'Link must be a direct image or a Discord message link.' };
+    } catch (e) {
+        return { isValid: false, message: 'Invalid URL format.' };
+    }
+}
+
+async function handleAcknowledgeFeedback() {
+    const { submissions, currentTeam, authState } = mainController.getState();
+    const tileId = document.getElementById('modal-tile-id').value;
+    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
+    if (!existingSubmission) return;
+
+    const historyEntry = {
+        timestamp: new Date(),
+        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        action: 'Acknowledge Feedback',
+        changes: [{ field: 'RequiresAction', from: true, to: false }, { field: 'IsComplete', from: true, to: false }]
+    };
+    const dataToUpdate = {
+        RequiresAction: false,
+        IsComplete: false,
+        history: [...(existingSubmission.history || []), historyEntry]
+    };
+    await submissionManager.saveSubmission(existingSubmission.docId, dataToUpdate);
+    showMessage('Feedback acknowledged. You can now edit and resubmit.', false);
+    closeModal();
+}
+
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = true);
+    showGlobalLoader();
+
+    const { authState, currentTeam, submissions, allUsers } = mainController.getState();
+
+    let allLinksAreValid = true;
+    const evidenceItems = [];
+    document.querySelectorAll('#evidence-container .evidence-item').forEach(item => {
+        const link = item.querySelector('.evidence-link').value.trim();
+        const name = item.querySelector('.evidence-name').value.trim();
+        const validationResult = validateEvidenceLink(link);
+        if (!validationResult.isValid) {
+            allLinksAreValid = false;
+            showMessage(validationResult.message, true);
+            item.querySelector('.evidence-link').style.borderColor = 'var(--error-color)';
+        } else {
+            item.querySelector('.evidence-link').style.borderColor = '';
+        }
+        if (link || name) evidenceItems.push({ link, name });
+    });
+
+    if (!allLinksAreValid) {
+        document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
+        hideGlobalLoader();
+        return;
+    }
+
+    if (!authState.isLoggedIn || authState.profile?.team !== currentTeam) {
+        showMessage('You do not have permission to submit for this team.', true);
+        document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
+        hideGlobalLoader();
+        return;
+    }
+
+    const tileId = document.getElementById('modal-tile-id').value;
+    const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
+    const action = event.submitter.dataset.action;
+
+    const dataToSave = {
+        PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
+        AdditionalPlayerNames: document.getElementById('additional-players-value').value,
+        Evidence: JSON.stringify(evidenceItems),
+        Notes: document.getElementById('notes').value,
+        Team: currentTeam,
+        id: tileId,
+        IsComplete: action === 'submit' || action === 'update',
+        RequiresAction: action === 'draft' ? false : (existingSubmission?.RequiresAction || false),
+    };
+
+    const historyEntry = {
+        timestamp: new Date(),
+        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        changes: []
+    };
+
+    // Set history action
+    if (action === 'draft') historyEntry.action = existingSubmission ? 'Revert to Draft' : 'Create Draft';
+    else if (action === 'submit') {
+        if (existingSubmission?.RequiresAction) {
+            historyEntry.action = 'Resubmit for Review';
+            historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
+            dataToSave.RequiresAction = false;
+        } else historyEntry.action = existingSubmission ? 'Submit Draft' : 'Create Submission';
+    } else if (action === 'update') historyEntry.action = 'Update Submission';
+    else historyEntry.action = 'Player Update';
+
+    try {
+        if (existingSubmission) {
+            // Log detailed changes
+            mainController.logDetailedChanges(historyEntry, dataToSave, existingSubmission, evidenceItems);
+            if (historyEntry.changes.length > 0) dataToSave.history = [...(existingSubmission.history || []), historyEntry];
+            if (dataToSave.IsComplete && !existingSubmission.IsComplete) dataToSave.CompletionTimestamp = new Date();
+            await submissionManager.saveSubmission(existingSubmission.docId, dataToSave);
+        } else {
+            dataToSave.Timestamp = new Date();
+            if (dataToSave.IsComplete) dataToSave.CompletionTimestamp = new Date();
+            historyEntry.changes.push({ field: 'IsComplete', from: 'N/A', to: dataToSave.IsComplete });
+            historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: 'Initial players' });
+            historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: 'N/A', to: dataToSave.AdditionalPlayerNames });
+            historyEntry.changes.push({ field: 'Notes', from: 'N/A', to: dataToSave.Notes });
+            historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: 'Initial evidence' });
+            dataToSave.history = [historyEntry];
+            await submissionManager.saveSubmission(null, dataToSave);
+        }
+        showMessage('Submission saved!', false);
+        closeModal();
+    } catch (error) {
+        showMessage('Submission failed: ' + error.message, true);
+        console.error("Submission error:", error);
+    } finally {
+        document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
+        hideGlobalLoader();
+    }
+}
