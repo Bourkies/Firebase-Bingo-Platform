@@ -87,11 +87,22 @@
     </div>
     <div id="permissions-view" class="container">
         <h1>User Permissions</h1>
+        <!-- NEW: Admin controls will be injected here by JS -->
+        <div id="admin-controls-container"></div>
         <div class="card">
-            <table id="user-management-table" style="table-layout: fixed;">
-                <thead><tr><th style="width: 70%;">Display Name</th><th style="width: 15%;">Is Mod</th><th style="width: 15%;">Is Admin</th></tr></thead>
-                <tbody></tbody>
-            </table>
+            <div style="overflow-x: auto;">
+                <table id="user-management-table">
+                    <thead>
+                        <tr>
+                            <th data-column="displayName">Display Name</th>
+                            <th data-column="isAnonymous">Login Type</th>
+                            <th data-column="isEventMod">Is Mod</th>
+                            <th data-column="isAdmin">Is Admin</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
   </div>
