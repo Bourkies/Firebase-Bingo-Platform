@@ -214,6 +214,19 @@ function getSubmissionStatus(sub) {
     return 'Partially Complete';
 }
 
+function formatCustomDateTime(date, useUTC = false) {
+    if (!date || !(date instanceof Date)) return 'N/A';
+
+    const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+    const month = String((useUTC ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, '0');
+    const day = String(useUTC ? date.getUTCDate() : date.getDate()).padStart(2, '0');
+    const hours = String(useUTC ? date.getUTCHours() : date.getHours()).padStart(2, '0');
+    const minutes = String(useUTC ? date.getUTCMinutes() : date.getMinutes()).padStart(2, '0');
+    const seconds = String(useUTC ? date.getUTCSeconds() : date.getSeconds()).padStart(2, '0');
+
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+}
+
 function openSubmissionModal(submissionId) {
     const sub = allSubmissions.find(s => s.docId === submissionId);
     if (!sub) return;
@@ -237,21 +250,21 @@ function openSubmissionModal(submissionId) {
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';
 
-    const useUtcTime = document.getElementById('utc-time-toggle').checked;
-    const subTimestamp = sub.Timestamp?.toDate();
     const completionTimestamp = sub.CompletionTimestamp?.toDate();
-    document.getElementById('modal-timestamp').textContent = subTimestamp ? (useUtcTime ? subTimestamp.toUTCString() : subTimestamp.toLocaleString()) : 'N/A';
-    document.getElementById('modal-completion-timestamp').textContent = completionTimestamp ? (useUtcTime ? completionTimestamp.toUTCString() : completionTimestamp.toLocaleString()) : 'N/A';
+    document.getElementById('modal-timestamp-local').textContent = formatCustomDateTime(completionTimestamp, false);
+    document.getElementById('modal-timestamp-utc').textContent = formatCustomDateTime(completionTimestamp, true);
 
     let evidenceHTML = 'None';
     if (sub.Evidence) {
         try {
             const evidenceList = JSON.parse(sub.Evidence);
             if (Array.isArray(evidenceList) && evidenceList.length > 0) {
-                evidenceHTML = evidenceList.map(item => `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.name || item.link}</a>`).join('');
+                evidenceHTML = evidenceList.map((item, index) => 
+                    `<a href="${item.link}" target="_blank" rel="noopener noreferrer" title="${item.link}" style="color: var(--accent-color); display: block;">${item.name || `Evidence ${index + 1}`}</a>`
+                ).join('');
             }
         } catch (e) {
-            evidenceHTML = `<a href="${sub.Evidence}" target="_blank" rel="noopener noreferrer">${sub.Evidence}</a>`;
+            evidenceHTML = `<a href="${sub.Evidence}" target="_blank" rel="noopener noreferrer" title="${sub.Evidence}" style="color: var(--accent-color);">${sub.Evidence}</a>`;
         }
     }
     document.getElementById('modal-evidence').innerHTML = evidenceHTML;
@@ -284,6 +297,7 @@ function openSubmissionModal(submissionId) {
     // NEW: Render history
     const historyDetails = document.getElementById('history-details');
     const historyContent = document.getElementById('modal-history-content');
+    const useUtcTime = document.getElementById('utc-time-toggle').checked;
     historyContent.innerHTML = '';
     if (sub.history && Array.isArray(sub.history)) {
         historyDetails.style.display = 'block';
