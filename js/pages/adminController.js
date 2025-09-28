@@ -180,8 +180,8 @@ function renderSubmissionsTable() {
         const status = getSubmissionStatus(sub);
         const tileName = tilesByVisibleId[sub.id]?.Name || sub.id; // Use the new map
         const teamName = allTeams[sub.Team]?.name || sub.Team;
-        const date = sub.Timestamp?.toDate();
-        const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
+        const date = sub.CompletionTimestamp?.toDate() || sub.Timestamp?.toDate(); // Prefer completion time
+        const timestamp = formatCustomDateTime(date, useUtcTime);
 
         // NEW: Generate player name string from IDs
         const playerNames = (sub.PlayerIDs || [])
@@ -192,12 +192,12 @@ function renderSubmissionsTable() {
 
         return `
             <tr data-id="${sub.docId}">
-                <td><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
-                <td>${sub.id}</td>
-                <td title="${tileName}">${tileName}</td>
-                <td>${teamName}</td>
-                <td title="${finalPlayerString}">${finalPlayerString}</td>
-                <td>${timestamp}</td>
+                <td data-label="Status"><span class="status-dot status-${status.replace(' ', '-')}"></span>${status}</td>
+                <td data-label="Tile ID">${sub.id}</td>
+                <td data-label="Tile" title="${tileName}">${tileName}</td>
+                <td data-label="Team">${teamName}</td>
+                <td data-label="Player(s)" title="${finalPlayerString}">${finalPlayerString}</td>
+                <td data-label="Submitted">${timestamp}</td>
             </tr>
         `;
     }).join('');
@@ -212,6 +212,19 @@ function getSubmissionStatus(sub) {
     if (sub.RequiresAction) return 'Requires Action';
     if (sub.IsComplete) return 'Submitted';
     return 'Partially Complete';
+}
+
+function formatCustomDateTime(date, useUTC = false) {
+    if (!date || !(date instanceof Date)) return 'N/A';
+
+    const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+    const month = String((useUTC ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, '0');
+    const day = String(useUTC ? date.getUTCDate() : date.getDate()).padStart(2, '0');
+    const hours = String(useUTC ? date.getUTCHours() : date.getHours()).padStart(2, '0');
+    const minutes = String(useUTC ? date.getUTCMinutes() : date.getMinutes()).padStart(2, '0');
+    const seconds = String(useUTC ? date.getUTCSeconds() : date.getSeconds()).padStart(2, '0');
+
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
 function openSubmissionModal(submissionId) {
@@ -237,21 +250,21 @@ function openSubmissionModal(submissionId) {
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';
 
-    const useUtcTime = document.getElementById('utc-time-toggle').checked;
-    const subTimestamp = sub.Timestamp?.toDate();
     const completionTimestamp = sub.CompletionTimestamp?.toDate();
-    document.getElementById('modal-timestamp').textContent = subTimestamp ? (useUtcTime ? subTimestamp.toUTCString() : subTimestamp.toLocaleString()) : 'N/A';
-    document.getElementById('modal-completion-timestamp').textContent = completionTimestamp ? (useUtcTime ? completionTimestamp.toUTCString() : completionTimestamp.toLocaleString()) : 'N/A';
+    document.getElementById('modal-timestamp-local').textContent = formatCustomDateTime(completionTimestamp, false);
+    document.getElementById('modal-timestamp-utc').textContent = formatCustomDateTime(completionTimestamp, true);
 
     let evidenceHTML = 'None';
     if (sub.Evidence) {
         try {
             const evidenceList = JSON.parse(sub.Evidence);
             if (Array.isArray(evidenceList) && evidenceList.length > 0) {
-                evidenceHTML = evidenceList.map(item => `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.name || item.link}</a>`).join('');
+                evidenceHTML = evidenceList.map((item, index) => 
+                    `<a href="${item.link}" target="_blank" rel="noopener noreferrer" title="${item.link}" style="color: var(--accent-color); display: block;">${item.name || `Evidence ${index + 1}`}</a>`
+                ).join('');
             }
         } catch (e) {
-            evidenceHTML = `<a href="${sub.Evidence}" target="_blank" rel="noopener noreferrer">${sub.Evidence}</a>`;
+            evidenceHTML = `<a href="${sub.Evidence}" target="_blank" rel="noopener noreferrer" title="${sub.Evidence}" style="color: var(--accent-color);">${sub.Evidence}</a>`;
         }
     }
     document.getElementById('modal-evidence').innerHTML = evidenceHTML;
@@ -284,6 +297,7 @@ function openSubmissionModal(submissionId) {
     // NEW: Render history
     const historyDetails = document.getElementById('history-details');
     const historyContent = document.getElementById('modal-history-content');
+    const useUtcTime = document.getElementById('utc-time-toggle').checked;
     historyContent.innerHTML = '';
     if (sub.history && Array.isArray(sub.history)) {
         historyDetails.style.display = 'block';
@@ -292,13 +306,15 @@ function openSubmissionModal(submissionId) {
         sortedHistory.forEach(entry => {
             const date = entry.timestamp?.toDate();
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
-            const changesText = entry.changes?.map(c => 
-                `'${c.field}' from '${c.from}' to '${c.to}'`
-            ).join(', ') || '';
+            // Always show changes if they exist, including for creation events.
+            const changesText = (entry.changes && entry.changes.length > 0)
+                ? entry.changes.map(c =>
+                    `'${c.field}' from '${c.from}' to '${c.to}'`
+                ).join(', ') : '';
 
             const item = document.createElement('div');
             item.className = 'history-item';
-            item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action} ${changesText}`;
+            item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action || 'Update'} ${changesText}`;
             historyContent.appendChild(item);
         });
     } else {
@@ -325,13 +341,20 @@ async function handleSubmissionUpdate(event) {
     const originalFeedback = existingSub.AdminFeedback || '';
     const newFeedback = document.getElementById('modal-admin-feedback').value;
 
+    // NEW: Get original IsComplete status
+    const originalIsComplete = !!existingSub.IsComplete;
+
     const historyEntry = {
         timestamp: new Date(),
         user: { uid: authState.user.uid, name: authState.profile.displayName },
         action: 'Admin Update',
         changes: []
     };
-
+    
+    // NEW: Determine the new IsComplete status
+    // It becomes false if RequiresAction is checked, otherwise it remains as it was.
+    const newIsComplete = newRequiresAction ? false : originalIsComplete;
+    
     if (newVerified !== originalVerified) historyEntry.changes.push({ field: 'AdminVerified', from: originalVerified, to: newVerified });
     if (newRequiresAction !== originalRequiresAction) historyEntry.changes.push({ field: 'RequiresAction', from: originalRequiresAction, to: newRequiresAction });
     if (newFeedback !== originalFeedback) historyEntry.changes.push({ field: 'AdminFeedback', from: `"${originalFeedback}"`, to: `"${newFeedback}"` });
@@ -339,10 +362,8 @@ async function handleSubmissionUpdate(event) {
     const dataToUpdate = { AdminVerified: newVerified, RequiresAction: newRequiresAction, AdminFeedback: newRequiresAction ? newFeedback : '' };
 
     // NEW: If Requires Action is checked, automatically set IsComplete to false.
-    if (newRequiresAction && existingSub.IsComplete) {
-        dataToUpdate.IsComplete = false;
-        historyEntry.changes.push({ field: 'IsComplete', from: true, to: false });
-    }
+    if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
+    if (newRequiresAction) dataToUpdate.IsComplete = false;
 
     const subRef = fb.doc(db, 'submissions', submissionId);
     try {

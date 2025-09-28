@@ -54,6 +54,10 @@ This is the target architecture we are working towards. It separates shared serv
 │   │  
 │   └── pages/  
 │       ├── indexController.js    \# Logic unique to index.html  
+│       ├── index/                  \# NEW: Sub-modules for the index page
+│       │   ├── board.js            \# Manages board rendering and tile status logic
+│       │   ├── submissionModal.js  \# Manages the submission modal, form, and validation
+│       │   └── loginModal.js       \# Manages the login modal
 │       ├── adminController.js    \# Logic unique to admin.html  
 │       ├── overviewController.js \# Logic unique to overview.html
 │       ├── setupController.js    \# Main coordinator for the setup page
@@ -256,6 +260,23 @@ This is the target architecture we are working towards. It separates shared serv
     *   **`js/pages/setup/globalConfigEditor.js`**: Responsible for rendering and handling interactions with the "Global Config & Styles" and "Event Teams" panels.
 *   **`setupController.js` (The Main Controller)** will be refactored to be much leaner. It will be responsible for initializing the page and data listeners, managing core board interactions (zoom, pan, drag/resize), and importing/calling functions from the new sub-modules.
 
+### **Phase 4.2: Deconstructing the Index Controller**
+
+**Objective:** The `setupController.js` is the largest and most complex in the project. To improve manageability, it will be broken down into smaller, feature-focused modules. The main controller will become a coordinator, delegating tasks to these new modules.
+
+#### **Action 4.1.1: Create Setup Sub-Modules**
+*   **Task:** Create a new directory `js/pages/setup/`. Move logic from `setupController.js` into the following new modules:
+    *   **`js/pages/setup/tileEditor.js`**: Manages the "Edit Tile Details" panel, including creating the form, handling input, and managing the tile selector dropdown.
+    *   **`js/pages/setup/prereqEditor.js`**: Handles the complex logic for the prerequisite UI and rendering the visual connector lines on the board.
+    *   **`js/pages/setup/overrideEditor.js`**: Manages the dynamic "Overrides" section, which has its own complex form-building logic.
+    *   **`js/pages/setup/globalConfigEditor.js`**: Responsible for rendering and handling interactions with the "Global Config & Styles" and "Event Teams" panels.
+*   **`setupController.js` (The Main Controller)** will be refactored to be much leaner. It will be responsible for initializing the page and data listeners, managing core board interactions (zoom, pan, drag/resize), and importing/calling functions from the new sub-modules.
+*   **Task:** Create a new directory `js/pages/index/`. Move logic from `indexController.js` into the following new modules:
+    *   **`js/pages/index/board.js`**: Manages all logic for rendering the bingo board, tiles, scoreboard, and color key.
+    *   **`js/pages/index/submissionModal.js`**: Encapsulates everything to do with the submission modal, including opening it, validation, and handling form submission.
+    *   **`js/pages/index/loginModal.js`**: A small module to handle showing and hiding the login modal.
+*   **`indexController.js` (The Main Controller)** will be refactored to be much leaner. It will be responsible for initializing the page and data listeners, and importing/calling functions from the new sub-modules.
+    
 ## **Phase 5: Testing & Documentation**
 
 **Objective:** Verify that all application functionality remains intact and document the new architecture for future contributors.
@@ -304,6 +325,7 @@ This is the target architecture we are working towards. It separates shared serv
 - [x] Refactor `import_submissions.html` -> `js/pages/importSubmissionsController.js`.
 - [x] Refactor `import_tiles.html` -> `js/pages/importTilesController.js`.
 - [x] Refactor `index.html` -> `js/pages/indexController.js`.
+  - [x] Deconstruct `indexController.js` into `board.js`, `submissionModal.js`, and `loginModal.js`.
 - [x] Refactor `overview.html` -> `js/pages/overviewController.js`.
 - [x] Refactor `permissions.html` -> `js/pages/permissionsController.js`.
 - [x] Refactor `setup.html` -> `js/pages/setupController.js`.
@@ -316,13 +338,16 @@ This is the target architecture we are working towards. It separates shared serv
 - [x] Refactor `users.html` -> `js/pages/usersController.js`.
 
 ### Phase 5: Testing & Documentation
-- [x] **5.1:** Initial page testing and bug fixing.
-- [ ] **5.1:** New Feature Implementation.
-  - [ ]  **5.1.1:** Reimplement name change modal to nav bar
-  - [ ]  **5.1.2:** Improver user/team management page
-  - [ ]  **5.1.3:**
-  - [ ]  **5.1.4:**
-  - [ ]  **5.1.5:**
+- [x] **5.1:** Initial page testing and bug fixing and New Feature Implementation.
+  - [x]  **5.1.1:** Reimplement name change modal to nav bar
+  - [x]  **5.1.2:** Improver user/team management page
+  - [ ]  **5.1.3:** Add team captian page - allow captian to assign users (that arent in a team) to their team
+  - [ ]  **5.1.4:** Replace debounce timers with content specific events (eg when deselecting text box)
+  - [x]  **5.1.5:** Show own teams board by default, if in team
+  - [x]  **5.1.6:** Revamp submission review - allow easy checking of history, add utc toggle
+  - [x]  **5.1.7:** revamp submission forum - maintain admin feedback pannel, add input forum checking
+  - [ ]  **5.1.8:** remove image uploading
+  - [ ]  **5.1.9:** Fix setup import/expot page not loading.
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.

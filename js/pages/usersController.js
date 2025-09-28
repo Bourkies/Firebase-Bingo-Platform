@@ -8,10 +8,16 @@ import * as teamManager from '../core/data/teamManager.js';
 
 let allUsers = [], allTeams = {};
 let authState = {};
+let currentSort = { column: 'displayName', direction: 'asc' };
+let searchTerm = '';
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
+    document.getElementById('search-filter').addEventListener('input', handleSearch);
+    document.querySelectorAll('#user-assignment-table th').forEach(th => {
+        th.addEventListener('click', handleSort);
+    });
     initAuth(onAuthStateChanged);
 });
 
@@ -63,27 +69,67 @@ function initializeApp() {
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
 }
 
+function handleSearch(event) {
+    searchTerm = event.target.value.toLowerCase();
+    renderUserAssignments();
+}
+
+function handleSort(event) {
+    const column = event.currentTarget.dataset.column;
+    if (currentSort.column === column) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.column = column;
+        currentSort.direction = 'asc';
+    }
+    renderUserAssignments();
+}
+
 function renderUserAssignments() {
+    // Filter users
+    const filteredUsers = allUsers.filter(user => {
+        const name = (user.displayName || '').toLowerCase();
+        const uid = (user.uid || '').toLowerCase();
+        const teamName = (allTeams[user.team]?.name || '').toLowerCase();
+        return name.includes(searchTerm) || uid.includes(searchTerm) || teamName.includes(searchTerm);
+    });
+
+    // Sort users
+    filteredUsers.sort((a, b) => {
+        let valA, valB;
+        if (currentSort.column === 'isCaptain') {
+            valA = a.team && allTeams[a.team]?.captainId === a.uid;
+            valB = b.team && allTeams[b.team]?.captainId === b.uid;
+        } else {
+            valA = a[currentSort.column] ?? '';
+            valB = b[currentSort.column] ?? '';
+        }
+        const comparison = String(valA).localeCompare(String(valB), undefined, { numeric: true });
+        return currentSort.direction === 'asc' ? comparison : -comparison;
+    });
+
     const tbody = document.querySelector('#user-assignment-table tbody');
-    tbody.innerHTML = allUsers.map(user => {
+    tbody.innerHTML = filteredUsers.map(user => {
         const teamOptions = Object.entries(allTeams).map(([id, data]) => `<option value="${id}" ${user.team === id ? 'selected' : ''}>${data.name}</option>`).join('');
         const isCaptain = user.team && allTeams[user.team]?.captainId === user.uid;
         const canBeCaptain = !!user.team && !user.isAnonymous; // Anonymous users cannot be captains
-        const anonIndicator = user.isAnonymous ? ' (Anonymous)' : '';
         const isNameLocked = user.isNameLocked === true;
+        const loginType = user.isAnonymous ? 'Anonymous' : 'Google';
+        const loginTypeClass = user.isAnonymous ? 'login-type-anon' : 'login-type-google';
 
         return `
             <tr>
-                <td><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked ? 'disabled' : ''}>${anonIndicator}</td>
-                <td style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
-                <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
-                <td>
+                <td data-label="Display Name"><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked ? 'disabled' : ''}></td>
+                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
+                <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
+                <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
+                <td data-label="Team">
                     <select class="user-field" data-uid="${user.uid}" data-field="team">
                         <option value="">--None--</option>
                         ${teamOptions}
                     </select>
                 </td>
-                <td><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!canBeCaptain ? 'disabled' : ''}></td>
+                <td data-label="Is Captain"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!canBeCaptain ? 'disabled' : ''}></td>
             </tr>`;
     }).join('');
 
@@ -95,6 +141,14 @@ function renderUserAssignments() {
     // Add new listeners
     tableBody.addEventListener('change', handleFieldChange);
     tableBody.addEventListener('input', handleDebouncedFieldChange);
+
+    // Update sort indicators
+    document.querySelectorAll('#user-assignment-table th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.column === currentSort.column) {
+            th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
 }
 
 let inputTimeout;

@@ -1,53 +1,59 @@
 import '../components/Navbar.js';
-import { db, fb } from '../core/firebase-config.js';
-import { initAuth, signInWithGoogle, signInAnonymously, getAuthState } from '../core/auth.js';
-import { createTileElement } from '../components/TileRenderer.js';
-import { calculateScoreboardData, renderScoreboard as renderScoreboardComponent } from '../components/Scoreboard.js';
-import { showMessage, showGlobalLoader, hideGlobalLoader, hexToRgba } from '../core/utils.js';
+import { initAuth } from '../core/auth.js';
+import * as userManager from '../core/data/userManager.js';
+import * as tileManager from '../core/data/tileManager.js';
+import * as configManager from '../core/data/configManager.js';
+import * as teamManager from '../core/data/teamManager.js';
+import * as submissionManager from '../core/data/submissionManager.js';
+import { calculateScoreboardData } from '../components/Scoreboard.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+
+// Import new sub-modules
+import { initializeBoard, renderBoard, isGenericView } from './index/board.js';
+import { initializeSubmissionModal, openModal as openSubmissionModal } from './index/submissionModal.js';
+import { initializeLoginModal } from './index/loginModal.js';
 
 let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [];
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Attach event listeners programmatically instead of using inline onclick
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
-    document.querySelector('#submission-modal .close-button').addEventListener('click', closeModal);
-    document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
-    document.getElementById('add-evidence-btn').addEventListener('click', () => addEvidenceInput());
-    document.querySelector('#login-modal .close-button').addEventListener('click', closeLoginModal);
-
-    // Use event delegation for dynamically created elements
-    document.getElementById('evidence-container').addEventListener('click', (event) => {
-        if (event.target.classList.contains('remove-evidence-btn')) {
-            event.target.closest('.evidence-item').remove();
-            renumberEvidenceItems();
-        }
-    });
-
-    document.body.addEventListener('login-request', openLoginModal);
-    // Listen for messages from child components like the navbar
     document.body.addEventListener('show-message', (e) => showMessage(e.detail.message, e.detail.isError));
 
-    // Initialize data listeners first, then auth. This prevents race conditions.
+    // Initialize sub-modules
+    initializeBoard(mainControllerInterface);
+    initializeSubmissionModal(mainControllerInterface);
+    initializeLoginModal();
+
     initializeApp();
-    document.getElementById('login-google').addEventListener('click', () => { signInWithGoogle(); closeLoginModal(); });
-    document.getElementById('login-anon').addEventListener('click', () => { signInAnonymously(); closeLoginModal(); });
     initAuth(onAuthStateChanged);
 });
 
 async function onAuthStateChanged(newAuthState) {
     authState = newAuthState;
-
-    // When auth state changes, team visibility might change (especially for private boards).
-    // We need to re-evaluate and re-populate the team selector.
     const loadFirstTeam = config.loadFirstTeamByDefault === true;
 
-    // If the auth callback was triggered by a team change, show a message.
     if (newAuthState.teamChanged) {
         const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
         showMessage(`Your team has been changed to: ${newTeamName}. The board is updating.`, false);
     }
+
+    // Re-populate the selector to handle visibility changes (e.g., private boards).
     populateTeamSelector(allTeams, loadFirstTeam);
+
+    // NEW: Logic to set the default selected team is now here.
+    // This ensures authState.profile is available before we try to use it.
+    const selector = document.getElementById('team-selector');
+    if (selector.disabled) {
+        // The value is already set by populateTeamSelector for private boards.
+    } else if (authState.isLoggedIn && authState.profile?.team) {
+        // If logged in and on a team (on a public board), select their team.
+        selector.value = authState.profile.team;
+    } else if (loadFirstTeam && Object.keys(allTeams).length > 0 && !selector.value) {
+        // As a fallback, if the setting is enabled, select the first team in the list.
+        selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
+    }
+
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
@@ -58,38 +64,26 @@ async function onAuthStateChanged(newAuthState) {
 // This function sets up the listener for tiles, respecting censorship rules.
 const setupTilesListener = () => {
     if (unsubscribeTiles) unsubscribeTiles();
-    const isCensored = config.censorTilesBeforeEvent === true && !authState.isEventMod;
-    const tilesCollectionName = isCensored ? 'public_tiles' : 'tiles';
-    console.log(`Board censorship is ${isCensored ? 'ON' : 'OFF'}. Reading from '${tilesCollectionName}'.`);
-
-    unsubscribeTiles = fb.onSnapshot(fb.collection(db, tilesCollectionName), (snapshot) => {
+    // Use the centralized tileManager to handle fetching tiles based on permissions and config.
+    unsubscribeTiles = tileManager.listenToTiles((newTiles) => {
         console.log("Tiles updated in real-time.");
-        tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        tiles = newTiles;
         processAllData();
         renderBoard(); // Render board with new tiles
-    }, (error) => { console.error(`Error loading ${tilesCollectionName}:`, error); hideGlobalLoader(); });
+    }, authState, config, true); // Pass true for includeDocId
 };
 
 // This function sets up the listener for submissions, respecting privacy rules.
 const setupSubmissionsListener = () => {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
-    let submissionsQuery;
-    const isPrivateBoard = config.boardVisibility === 'private';
-    const isPlayerOnTeam = authState.isLoggedIn && authState.profile?.team;
-
-    if (isPrivateBoard && isPlayerOnTeam && !authState.isEventMod) {
-        console.log(`Private board detected. Fetching submissions for team: ${authState.profile.team}`);
-        submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.where('Team', '==', authState.profile.team));
-    } else {
-        submissionsQuery = fb.collection(db, 'submissions');
-    }
-
-    unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
+    // Use the centralized submissionManager to handle fetching submissions based on permissions and config.
+    unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => {
         console.log("Submissions updated in real-time.");
-        submissions = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+        // The manager already converts timestamps, so we just assign the data.
+        submissions = newSubmissions;
         processAllData();
         renderBoard(); // Re-render board with new submission data
-    }, (error) => { console.error("Error loading submissions:", error); hideGlobalLoader(); });
+    }, authState, config);
 };
 
 function initializeApp() {
@@ -112,16 +106,16 @@ function initializeApp() {
     if (unsubscribeUsers) unsubscribeUsers();
 
     // Listener for the main configuration document
-    unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+    unsubscribeConfig = configManager.listenToConfigAndStyles((newConfigData) => {
         console.log("Config updated in real-time.");
-        if (!doc.exists()) {
+        if (newConfigData.error || !newConfigData.config) {
             document.getElementById('board-container').innerHTML = `<div class="error-message">Board configuration not found. Please contact an admin.</div>`;
             hideGlobalLoader();
             return;
         }
-        config = doc.data();
+        config = newConfigData.config;
+        allStyles = newConfigData.styles;
 
-        // After config is loaded, we can set up the other listeners that depend on it.
         setupTilesListener();
         setupSubmissionsListener();
         
@@ -131,71 +125,36 @@ function initializeApp() {
         if (authState.isLoggedIn || config.boardVisibility !== 'private') handleTeamChange();
 
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
-        renderColorKey();
-        renderScoreboard();
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading config:", error); hideGlobalLoader(); });
-
-    // Initial setup for listeners that don't depend on config.
-    // They will be re-triggered by the config listener once it loads.
-    setupTilesListener();
-    setupSubmissionsListener();
+        mainControllerInterface.renderColorKey();
+        if (!initialDataLoaded.config) { initialDataLoaded.config = true; initialDataLoaded.styles = true; checkAllLoaded(); }
+    });
 
     // Listener for the new teams collection
-    const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
-    unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
+    unsubscribeTeams = teamManager.listenToTeams((newTeams) => {
         console.log("Teams updated in real-time.");
-        allTeams = {};
-        snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
+        allTeams = newTeams;
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         const selector = document.getElementById('team-selector');
-        const previouslySelected = selector.value; // Keep this to preserve selection on public boards
 
         populateTeamSelector(allTeams, loadFirstTeam);
-
-        // If the selector is now disabled, its value was set correctly inside populateTeamSelector and we should not touch it.
-        // If it's not disabled (public board), try to preserve the previous selection.
-        if (!selector.disabled) {
-            if (Object.keys(allTeams).includes(previouslySelected)) {
-                selector.value = previouslySelected;
-            } else if (loadFirstTeam && Object.keys(allTeams).length > 0) {
-                selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
-            }
+        // If no team is selected yet and the config is set, select the first one.
+        if (!selector.value && loadFirstTeam && Object.keys(allTeams).length > 0) {
+            // As a fallback, if the setting is enabled, select the first team in the list.
+            selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
         }
+
         handleTeamChange();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading teams:", error); });
-
-    // Listener for the new styles collection
-    unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
-        console.log("Styles updated in real-time.");
-        allStyles = {};
-        snapshot.docs.forEach(doc => { allStyles[doc.id] = doc.data(); });
-        renderColorKey();
-        renderBoard(); // Re-render board with new styles
-        if (!initialDataLoaded.styles) { initialDataLoaded.styles = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error loading styles:", error); });
+    });
 }
 
 // Listener for users collection, must be called after auth state is known
 function setupUsersListener() {
     if (unsubscribeUsers) unsubscribeUsers();
-    let usersQuery;
-    // Admins/mods can see all users. Regular players can only see their own teammates.
-    if (authState.isEventMod) {
-        usersQuery = fb.collection(db, 'users');
-    } else if (authState.isLoggedIn && authState.profile?.team) {
-        usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', authState.profile.team));
-    } else {
-        allUsers = []; // Logged out user can't see anyone.
-        return;
-    }
-    unsubscribeUsers = fb.onSnapshot(usersQuery, (snapshot) => {
-        console.log("Users updated in real-time.");
-        allUsers = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-        // The navbar component has its own user listener, so no need to call an update here.
-        // No need to check initialDataLoaded here as it's part of the auth flow
-    }, (error) => { console.error("Error loading users:", error); });
+    unsubscribeUsers = userManager.listenToUsers((newUsers) => {
+        console.log(`indexController: Users updated. Received ${newUsers.length} users.`);
+        allUsers = newUsers;
+    }, authState);
 }
 
 function processAllData() {
@@ -295,24 +254,9 @@ function populateTeamSelector(teams = {}, loadFirstTeam = false) {
     }
 }
 
-function isGenericView() {
-    const isPrivate = config.boardVisibility === 'private';
-    const isPublic = !isPrivate;
-    const isLoggedInWithTeam = authState.isLoggedIn && authState.profile?.team;
-
-    // It's a generic view if the board is private AND the user isn't on a team.
-    if (isPrivate && !isLoggedInWithTeam) return true;
-    // It's a generic view if the board is public AND no team is selected from the dropdown.
-    if (isPublic && !currentTeam) return true;
-    return false;
-}
-
 function handleTeamChange() {
     const selector = document.getElementById('team-selector');
     const isPrivate = config.boardVisibility === 'private';
-
-    // On a private board, the "current team" is always the user's team from their profile.
-    // We must wait for authState to be populated before setting this.
     if (isPrivate) {
         if (authState.isLoggedIn && authState.profile?.team) {
             currentTeam = authState.profile.team;
@@ -323,494 +267,68 @@ function handleTeamChange() {
     renderBoard();
 }
 
-function getTileStatus(tile, teamName) {
-    if (isGenericView()) return 'Unlocked';
+// This object acts as an interface for the sub-modules to access the main controller's state and methods.
+const mainControllerInterface = {
+    getState: () => ({ config, allTeams, allStyles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers }),
+    openSubmissionModal: (tile, status) => openSubmissionModal(tile, status),
+    renderColorKey: () => {
+        const { renderScoreboard } = require('./index/board.js');
+        renderScoreboard();
+    },
+    logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
+        if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
 
-    const isPublic = config.boardVisibility !== 'private';
-    // The teamName parameter is now a teamId
-    if (!isPublic && teamName && teamName !== authState.profile?.team) {
-        // On a private board, if you're viewing a team that isn't yours, tiles are hidden.
-        // This is a safeguard; the UI should prevent selecting other teams anyway.
-        return 'Hidden';
-    }
+        const oldPlayerIDs = existingSubmission.PlayerIDs || [];
+        const newPlayerIDs = dataToSave.PlayerIDs || [];
+        if (JSON.stringify(oldPlayerIDs) !== JSON.stringify(newPlayerIDs)) {
+            const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
+            const oldNames = new Set(oldPlayerIDs.map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`));
+            const newNames = new Set(newPlayerIDs.map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`));
+            const addedNames = [...newNames].filter(name => !oldNames.has(name));
+            const removedNames = [...oldNames].filter(name => !newNames.has(name));
+            const changes = [];
+            if (addedNames.length > 0) changes.push(`Added: ${addedNames.join(', ')}`);
+            if (removedNames.length > 0) changes.push(`Removed: ${removedNames.join(', ')}`);
+            historyEntry.changes.push({ field: 'PlayerIDs', from: `(${oldNames.size} players)`, to: `(${newNames.size} players) ${changes.join('; ')}` });
+        }
 
-    if (!teamName || !teamData[teamName]) return 'Locked'; // teamName is teamId
-    const teamTileStates = teamData[teamName].tileStates;
-    const state = teamTileStates[tile.id] || {}; // tile.id is the user-facing ID
-    if (state.verified) return 'Verified';
-    if (state.requiresAction) return 'Requires Action';
-    if (state.complete) return 'Submitted';
-    if (state.hasSubmission) return 'Partially Complete';
+        if (dataToSave.AdditionalPlayerNames !== (existingSubmission.AdditionalPlayerNames || '')) historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: existingSubmission.AdditionalPlayerNames || '', to: dataToSave.AdditionalPlayerNames });
+        if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
 
-    const unlockOnVerifiedOnly = config.unlockOnVerifiedOnly === true;
-    // The server's getBoardData() may split the 'Prerequisites' column by comma.
-    // We rejoin it here to reconstruct the original string, which could be a simple list or a JSON array string.
-    const prereqString = tile.Prerequisites || '';
-
-    if (!prereqString || !prereqString.trim()) {
-        return 'Unlocked'; // No prerequisites.
-    }
-
-    let orGroups = [];
-    let isNewFormat = false;
-
-    // Try to parse as JSON for the new AND/OR logic: e.g., [["A1","A2"],["B1"]]
-    if (prereqString.trim().startsWith('[')) {
-        try {
-            const parsed = JSON.parse(prereqString);
-            // Check if it's an array of arrays (or an empty array for an unlocked tile)
-            if (Array.isArray(parsed) && (parsed.length === 0 || Array.isArray(parsed[0]))) {
-                orGroups = parsed;
-                isNewFormat = true;
+        const oldEvidence = existingSubmission.Evidence || '[]';
+        if (dataToSave.Evidence !== oldEvidence) {
+            let oldEvidenceArray = [];
+            try {
+                const parsed = JSON.parse(oldEvidence);
+                if (Array.isArray(parsed)) oldEvidenceArray = parsed;
+                else if (parsed) oldEvidenceArray = [{ link: String(parsed), name: '' }];
+            } catch (e) {
+                if (oldEvidence) oldEvidenceArray = [{ link: oldEvidence, name: '' }];
             }
-        } catch (e) {
-            // Not valid JSON, will fall through to old format handling.
+            const newEvidenceArray = evidenceItems; // This is already an array of objects
+
+            const oldEvidenceMap = new Map(oldEvidenceArray.map(item => [item.link, item.name]));
+            const newEvidenceMap = new Map(newEvidenceArray.map(item => [item.link, item.name]));
+
+            const changesSummary = [];
+
+            // Check for added evidence
+            newEvidenceMap.forEach((name, link) => {
+                if (!oldEvidenceMap.has(link)) {
+                    changesSummary.push(`Added: ${name || 'No Name'} (${link})`);
+                }
+            });
+
+            // Check for removed evidence
+            oldEvidenceMap.forEach((name, link) => {
+                if (!newEvidenceMap.has(link)) {
+                    changesSummary.push(`Removed: ${name || 'No Name'} (${link})`);
+                } else if (newEvidenceMap.get(link) !== name) { // Check for modified description
+                    changesSummary.push(`Modified: '${name}' to '${newEvidenceMap.get(link)}' for link (${link})`);
+                }
+            });
+
+            if (changesSummary.length > 0) historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changesSummary.join('; ')}` });
         }
     }
-
-    if (!isNewFormat) {
-        // Fallback to old format: a single AND group from a comma-separated list.
-        const andGroup = prereqString.split(',').map(s => s.trim()).filter(Boolean);
-        orGroups = andGroup.length > 0 ? [andGroup] : [];
-    }
-
-    if (orGroups.length === 0) {
-        return 'Unlocked'; // No prerequisites after parsing.
-    }
-
-    // Check if any 'OR' group is satisfied.
-    const prereqsMet = orGroups.some(andGroup => {
-        // An empty AND group `[]` is vacuously true because `[].every()` returns true.
-        return andGroup.every(prereqId => {
-            const prereqState = teamTileStates[prereqId] || {};
-            return unlockOnVerifiedOnly ? prereqState.verified : (prereqState.verified || prereqState.complete);
-        });
-    });
-    return prereqsMet ? 'Unlocked' : 'Locked';
-}
-
-function renderBoard() {
-  // NEW: Add a guard to prevent rendering before essential data is loaded.
-  // The config must be loaded. If the board is private, auth must also be ready.
-  if (!config || (config.boardVisibility === 'private' && !authState.isLoggedIn)) {
-      return;
-  }
-
-  const shouldShowGeneric = isGenericView();
-  // Clear the board if there are no tiles, OR if no team is selected AND we are not in a generic view.
-  if (!tiles || tiles.length === 0 || (!currentTeam && !shouldShowGeneric)) {
-    document.getElementById('board-container').innerHTML = '';
-    document.getElementById('page-title').textContent = config.pageTitle || 'Bingo'; // Set title when board is cleared
-    return;
-  }
-
-  const container = document.getElementById('board-container');
-  container.innerHTML = '';
-  // FIX: On a private board, the display team is always the user's team, not the dropdown value.
-  const isPrivate = config.boardVisibility === 'private';
-  const displayTeam = isPrivate ? authState.profile?.team : currentTeam;
-  const displayTeamName = (displayTeam && allTeams) ? (allTeams[displayTeam]?.name || displayTeam) : '';
-  
-  if (displayTeamName) {
-    document.title = `${config.pageTitle || 'Bingo'} : ${displayTeamName}`;
-  } else {
-    document.title = config.pageTitle || 'Bingo';
-  }
-  document.getElementById('page-title').textContent = displayTeam ? displayTeamName : (config.pageTitle || 'Bingo');
-  const tooltip = document.getElementById('tile-tooltip');
-
-  const renderTiles = () => {
-    tiles.forEach(tile => {
-      if (getTileStatus(tile, displayTeam) === 'Hidden') return;
-      const status = getTileStatus(tile, displayTeam);
-
-      const tileDiv = createTileElement(tile, status, config, allStyles, { baseClass: 'tile-overlay' });
-
-      const tileName = tile.Name || 'Censored';
-      const tileDesc = tile.Description || 'This tile is hidden until the event begins.';
-
-      // --- UPDATED: Tooltip logic ---
-      tileDiv.addEventListener('mousemove', (e) => {
-          tooltip.innerHTML = `<h4>${tile.id}: ${tileName}</h4><p>${tileDesc}</p>`;
-          tooltip.style.display = 'block';
-          tooltip.style.left = `${e.clientX + 15}px`;
-          tooltip.style.top = `${e.clientY + 15}px`;
-      });
-      tileDiv.addEventListener('mouseout', () => {
-          tooltip.style.display = 'none';
-          // The renderer's mouseout handler will take care of resetting the border
-      });
-
-      // Add tile name if configured and no stamp is present
-      if ((config.showTileNames === true || !config.boardImageUrl) && !tileDiv.querySelector('.stamp-image')) {
-        const tileNameSpan = document.createElement('span');
-        tileNameSpan.textContent = tileName;
-        tileDiv.appendChild(tileNameSpan);
-      }
-
-      // In generic view, modals cannot be opened.
-      const genericView = isGenericView();
-      const isMyTeam = authState.isLoggedIn && authState.profile?.team === displayTeam;
-      const canOpenModal = !genericView && isMyTeam && status !== 'Locked';
-
-      if (canOpenModal) {
-          tileDiv.onclick = () => openModal(tile, status);
-      } else if (status === 'Locked') {
-          // Tile is locked for everyone, do nothing to the cursor.
-      } else if (!displayTeam) {
-          tileDiv.onclick = () => showMessage('Please select your team to interact with a tile.', true);
-      } else if (!isMyTeam) {
-            // Tile is visible but not interactive for this user (e.g., public board, viewing another team)
-            tileDiv.style.cursor = 'not-allowed';
-        }
-
-      container.appendChild(tileDiv);
-    });
-  };
-
-  // Helper function to apply the default placeholder background styles
-  const setPlaceholderBackground = () => {
-      container.style.backgroundImage = 'linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%)';
-      container.style.backgroundSize = '20px 20px';
-      container.style.backgroundRepeat = 'repeat';
-      container.style.aspectRatio = '1 / 1';
-  };
-
-  const imageUrl = config.boardImageUrl;
-  if (!imageUrl) {
-    setPlaceholderBackground();
-    renderTiles(); return;
-  }
-  const img = new Image();
-  img.onload = () => {
-    container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-    container.style.backgroundImage = `url('${imageUrl}')`;
-    // FIX: Explicitly set the background size and repeat properties for the real image
-    container.style.backgroundSize = 'cover';
-    container.style.backgroundRepeat = 'no-repeat';
-    renderTiles();
-  };
-  img.onerror = () => {
-    // On error, revert to the placeholder background
-    setPlaceholderBackground();
-    const errorDiv = document.createElement('div'); errorDiv.className = 'error-message';
-    errorDiv.innerHTML = `<strong>Image Failed to Load</strong>`;
-    container.appendChild(errorDiv); renderTiles();
-  };
-  img.src = imageUrl;
-}
-
-function renderColorKey() {
-    if (!config || !allStyles) return;
-    const keyContainer = document.getElementById('color-key-container');
-    keyContainer.innerHTML = '';
-    const keyOrder = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
-
-    keyOrder.forEach(status => {
-        const style = allStyles[status] || {}; // Default to empty object if style is not defined
-
-        // Provide defaults for color and opacity if not defined in the style object
-        const color = style.color || '#888888'; // Default to a neutral grey
-        const opacity = style.opacity ?? 0.7; // Use nullish coalescing to correctly handle opacity: 0
-
-        const keyItem = document.createElement('div');
-        keyItem.className = 'key-item';
-        const colorBox = document.createElement('div');
-        colorBox.className = 'key-color-box';
-        colorBox.style.backgroundColor = hexToRgba(color, opacity);
-
-        const useStamp = style.useStampByDefault === true;
-        const stampImg = style.stampImageUrl;
-        if (useStamp && stampImg) {
-            colorBox.style.backgroundImage = `url('${stampImg}')`;
-        }
-
-        const keyLabel = document.createElement('span');
-        keyLabel.textContent = status;
-        keyItem.appendChild(colorBox);
-        keyItem.appendChild(keyLabel);
-        keyContainer.appendChild(keyItem);
-    });
-}
-
-function renderScoreboard() {
-    // NEW: Use the centralized scoreboard rendering component
-    const container = document.getElementById('scoreboard-container');
-    renderScoreboardComponent(container, scoreboardData, allTeams, config, authState, currentTeam);
-}
-
-// --- NEW: Dynamic Evidence Field Functions ---
-function addEvidenceInput(link = '', name = '') {
-    const container = document.getElementById('evidence-container');
-    const itemCount = container.children.length;
-
-    const evidenceItemDiv = document.createElement('div');
-    evidenceItemDiv.className = 'evidence-item';
-
-    // Swapped link and name inputs, and updated placeholder text for clarity.
-    evidenceItemDiv.innerHTML = `
-        <div class="evidence-item-header">
-            <label>Evidence #${itemCount + 1}</label>
-            <button type="button" class="remove-evidence-btn">&times;</button>
-        </div>
-        <input type="text" class="evidence-name" placeholder="Optional: name or short description" value="${name}">
-        <input type="text" class="evidence-link" placeholder="Link (e.g., https://discord...)" value="${link}">
-    `;
-    container.appendChild(evidenceItemDiv);
-}
-
-function renumberEvidenceItems() {
-    const container = document.getElementById('evidence-container');
-    const items = container.querySelectorAll('.evidence-item');
-    items.forEach((item, index) => {
-        const label = item.querySelector('label');
-        if (label) {
-            label.textContent = `Evidence #${index + 1}`;
-        }
-    });
-}
-
-function clearEvidenceInputs() {
-    const container = document.getElementById('evidence-container');
-    container.innerHTML = '';
-}
-
-function populatePlayerNameSelector(savedPlayerIDs = [], savedAdditionalNames = '') {
-    const membersContainer = document.getElementById('team-members-checkboxes');
-    const teamCheckbox = document.getElementById('team-submission-checkbox');
-    const manualInput = document.getElementById('manual-player-name');
-
-    membersContainer.innerHTML = '';
-    // Reset listeners and values
-    teamCheckbox.checked = false;
-    manualInput.value = '';
-
-    // 1. Get team members and populate checkboxes
-    const teamMembers = allUsers.filter(u => u.team === currentTeam);
-    teamMembers.forEach(member => {
-        const id = `player-check-${member.uid}`;
-        const item = document.createElement('div');
-        item.className = 'player-checkbox-item';
-        // Use data-uid to store the user's ID
-        item.innerHTML = `
-            <input type="checkbox" id="${id}" data-uid="${member.uid}">
-            <label for="${id}">${member.displayName}</label>
-        `;
-        membersContainer.appendChild(item);
-    });
-
-    // 2. Pre-fill the form based on saved data
-    const teamName = allTeams[currentTeam]?.name || currentTeam;
-    // Check if the submission was for the whole team
-    if (savedAdditionalNames === teamName && savedPlayerIDs.length === 0) {
-        teamCheckbox.checked = true;
-    } else {
-        // Check the boxes for saved player UIDs
-        savedPlayerIDs.forEach(uid => {
-            const memberCheckbox = membersContainer.querySelector(`[data-uid="${uid}"]`);
-            if (memberCheckbox) memberCheckbox.checked = true;
-        });
-        // Populate the manual input with any additional names
-        manualInput.value = savedAdditionalNames;
-    }
-
-    // 3. Add a single event listener to the container
-    const container = document.getElementById('player-name-container');
-    container.removeEventListener('input', updatePlayerNameField); // Clear old listener to prevent duplicates
-    container.addEventListener('input', updatePlayerNameField);
-
-    // 4. Initial update to set the hidden field values
-    updatePlayerNameField();
-}
-
-function updatePlayerNameField() {
-    const membersContainer = document.getElementById('team-members-checkboxes');
-    const teamCheckbox = document.getElementById('team-submission-checkbox');
-    const manualInput = document.getElementById('manual-player-name');
-    const playerIdsInput = document.getElementById('player-ids-value');
-    const additionalNamesInput = document.getElementById('additional-players-value');
-
-    const teamName = allTeams[currentTeam]?.name || currentTeam;
-
-    // If "Submit for whole team" is checked, it overrides everything else.
-    if (teamCheckbox.checked) {
-        playerIdsInput.value = JSON.stringify([]);
-        additionalNamesInput.value = teamName;
-        membersContainer.querySelectorAll('input').forEach(i => { i.checked = false; i.disabled = true; });
-        manualInput.value = ''; manualInput.disabled = true; return;
-    }
-
-    // Otherwise, enable other inputs and collect their values.
-    membersContainer.querySelectorAll('input').forEach(i => i.disabled = false);
-    manualInput.disabled = false;
-    const selectedUIDs = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.uid);
-    playerIdsInput.value = JSON.stringify(selectedUIDs);
-    additionalNamesInput.value = manualInput.value.trim();
-}
-
-function openModal(tile, status) {
-  const modal = document.getElementById('submission-modal');
-  const form = document.getElementById('submission-form');
-  form.reset();
-  document.getElementById('admin-feedback-display').style.display = 'none'; // Hide feedback by default
-
-  document.getElementById('modal-tile-id').value = tile.id; // The user-facing ID
-  document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name || 'Censored'}`; // Handle censored name
-  const teamName = (allTeams && allTeams[currentTeam]) ? allTeams[currentTeam].name : currentTeam;
-  document.getElementById('modal-team-name').textContent = `Team: ${teamName}`;
-  document.getElementById('modal-tile-desc').textContent = tile.Description || 'This tile is hidden until the event begins.'; // Handle censored desc
-  document.getElementById('evidence-label').textContent = config.evidenceFieldLabel || 'Evidence:';
-
-  modal.style.display = 'flex';
-  const isEditable = status !== 'Verified';
-
-  const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
-
-  populatePlayerNameSelector(existingSubmission?.PlayerIDs || [], existingSubmission?.AdditionalPlayerNames || '');
-  document.getElementById('notes').value = existingSubmission?.Notes || '';
-  document.getElementById('mark-as-complete').checked = existingSubmission?.IsComplete || false;
-
-  let evidenceData = [];
-  if (existingSubmission?.Evidence) {
-      try {
-          evidenceData = JSON.parse(existingSubmission.Evidence);
-          if (!Array.isArray(evidenceData)) throw new Error("Not an array");
-      } catch (e) {
-          if (existingSubmission.Evidence) evidenceData = [{ link: existingSubmission.Evidence, name: '' }];
-      }
-  }
-  
-  clearEvidenceInputs();
-  if (evidenceData.length > 0) {
-      evidenceData.forEach(item => addEvidenceInput(item.link, item.name));
-  } else if (isEditable) {
-      addEvidenceInput();
-  }
-
-  const formElements = document.querySelectorAll('#submission-form input, #submission-form textarea, #submission-form button');
-  const submitButton = document.getElementById('submit-button');
-  submitButton.className = ''; // Reset button style
-
-  if (isEditable) {
-      formElements.forEach(el => el.disabled = false);
-      // NEW: Check for admin feedback to change button text/style
-      if (existingSubmission?.AdminFeedback) {
-          document.getElementById('admin-feedback-display').style.display = 'block';
-          document.getElementById('admin-feedback-text').textContent = existingSubmission.AdminFeedback;
-          submitButton.textContent = 'Resubmit for Review';
-          submitButton.classList.add('resubmit-btn');
-      } else {
-          submitButton.textContent = 'Save Progress';
-      }
-  } else {
-      formElements.forEach(el => el.disabled = true);
-      submitButton.textContent = 'Verified (Locked)';
-  }
-}
-
-function closeModal() {
-  document.getElementById('submission-modal').style.display = 'none';
-}
-
-async function handleFormSubmit(event) {
-  event.preventDefault();
-  const submitButton = document.getElementById('submit-button');
-  submitButton.disabled = true;
-  showGlobalLoader();
-
-  // --- NEW: Collect evidence data ---
-  const evidenceItems = [];
-  document.querySelectorAll('#evidence-container .evidence-item').forEach(item => {
-      const link = item.querySelector('.evidence-link').value.trim();
-      const name = item.querySelector('.evidence-name').value.trim();
-      if (link || name) { // Only add if at least one field is filled
-          evidenceItems.push({ link, name });
-      }
-  });
-
-  const canSubmit = authState.isLoggedIn && authState.profile?.team === currentTeam;
-  if (!canSubmit) {
-      showMessage('You do not have permission to submit for this team.', true);
-      submitButton.disabled = false;
-      hideGlobalLoader();
-      return;
-  }
-  
-  const tileId = document.getElementById('modal-tile-id').value;
-  const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
-
-  const dataToSave = {
-    PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
-    AdditionalPlayerNames: document.getElementById('additional-players-value').value,
-    Evidence: JSON.stringify(evidenceItems),
-    Notes: document.getElementById('notes').value,
-    Team: currentTeam,
-    id: tileId, // Save the user-facing tile ID
-    IsComplete: document.getElementById('mark-as-complete').checked,
-  };
-  
-  // FIX: Define historyEntry before using it.
-  const historyEntry = {
-      timestamp: new Date(),
-      user: { uid: authState.user.uid, name: authState.profile.displayName },
-      changes: []
-  };
-
-  // If this is a resubmission, clear the feedback and "Requires Action" flag
-  if (existingSubmission?.AdminFeedback) {
-      historyEntry.action = 'Player Resubmission';
-      historyEntry.changes.push({ field: 'AdminFeedback', from: `"${existingSubmission.AdminFeedback}"`, to: 'Acknowledged & Cleared' });
-      dataToSave.RequiresAction = false; // Player has addressed the issue
-      dataToSave.AdminFeedback = ''; // Clear the feedback message
-  } else {
-      historyEntry.action = 'Player Update';
-  }
-
-  try {
-      if (existingSubmission) {
-          // Use the correct document ID to get the reference for updating.
-          const subRef = fb.doc(db, 'submissions', existingSubmission.docId);
-          // Log specific changes by comparing against original values
-          if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
-          if (JSON.stringify(dataToSave.PlayerIDs) !== JSON.stringify(existingSubmission.PlayerIDs || [])) historyEntry.changes.push({ field: 'PlayerIDs', from: 'Previous players', to: 'New players' });
-          if (dataToSave.AdditionalPlayerNames !== (existingSubmission.AdditionalPlayerNames || '')) historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: existingSubmission.AdditionalPlayerNames || '', to: dataToSave.AdditionalPlayerNames });
-          if (dataToSave.Notes !== (existingSubmission.Notes || '')) historyEntry.changes.push({ field: 'Notes', from: existingSubmission.Notes || '', to: dataToSave.Notes });
-          const oldEvidence = existingSubmission.Evidence || '[]';
-          if (dataToSave.Evidence !== oldEvidence) historyEntry.changes.push({ field: 'Evidence', from: 'Previous evidence', to: 'New evidence' }); // Keep it simple for evidence
-
-          // Only add history if there were actual changes
-          if (historyEntry.changes.length > 0) {
-              dataToSave.history = fb.arrayUnion(historyEntry);
-          }
-
-          if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
-              dataToSave.CompletionTimestamp = fb.serverTimestamp();
-          }
-          await fb.updateDoc(subRef, dataToSave);
-      } else {
-          dataToSave.Timestamp = fb.serverTimestamp(); // This call is correct
-          if (dataToSave.IsComplete) {
-              dataToSave.CompletionTimestamp = fb.serverTimestamp();
-          }
-          historyEntry.action = 'Player Create';
-          dataToSave.history = [historyEntry];
-          await fb.addDoc(fb.collection(db, 'submissions'), dataToSave);
-      }
-      showMessage('Submission saved!', false);
-      closeModal();
-  } catch (error) {
-      showMessage('Submission failed: ' + error.message, true);
-      console.error("Submission error:", error);
-  } finally {
-      submitButton.disabled = false;
-      hideGlobalLoader();
-  }
-}
-
-// --- NEW: Login Modal Functions ---
-function openLoginModal() {
-    document.getElementById('login-modal').style.display = 'flex';
-}
-function closeLoginModal() {
-    document.getElementById('login-modal').style.display = 'none';
-}
+};
