@@ -19,6 +19,12 @@ template.innerHTML = `
             justify-content: space-between;
             align-items: center;
             box-sizing: border-box;
+            position: relative; /* For positioning the mobile menu */
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         .nav-links a, .nav-actions button {
             color: #f0f0f0;
@@ -48,6 +54,48 @@ template.innerHTML = `
         #user-info {
             font-size: 0.9rem;
             color: #a0a0a0;
+        }
+        /* Hamburger Menu Styles */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            justify-content: space-around;
+            width: 2rem;
+            height: 2rem;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            z-index: 10;
+        }
+        .hamburger span {
+            width: 2rem;
+            height: 0.25rem;
+            background: #f0f0f0;
+            border-radius: 10px;
+            transition: all 0.3s linear;
+        }
+        /* Responsive Styles */
+        @media (max-width: 850px) {
+            .nav-links {
+                display: none;
+                flex-direction: column;
+                align-items: flex-start;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background-color: #333;
+                border-bottom-left-radius: 8px;
+                border-bottom-right-radius: 8px;
+                padding: 1rem 0;
+            }
+            .nav-links.active {
+                display: flex;
+            }
+            .hamburger {
+                display: flex;
+            }
         }
         /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
@@ -85,6 +133,11 @@ template.innerHTML = `
         <div class="nav-links">
             <!-- Links will be populated by JS -->
         </div>
+        <button id="hamburger-btn" class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
             <button id="change-name-btn" style="display: none;">Change Name</button>
@@ -144,6 +197,7 @@ class AppNavbar extends HTMLElement {
         this.navLinksContainer = this.shadowRoot.querySelector('.nav-links');
         this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
 
+        this.hamburgerBtn = this.shadowRoot.querySelector('#hamburger-btn');
         // Modal elements
         this.welcomeModal = this.shadowRoot.querySelector('#welcome-modal');
         this.welcomeForm = this.shadowRoot.querySelector('#welcome-form');
@@ -184,6 +238,10 @@ class AppNavbar extends HTMLElement {
         this.closeLoginModalBtn.addEventListener('click', () => this.hideLoginModal());
         this.loginGoogleBtn.addEventListener('click', () => { signInWithGoogle(); this.hideLoginModal(); });
         this.loginAnonBtn.addEventListener('click', () => { signInAnonymously(); this.hideLoginModal(); });
+
+        this.hamburgerBtn.addEventListener('click', () => {
+            this.navLinksContainer.classList.toggle('active');
+        });
 
 
         // Listen to data
