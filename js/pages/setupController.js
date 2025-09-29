@@ -90,7 +90,7 @@ function initializeApp(authState) {
         get tilesData() { return tilesData; },
         get config() { return config; },
         get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
+        updateEditorPanel, renderTiles, debouncedSaveTile
     };
     
     unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
@@ -341,7 +341,7 @@ function updateEditorPanel(index) {
         get tilesData() { return tilesData; },
         get config() { return config; },
         get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
+        updateEditorPanel, renderTiles, debouncedSaveTile
     };
 
     // Update data in sub-modules before re-rendering their content

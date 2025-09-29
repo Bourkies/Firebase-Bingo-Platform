@@ -238,22 +238,8 @@ function populateValueContainer(container, propertyName, value) {
         textInput.className = 'override-value';
         textInput.placeholder = 'Image URL';
         textInput.value = value || '';
-        textInput.style.flexGrow = '1';
 
-        const fileInputId = `override-upload-${Date.now()}-${Math.random()}`;
-        const uploadLabel = document.createElement('label');
-        uploadLabel.htmlFor = fileInputId;
-        uploadLabel.className = 'button-like-label';
-        uploadLabel.textContent = 'Upload';
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.id = fileInputId;
-        fileInput.style.display = 'none';
-        fileInput.dataset.path = 'overrides/stamps/';
-        fileInput.addEventListener('change', (e) => handleOverrideImageUpload(e.target, textInput));
-
-        compoundDiv.append(textInput, uploadLabel, fileInput);
+        compoundDiv.append(textInput);
         container.appendChild(compoundDiv);
         return;
     } else {
@@ -289,26 +275,6 @@ export function updateOverridesJsonFromCurrentTile(mainController) {
     if (!mainController) return;
     if (debouncedUpdateOverrides) {
         debouncedUpdateOverrides(mainController);
-    }
-}
-
-async function handleOverrideImageUpload(fileInput, textInput) {
-    const file = fileInput.files[0];
-    if (!file) return;
-    const storagePath = fileInput.dataset.path;
-
-    showGlobalLoader();
-    const oldUrl = textInput.value;
-
-    try {
-        const url = await configManager.uploadImage(storagePath, file, oldUrl);
-        textInput.value = url;
-        textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        showMessage(`Uploaded ${file.name}`, false);
-    } catch (error) {
-        showMessage(`Upload failed: ${error.message}`, true);
-    } finally {
-        hideGlobalLoader();
     }
 }
 

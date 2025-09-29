@@ -10,7 +10,6 @@ An interactive, real-time platform for bingo competitions built with Firebase. T
 *   **Role-Based Permissions**: A flexible four-tier permission system (Admin, Event Mod, Captain, Player) controls who can perform which actions.
 *   **Visual Board Editor**: A graphical interface (`setup.html`) for admins to visually arrange tiles, manage users, and configure all event settings directly in the browser.
 *   **Mass Data Import/Export**: Dedicated pages to bulk import/export tiles, config, and submissions via CSV.
-*   **Direct Image Uploads**: Upload the board background and custom stamp images directly to Firebase Storage from the setup page.
 *   **Live Overview Dashboard**: A public-facing page (`overview.html`) with a leaderboard, activity feed, and score-over-time chart that can be toggled on or off.
 *   **Automated Deployments**: Pre-configured GitHub Actions workflows for automatically deploying the site on pushes to `main` and creating preview deployments for pull requests.
 
@@ -59,16 +58,11 @@ The repository has been refactored into a modular structure that separates conce
         *   Choose **Start in production mode**.
         *   Select a Cloud Firestore location. A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
         *   Click "Enable".
-    *   **Storage**:
-        *   Go to `Build > Storage` and click "Get started".
-        *   Follow the on-screen prompts. You will be asked for a Cloud Storage location. To stay within the free tier allowances and ensure compatibility with your Firestore location (`nam5`), choose a US-based location like **`us-central1`**.
-        *   Click "Done". You can accept the default security rules for now, as they will be updated in the next step.
     *   **Firestore (Legacy - ignore if you see the above)**:
         *   Go to `Build > Firestore Database` and click "Create database".
         *   If prompted to select an edition, choose **Standard** (this project uses Firestore in Native Mode).
         *   You will be asked to choose a Cloud Firestore location. This is a critical step.
-            > **Important:** The location you choose for Firestore will also be the default location for Firebase Storage. For the free "Spark" plan, they **must** be in the same location.
-        *   A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
+        *   A US-based multi-region like **`nam5 (United States)`** is a safe choice.
 
 ### Step 2: Set Security Rules
 
@@ -76,12 +70,6 @@ The repository has been refactored into a modular structure that separates conce
     *   In the Firebase Console, navigate to `Build > Firestore Database > Rules`.
     *   Open the `firestore.rules` file from this project.
     *   Copy the entire contents of the file and paste it into the rules editor in the Firebase Console, replacing any existing rules.
-    *   Click "Publish".
-
-2.  **Storage Rules**:
-    *   In the Firebase Console, navigate to `Build > Storage > Rules`.
-    *   Open the `storage.rules` file from this project.
-    *   Copy the entire contents of the file and paste it into the rules editor, replacing any existing rules.
     *   Click "Publish".
 
 ## Part 2: Local Development & Deployment
@@ -239,7 +227,7 @@ This is the central hub for event administrators. It provides a graphical interf
 -   **Live Tile Editor**: Drag, resize, and edit tiles directly on a visual representation of the board. All changes are saved automatically.
 -   **Global Configuration**: Edit event-wide settings like the page title, board background image, and gameplay rules.
 -   **Team Management**: Create, rename, and delete teams.
--   **Mass Import / Export**: Links to dedicated pages to manage tiles, config, and submissions in bulk.
+-   **Mass Import / Export**: Links to dedicated pages to manage tiles, config, and submissions in bulk. All image fields require a direct web URL.
 -   **Mass Deletion**: A "Delete All Tiles" button with a strong confirmation modal to safely clear the board.
 
 #### ⚠️ **Security Warning**

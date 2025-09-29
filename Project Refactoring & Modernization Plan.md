@@ -349,7 +349,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [x]  **5.1.5:** Show own teams board by default, if in team
   - [x]  **5.1.6:** Revamp submission review - allow easy checking of history, add utc toggle
   - [x]  **5.1.7:** revamp submission forum - maintain admin feedback pannel, add input forum checking
-  - [ ]  **5.1.8:** remove image uploading
+  - [x]  **5.1.8:** remove image uploading
   - [ ]  **5.1.9:** Fix setup import/expot page not loading.
   - [x]  **5.1.10:** Move login modal from index controll to navbar
   - [x]  **5.1.11** Fix scoreboard on index page

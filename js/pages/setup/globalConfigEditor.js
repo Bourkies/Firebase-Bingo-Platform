@@ -10,7 +10,7 @@ let allUsers = [], allTeams = {}, config = {}, allStyles = {};
 const configSchema = {
     // Global Config Fields
     pageTitle: { label: 'Page Title', type: 'text', description: 'The title displayed at the top of the bingo page and in the browser tab.' },
-    boardImageUrl: { label: 'Board Background Image', type: 'image', path: 'config/board_background', description: 'A direct web URL to the bingo board background image. You can also upload a file here.' },
+    boardImageUrl: { label: 'Board Background Image', type: 'image', description: 'A direct web URL to the bingo board background image.' },
     maxPageWidth: { label: 'Max Page Width', type: 'text', description: 'The maximum width for the page content. Use px or % (e.g., 1400px or 90%).' },
     showTileNames: { label: 'Show Tile Names', type: 'boolean', description: 'Set to TRUE to display tile names on the board by default, especially if no background image is used.' },
     unlockOnVerifiedOnly: { label: 'Unlock on Verified Only', type: 'boolean', description: 'Set to TRUE to require a tile to be "Verified" by an admin before its prerequisites are met for other tiles.' },
@@ -31,7 +31,7 @@ const styleSchema = {
     border: { label: 'Border', type: 'widthAndColor', keys: { width: 'borderWidth', color: 'borderColor' }, unit: 'px', description: 'The tile\'s border width and color.' },
     hoverBorder: { label: 'Hover Border', type: 'widthAndColor', keys: { width: 'hoverBorderWidth', color: 'hoverBorderColor' }, unit: 'px', description: 'The border width and color on hover.' },
     useStampByDefault: { label: 'Use Stamp', type: 'boolean', description: 'Toggles the use of a stamp image for this status. When enabled, the settings below will apply.' },
-    stampImageUrl: { label: 'Stamp Image', type: 'image', path: 'styles/stamps/', description: 'URL for the stamp image to display on tiles. You can also upload a file.' },
+    stampImageUrl: { label: 'Stamp Image', type: 'image', description: 'URL for the stamp image to display on tiles.' },
     stampScale: { label: `Stamp Scale`, type: 'range', min: 0, max: 3, step: 0.05, description: 'Size multiplier for the stamp (e.g., 1 is 100%, 0.5 is 50%).' },
     stampRotation: { label: `Stamp Rotation`, type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: 'Rotation of the stamp in degrees.' },
     stampPosition: { label: `Stamp Position`, type: 'text', description: 'CSS background-position value for the stamp (e.g., "center", "top left", "50% 50%").' }
@@ -165,9 +165,6 @@ export function renderGlobalConfig(mainController) {
     });
 
     formContainer.appendChild(stylesFieldset);
-    // Add listeners after the form is built
-    // FIX: Pass mainController to the handler
-    formContainer.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener('change', (e) => handleImageUpload(e.target, mainController)));
 }
 
 function handleGlobalStyleInputChange(event, mainController) {
@@ -203,30 +200,6 @@ function handleGlobalStyleInputChange(event, mainController) {
     }
     console.log("globalConfigEditor: Style/Config change detected, re-rendering tiles.");
     mainController.renderTiles();
-}
-
-async function handleImageUpload(input, mainController) {
-    const file = input.files[0];
-    console.log(`globalConfigEditor: handleImageUpload for ${input.dataset.path}`);
-    if (!file) return;
-    const storagePath = input.dataset.path;
-    if (!storagePath) return;
-    const compoundDiv = input.closest('.form-field-compound');
-    const textInput = compoundDiv.querySelector('input[type="text"]');
-
-    showGlobalLoader();
-    const oldUrl = textInput.value;
-
-    try {
-        const url = await configManager.uploadImage(storagePath, file, oldUrl);
-        if (textInput) textInput.value = url;
-        textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        showMessage(`Uploaded ${file.name}`, false);
-    } catch (error) {
-        showMessage(`Upload failed: ${error.message}`, true);
-    } finally {
-        hideGlobalLoader();
-    }
 }
 
 function toggleGlobalStyles() {
