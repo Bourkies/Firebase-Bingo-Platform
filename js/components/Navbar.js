@@ -219,6 +219,17 @@ class AppNavbar extends HTMLElement {
     }
 
     render() {
+        // Re-evaluate captain status whenever data changes, as this component has all the necessary info.
+        // This ensures the UI is correct even if captain status changes while the user is on the page.
+        if (this.authState.isLoggedIn && this.authState.profile) {
+            const userTeamId = this.authState.profile.team;
+            const userTeam = userTeamId ? this.allTeams[userTeamId] : null;
+            const isCaptain = userTeam ? userTeam.captainId === this.authState.user.uid : false;
+            if (this.authState.isTeamCaptain !== isCaptain) {
+                console.log(`[Navbar] Captain status updated from ${this.authState.isTeamCaptain} to ${isCaptain}`);
+                this.authState.isTeamCaptain = isCaptain;
+            }
+        }
         this.renderAuthInfo();
         this.renderNavLinks();
     }
@@ -234,7 +245,7 @@ class AppNavbar extends HTMLElement {
             const roles = [];
             if (profile.isAdmin) { roles.push('Admin'); }
             if (profile.isEventMod) { roles.push('Event Mod'); }
-            if (profile.isTeamCaptain) { roles.push('Captain'); }
+            if (this.authState.isTeamCaptain) { roles.push('Captain'); }
             console.log('[Navbar] Rendering roles:', roles);
 
             const teamName = (profile.team && this.allTeams) ? (this.allTeams[profile.team]?.name || profile.team) : '';
