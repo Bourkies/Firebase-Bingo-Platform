@@ -145,7 +145,7 @@ export function renderGlobalConfig(mainController) {
         // FIX: Pass the correct baseClass for the setup page so the preview tile
         // inherits the correct border styles from the .draggable-tile CSS rules.
         const tileEl = createTileElement(mockTile, status, config, allStyles, { baseClass: 'draggable-tile' });
-
+ 
         // Override absolute positioning to make it fit in the form flow
         tileEl.style.position = 'relative';
         tileEl.style.width = '80px';
@@ -153,7 +153,7 @@ export function renderGlobalConfig(mainController) {
         tileEl.style.left = 'auto';
         tileEl.style.top = 'auto';
         tileEl.style.cursor = 'default';
-
+ 
         if (config.showTileNames && !tileEl.querySelector('.stamp-image')) {
             tileEl.textContent = status;
         }

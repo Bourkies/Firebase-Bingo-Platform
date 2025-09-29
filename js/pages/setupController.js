@@ -440,8 +440,8 @@ async function saveTile(docId, data, mainControllerInterface) {
         const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
         showMessage(`Saved ${key}: ${displayValue}`, false);
 
-        // This callback is specifically for when the raw JSON for overrides is changed.
-        if (data['Overrides (JSON)'] !== undefined && mainControllerInterface) updateOverridesCallback(mainControllerInterface);
+        // FIX: Re-render tiles to show override changes immediately.
+        if (mainControllerInterface) mainControllerInterface.renderTiles();
 
     } catch (err) {
         showMessage(`Error saving tile: ${err.message}`, true);

@@ -28,10 +28,10 @@ function getOverridesFromUI() {
         const key = item.querySelector('.override-key').value;
         const valueEl = item.querySelector('.override-value');
 
-        if (!status || !key || !valueEl) return;
+        if (!status || !key || !valueEl || valueEl.value === '') return;
 
         let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
-        if (valueEl.dataset.unit) value += valueEl.dataset.unit;
+        if (valueEl.dataset.unit && value !== '') value += valueEl.dataset.unit;
         if (valueEl.tagName === 'SELECT' && value === '') return;
 
         if (!overrides[status]) overrides[status] = {};
@@ -110,15 +110,16 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
 
     // REFACTOR: Use 'change' event to trigger saves.
     const updateCallback = () => updateOverridesJsonFromCurrentTile(mainController);
+    // FIX: Re-add listener. The getOverridesFromUI function now correctly guards against incomplete rows.
     statusSelect.addEventListener('change', updateCallback);
     keySelect.addEventListener('change', () => {
         populateValueContainer(valueContainer, keySelect.value, '');
-        updateCallback();
+        // A value change will trigger the updateCallback.
     });
-    valueContainer.addEventListener('change', updateCallback);
+    valueContainer.addEventListener('change', updateCallback); // This is the ONLY event that should trigger a save.
 
     populateValueContainer(valueContainer, key, value);
-
+ 
     removeBtn.addEventListener('click', () => {
         item.remove();
         updateCallback();
@@ -137,10 +138,10 @@ function populateValueContainer(container, propertyName, value) {
     const isRotation = propertyName === 'stampRotation';
     const isImage = propertyName === 'stampImageUrl';
 
-    let inputHtml = '';
+    let inputHtml = ''; // This will be our fallback
 
     if (isShape) {
-        const options = styleSchema.shape.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('');
+        const options = styleSchema.shape.options.map(opt => `<option value="${opt}" ${String(value) === opt ? 'selected' : ''}>${opt}</option>`).join('');
         inputHtml = `<select class="override-value"><option value="">Default</option>${options}</select>`;
     } else if (isColor) {
         const compoundDiv = document.createElement('div');
@@ -148,30 +149,33 @@ function populateValueContainer(container, propertyName, value) {
 
         const colorInput = document.createElement('input');
         colorInput.type = 'color';
-        colorInput.value = value || '#000000';
+        colorInput.value = String(value) || '#000000';
 
         const textInput = document.createElement('input');
         textInput.type = 'text';
         textInput.className = 'override-value color-text-input';
-        textInput.value = value || '#000000';
+        textInput.value = String(value) || '#000000';
 
-        colorInput.addEventListener('change', (e) => {
-            textInput.value = e.target.value;
-            textInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // Use 'change' for text input to avoid firing on every keystroke
+        textInput.addEventListener('change', (e) => {
+            colorInput.value = e.target.value;
         });
+        // Use 'input' for color picker for live feedback
+        colorInput.addEventListener('input', (e) => {
+            textInput.value = e.target.value;
+        }); // The parent container's 'change' event will handle the save.
         textInput.addEventListener('input', (e) => {
             let potentialColor = e.target.value;
             if (/^[0-9A-F]{6}$/i.test(potentialColor) || /^[0-9A-F]{3}$/i.test(potentialColor)) {
                 potentialColor = '#' + potentialColor;
                 e.target.value = potentialColor;
             }
-            colorInput.value = potentialColor;
         });
 
         compoundDiv.append(colorInput, textInput);
         container.appendChild(compoundDiv);
         return;
-    } else if (isWidth) {
+    } else if (isWidth) { // This is now a fallback, range sliders are preferred
         inputHtml = `<div class="form-field-compound">
                         <input type="number" class="override-value" value="${parseFloat(value) || 0}" data-unit="px" min="0" max="20" step="1">
                         <span style="margin-left: 5px;">px</span>
@@ -185,15 +189,13 @@ function populateValueContainer(container, propertyName, value) {
         } else { // isRotation
             schema = styleSchema.stampRotation;
         }
-        // FIX: Parse the float value to handle units like 'deg'.
-        // The number input box will clear if it's given a non-numeric string.
         const val = parseFloat(value) || schema.min;
 
         const compoundDiv = document.createElement('div');
         compoundDiv.className = 'form-field-compound';
 
         const rangeInput = document.createElement('input');
-        rangeInput.type = 'range';
+        rangeInput.type = 'range'; // This is the primary input
         rangeInput.className = 'override-value'; // This triggers the update
         rangeInput.value = val;
         if (schema.unit) rangeInput.dataset.unit = schema.unit;
@@ -201,16 +203,20 @@ function populateValueContainer(container, propertyName, value) {
 
         const numberInput = document.createElement('input');
         numberInput.type = 'number';
+        numberInput.className = 'override-value-display'; // Not the primary source of truth
         numberInput.style.width = '70px';
         numberInput.value = val;
         numberInput.min = schema.min; numberInput.max = schema.max; numberInput.step = schema.step;
 
-        rangeInput.addEventListener('input', () => numberInput.value = rangeInput.value);
-        numberInput.addEventListener('input', () => {
-            rangeInput.value = numberInput.value;
-            rangeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        rangeInput.addEventListener('input', () => {
+            numberInput.value = rangeInput.value;
         });
-        compoundDiv.append(rangeInput, numberInput);
+        // Use 'change' on the number input to prevent sync loops
+        numberInput.addEventListener('change', () => {
+            rangeInput.value = numberInput.value;
+            rangeInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        compoundDiv.append(rangeInput, numberInput, Object.assign(document.createElement('span'), { textContent: schema.unit || '' }));
         container.appendChild(compoundDiv);
         return; // Exit early as we've already appended the element
     } else if (isBoolean) {
