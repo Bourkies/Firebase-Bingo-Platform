@@ -4,6 +4,7 @@ import * as submissionManager from '../../core/data/submissionManager.js';
 let mainController;
 
 export function initializeSubmissionModal(controller) {
+    console.log('[SubmissionModal] Initializing.');
     mainController = controller;
     document.querySelector('#submission-modal .close-button').addEventListener('click', closeModal);
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
@@ -19,6 +20,7 @@ export function initializeSubmissionModal(controller) {
 }
 
 export function openModal(tile, status) {
+    console.log(`[SubmissionModal] Opening for tile '${tile.id}' with status '${status}'.`);
     const { config, allTeams, currentTeam, submissions } = mainController.getState();
     const modal = document.getElementById('submission-modal');
     const form = document.getElementById('submission-form');
@@ -100,10 +102,12 @@ export function openModal(tile, status) {
 }
 
 export function closeModal() {
+    console.log('[SubmissionModal] Closing modal.');
     document.getElementById('submission-modal').style.display = 'none';
 }
 
 function addEvidenceInput(link = '', name = '') {
+    // console.log('[SubmissionModal] Adding evidence input.'); // This can be noisy
     const container = document.getElementById('evidence-container');
     const itemCount = container.children.length;
 
@@ -220,6 +224,7 @@ function validateEvidenceLink(urlString) {
 }
 
 async function handleAcknowledgeFeedback() {
+    console.log('[SubmissionModal] handleAcknowledgeFeedback called.');
     const { submissions, currentTeam, authState } = mainController.getState();
     const tileId = document.getElementById('modal-tile-id').value;
     const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
@@ -243,6 +248,7 @@ async function handleAcknowledgeFeedback() {
 
 async function handleFormSubmit(event) {
     event.preventDefault();
+    console.log('[SubmissionModal] handleFormSubmit called.');
     document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = true);
     showGlobalLoader();
 
@@ -280,6 +286,7 @@ async function handleFormSubmit(event) {
     const tileId = document.getElementById('modal-tile-id').value;
     const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tileId && !s.IsArchived);
     const action = event.submitter.dataset.action;
+    console.log(`[SubmissionModal] Form action: '${action}'.`);
 
     const dataToSave = {
         PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
