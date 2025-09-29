@@ -55,7 +55,8 @@ export function initializeTileEditor(mainController) {
         }
     });
 
-    detailsForm?.addEventListener('input', (e) => handleEditorInputChange(e, mainController));
+    // REFACTOR: Use 'change' event for more deliberate saves.
+    detailsForm?.addEventListener('change', (e) => handleEditorInputChange(e, mainController));
     addNewTileBtn?.addEventListener('click', () => addNewTile(mainController));
     deleteTileBtn?.addEventListener('click', () => deleteSelectedTile(mainController));
 
@@ -74,7 +75,10 @@ export function createEditorForm(tileData, mainController) {
     detailsForm.innerHTML = '';
 
     const TILE_EDITOR_FIELDS = ['docId', 'id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation'];
-    createFormFields(detailsForm, tileEditorSchema, tileData || {}, TILE_EDITOR_FIELDS);
+    createFormFields(detailsForm, tileEditorSchema, tileData || {}, TILE_EDITOR_FIELDS, {
+        // Pass the flashField utility to FormBuilder for remote updates
+        flashField: (el) => mainController.flashField(el)
+    });
 
     const overridesFieldset = createOverrideFieldset(mainController);
     const prereqFieldset = createPrereqFieldset(mainController);
@@ -87,7 +91,7 @@ export function createEditorForm(tileData, mainController) {
     if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', mainController));
 
     const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
-    if (rawJsonTextarea) rawJsonTextarea.addEventListener('input', (e) => handleRawJsonOverrideChange(e, mainController));
+    if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, mainController));
 
 }
 
@@ -193,14 +197,13 @@ function validateTileId() {
 
 function handleEditorInputChange(event, mainController) {
     if (lastSelectedTileIndex === null) return;
-
-    // FIX: Ensure mainController is passed and exists
     if (!mainController) return;
+
     const input = event.target;
     const key = input.dataset.key;
     if (!key) return;
 
-    if (input.closest('#details-form') && !input.closest('.overrides-fieldset')) {
+    if (input.closest('#details-form') && !input.closest('.overrides-fieldset') && !input.closest('.prereq-fieldset')) {
         const tile = tilesData[lastSelectedTileIndex];
         if (!tile) return;
 
@@ -210,7 +213,7 @@ function handleEditorInputChange(event, mainController) {
 
         tile[key] = newValue;
 
-        mainController.debouncedSaveTile(tile.docId, { [key]: newValue }, mainController);
+        mainController.saveTile(tile.docId, { [key]: newValue }, mainController);
 
         const visualKeys = ['id', 'Name', 'Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
         if (visualKeys.includes(key) || key.toLowerCase().includes('color')) {

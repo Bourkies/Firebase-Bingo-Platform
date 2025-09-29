@@ -16,52 +16,43 @@ const styleSchema = {
     stampRotation: { label: `Stamp Rotation`, type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: 'Rotation of the stamp in degrees.' },
 };
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => { clearTimeout(timeout); func(...args); };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-let debouncedUpdateOverrides;
-
 export function initializeOverrideEditor(mainController) {
     console.log("overrideEditor: Initializing...");
-    debouncedUpdateOverrides = debounce((mainController) => {
-        if (!mainController) return; // Guard against missing controller
-        const index = mainController.lastSelectedTileIndex;
-        const overridesContainer = document.getElementById('overrides-container');
-        
-        if (index === null || !mainController.tilesData || !mainController.tilesData[index] || !overridesContainer) return;
+    // The main logic is now in updateOverridesJsonFromCurrentTile, triggered by events.
+}
 
-        const overrides = {};
-        document.querySelectorAll('#overrides-container .override-item').forEach(item => {
-            const status = item.querySelector('.override-status-select').value;
-            const key = item.querySelector('.override-key').value;
-            const valueEl = item.querySelector('.override-value');
+function getOverridesFromUI() {
+    const overrides = {};
+    document.querySelectorAll('#overrides-container .override-item').forEach(item => {
+        const status = item.querySelector('.override-status-select').value;
+        const key = item.querySelector('.override-key').value;
+        const valueEl = item.querySelector('.override-value');
 
-            if (!status || !key || !valueEl) return;
+        if (!status || !key || !valueEl) return;
 
-            let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
-            if (valueEl.dataset.unit) value += valueEl.dataset.unit;
-            if (valueEl.tagName === 'SELECT' && value === '') return;
+        let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
+        if (valueEl.dataset.unit) value += valueEl.dataset.unit;
+        if (valueEl.tagName === 'SELECT' && value === '') return;
 
-            if (!overrides[status]) overrides[status] = {};
+        if (!overrides[status]) overrides[status] = {};
 
-            if (value === 'true') overrides[status][key] = true;
-            else if (value === 'false') overrides[status][key] = false;
-            else overrides[status][key] = value;
-        });
+        if (value === 'true') overrides[status][key] = true;
+        else if (value === 'false') overrides[status][key] = false;
+        else overrides[status][key] = value;
+    });
+    return overrides;
+}
 
-        const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
-        const textarea = document.getElementById('overrides-json-textarea');
-        if (textarea) textarea.value = newOverridesJson;
+function saveOverrides(mainController) {
+    const index = mainController.lastSelectedTileIndex;
+    if (index === null || !mainController.tilesData || !mainController.tilesData[index]) return;
 
-        mainController.debouncedSaveTile(mainController.tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
-        mainController.renderTiles();
-    }, 500);
+    const overrides = getOverridesFromUI();
+    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
+    
+    mainController.saveTile(mainController.tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
+    showMessage('Saved Overrides', false);
+    mainController.renderTiles();
 }
 
 export function populateOverridesUI(overrides, mainController) {
@@ -70,6 +61,7 @@ export function populateOverridesUI(overrides, mainController) {
     const container = document.getElementById('overrides-container');
     container.innerHTML = '';
     if (typeof overrides !== 'object' || overrides === null) return;
+    mainController.flashField(document.getElementById('overrides-json-textarea'));
 
     for (const [status, properties] of Object.entries(overrides)) {
         if (typeof properties === 'object' && properties !== null) {
@@ -116,14 +108,14 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     item.append(statusSelect, keySelect, valueContainer, removeBtn);
     container.appendChild(item);
 
-    // FIX: Pass mainController to the update callback
+    // REFACTOR: Use 'change' event to trigger saves.
     const updateCallback = () => updateOverridesJsonFromCurrentTile(mainController);
     statusSelect.addEventListener('change', updateCallback);
     keySelect.addEventListener('change', () => {
         populateValueContainer(valueContainer, keySelect.value, '');
         updateCallback();
     });
-    valueContainer.addEventListener('input', updateCallback);
+    valueContainer.addEventListener('change', updateCallback);
 
     populateValueContainer(valueContainer, key, value);
 
@@ -272,10 +264,8 @@ export function handleRawJsonOverrideChange(event, mainController) {
 
 export function updateOverridesJsonFromCurrentTile(mainController) {
     // FIX: Guard against missing controller
-    if (!mainController) return;
-    if (debouncedUpdateOverrides) {
-        debouncedUpdateOverrides(mainController);
-    }
+    if (!mainController) return;    
+    saveOverrides(mainController);
 }
 
 export function createOverrideFieldset(mainController) {
