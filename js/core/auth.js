@@ -61,11 +61,14 @@ export async function signInAnonymously() {
 
 function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', uid);
+    console.log(`[Auth] Setting up profile listener for user.`);
 
     unsubscribeUserProfile = fb.onSnapshot(userDocRef, async (docSnap) => {
         const oldTeam = userProfile?.team; // Store the old team before updating
+        console.log('[Auth] Profile snapshot received.');
 
         if (!docSnap.exists()) {
+            console.log('[Auth] Profile does not exist. Creating new profile.');
             // Create a new user profile if it doesn't exist
             const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
             const newUserProfile = {
@@ -81,15 +84,35 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
             try {
                 await fb.setDoc(userDocRef, newUserProfile);
                 // The listener will fire again with the newly created doc, so we don't set userProfile here.
+                return; // Exit early, the next snapshot will have the data.
             } catch (error) {
                 console.error("Error creating user profile:", error);
             }
+        }
+        
+        userProfile = docSnap.data();
+        console.log('[Auth] User profile data:', { displayName: userProfile.displayName, team: userProfile.team, isAdmin: userProfile.isAdmin });
+
+        // After getting the user profile, check if they are a team captain.
+        let isTeamCaptain = false;
+        if (userProfile?.team) {
+            console.log(`[Auth] User is in team '${userProfile.team}'. Checking captain status.`);
+            try {
+                const teamDocRef = fb.doc(db, 'teams', userProfile.team);
+                const teamDocSnap = await fb.getDoc(teamDocRef);
+                if (teamDocSnap.exists() && teamDocSnap.data().captain === uid) {
+                    isTeamCaptain = true;
+                }
+                console.log(`[Auth] Captain check result: ${isTeamCaptain}.`);
+            } catch (error) {
+                console.error("Error checking team captain status:", error);
+            }
         } else {
-            userProfile = docSnap.data();
+            console.log('[Auth] User is not in a team. Skipping captain check.');
         }
 
         // After the profile is fetched or updated, notify the page controller.
-        const authState = getAuthState();
+        const authState = getAuthState(isTeamCaptain);
         // Add a flag to the authState if the team was changed by this update
         if (oldTeam !== undefined && oldTeam !== authState.profile?.team) {
             authState.teamChanged = true;
@@ -128,7 +151,8 @@ export async function updateUserDisplayName(newName) {
 }
 
 function notifyListeners(authState = null) {
-    const state = authState || getAuthState();
+    const state = authState || getAuthState(false); // Pass a default for isTeamCaptain
+    console.log('[Auth] Notifying listeners with state:', { isLoggedIn: state.isLoggedIn, isAdmin: state.isAdmin, isEventMod: state.isEventMod, isTeamCaptain: state.isTeamCaptain });
     authChangeListeners.forEach(listener => {
         listener(state);
     });
@@ -142,7 +166,8 @@ export async function signOut() {
     }
 }
 
-export function getAuthState() {
+export function getAuthState(isTeamCaptain = false) {
+    console.log(`[Auth] getAuthState called. isTeamCaptain parameter: ${isTeamCaptain}`);
     const isLoggedIn = !!currentUser;
     const firestoreProfile = userProfile || {};
     const authProfile = currentUser || {};
@@ -161,5 +186,6 @@ export function getAuthState() {
         profile: fullProfile,
         isAdmin: fullProfile?.isAdmin === true,
         isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
+        isTeamCaptain: isTeamCaptain,
     };
 }

@@ -341,16 +341,19 @@ This is the target architecture we are working towards. It separates shared serv
 - [x] **5.1:** Initial page testing and bug fixing and New Feature Implementation.
   - [x]  **5.1.1:** Reimplement name change modal to nav bar
   - [x]  **5.1.2:** Improver user/team management page
-  - [ ]  **5.1.3:** Add team captian page - allow captian to assign users (that arent in a team) to their team
-  - [ ]  **5.1.4:** Replace debounce timers with content specific events (eg when deselecting text box)
-    - [ ]  **5.1.4.1** Setup page
-    - [ ]  **5.1.4.1** user's page
-    - [ ]  
+  - [x]  **5.1.3:** Add team captian page - allow captian to assign users (that arent in a team) to their team
+  - [x]  **5.1.4:** Replace debounce timers with content specific events (eg when deselecting text box)
+    - [x]  **5.1.4.1** Setup page
+    - [x]  **5.1.4.1** user's page 
   - [x]  **5.1.5:** Show own teams board by default, if in team
   - [x]  **5.1.6:** Revamp submission review - allow easy checking of history, add utc toggle
   - [x]  **5.1.7:** revamp submission forum - maintain admin feedback pannel, add input forum checking
-  - [ ]  **5.1.8:** remove image uploading
-  - [ ]  **5.1.9:** Fix setup import/expot page not loading.
+  - [x]  **5.1.8:** remove image uploading
+  - [x]  **5.1.9:** Fix setup import/expot page not loading.
+  - [x]  **5.1.10:** Move login modal from index controll to navbar
+  - [x]  **5.1.11** Fix scoreboard on index page
+  - [x]  **5.1.12** Fix legend on index page
+  - [ ]  **5.1.13** General revision od page tiles and other texts
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.

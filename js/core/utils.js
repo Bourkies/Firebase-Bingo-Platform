@@ -47,3 +47,18 @@ export function hexToRgba(colorStr, alpha) {
     if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 255, 255, ${alpha})`;
     return `rgba(${r},${g},${b},${alpha})`;
 }
+
+/**
+ * Generates a map of team IDs to distinct HSL colors.
+ * @param {Array<string>} teamIds - An array of team IDs.
+ * @returns {object} An object where keys are team IDs and values are HSL color strings.
+ */
+export function generateTeamColors(teamIds = []) {
+    const colors = {};
+    const goldenAngle = 137.5;
+    teamIds.forEach((teamId, i) => {
+        const hue = (i * goldenAngle) % 360;
+        colors[teamId] = `hsl(${hue}, 70%, 55%)`;
+    });
+    return colors;
+}

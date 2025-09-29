@@ -10,7 +10,7 @@ let allUsers = [], allTeams = {}, config = {}, allStyles = {};
 const configSchema = {
     // Global Config Fields
     pageTitle: { label: 'Page Title', type: 'text', description: 'The title displayed at the top of the bingo page and in the browser tab.' },
-    boardImageUrl: { label: 'Board Background Image', type: 'image', path: 'config/board_background', description: 'A direct web URL to the bingo board background image. You can also upload a file here.' },
+    boardImageUrl: { label: 'Board Background Image', type: 'image', description: 'A direct web URL to the bingo board background image.' },
     maxPageWidth: { label: 'Max Page Width', type: 'text', description: 'The maximum width for the page content. Use px or % (e.g., 1400px or 90%).' },
     showTileNames: { label: 'Show Tile Names', type: 'boolean', description: 'Set to TRUE to display tile names on the board by default, especially if no background image is used.' },
     unlockOnVerifiedOnly: { label: 'Unlock on Verified Only', type: 'boolean', description: 'Set to TRUE to require a tile to be "Verified" by an admin before its prerequisites are met for other tiles.' },
@@ -31,7 +31,7 @@ const styleSchema = {
     border: { label: 'Border', type: 'widthAndColor', keys: { width: 'borderWidth', color: 'borderColor' }, unit: 'px', description: 'The tile\'s border width and color.' },
     hoverBorder: { label: 'Hover Border', type: 'widthAndColor', keys: { width: 'hoverBorderWidth', color: 'hoverBorderColor' }, unit: 'px', description: 'The border width and color on hover.' },
     useStampByDefault: { label: 'Use Stamp', type: 'boolean', description: 'Toggles the use of a stamp image for this status. When enabled, the settings below will apply.' },
-    stampImageUrl: { label: 'Stamp Image', type: 'image', path: 'styles/stamps/', description: 'URL for the stamp image to display on tiles. You can also upload a file.' },
+    stampImageUrl: { label: 'Stamp Image', type: 'image', description: 'URL for the stamp image to display on tiles.' },
     stampScale: { label: `Stamp Scale`, type: 'range', min: 0, max: 3, step: 0.05, description: 'Size multiplier for the stamp (e.g., 1 is 100%, 0.5 is 50%).' },
     stampRotation: { label: `Stamp Rotation`, type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: 'Rotation of the stamp in degrees.' },
     stampPosition: { label: `Stamp Position`, type: 'text', description: 'CSS background-position value for the stamp (e.g., "center", "top left", "50% 50%").' }
@@ -45,44 +45,40 @@ const configGroups = {
 
 const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => { clearTimeout(timeout); func(...args); };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-const debouncedSaveConfig = debounce(async (data) => {
+async function saveConfig(key, value) {
     try {
-        await configManager.updateConfig(data);
-        console.log('Config auto-saved.');
+        await configManager.updateConfig({ [key]: value });
+        const fieldLabel = configSchema[key]?.label || key;
+        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
+        showMessage(`Saved ${fieldLabel}: ${displayValue}`, false);
     } catch (err) {
         showMessage(`Error saving config: ${err.message}`, true);
         renderGlobalConfig();
     }
-}, 1000);
+}
 
-const debouncedUpdateTeam = debounce(async (teamId, field, value) => {
+async function updateTeam(teamId, field, value) {
     try {
         await teamManager.updateTeam(teamId, { [field]: value });
-        console.log(`Team ${teamId} field '${field}' auto-saved.`);
+        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
+        showMessage(`Saved Team ${teamId} ${field}: ${displayValue}`, false);
     } catch (err) {
         showMessage(`Error saving team ${teamId}: ${err.message}`, true);
         renderTeamsList();
     }
-}, 1500);
+}
 
-const debouncedSaveStyle = debounce(async (styleId, data) => {
+async function saveStyle(status, key, value) {
     try {
-        await configManager.updateStyle(styleId, data);
-        console.log(`Style ${styleId} auto-saved.`);
+        await configManager.updateStyle(status, { [key]: value });
+        const fieldLabel = styleSchema[key]?.label || key;
+        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
+        showMessage(`Saved ${status} ${fieldLabel}: ${displayValue}`, false);
     } catch (err) {
-        showMessage(`Error saving style: ${err.message}`, true);
+        showMessage(`Error saving style ${status}: ${err.message}`, true);
         renderGlobalConfig();
     }
-}, 1000);
+}
 
 export function initializeGlobalConfig(mainController) {
     const toggleTeamsBtn = document.getElementById('toggle-teams-btn');
@@ -91,8 +87,8 @@ export function initializeGlobalConfig(mainController) {
     console.log("globalConfigEditor: Initializing...");
     toggleTeamsBtn?.addEventListener('click', toggleTeams);
     toggleGlobalStylesBtn?.addEventListener('click', toggleGlobalStyles);
-    // FIX: Pass mainController to the handler
-    document.getElementById('global-style-form')?.addEventListener('input', (e) => handleGlobalStyleInputChange(e, mainController)); 
+    // REFACTOR: Use 'change' event instead of 'input' for more deliberate saves.
+    document.getElementById('global-style-form')?.addEventListener('change', (e) => handleGlobalConfigChange(e, mainController));
     document.getElementById('add-team-btn')?.addEventListener('click', addNewTeam);
 
     toggleTeams();
@@ -109,6 +105,7 @@ export function updateGlobalConfigData(newConfig, newStyles, newUsers, newTeams)
 export function renderGlobalConfig(mainController) {
     console.log("globalConfigEditor: renderGlobalConfig called.");
     const formContainer = document.getElementById('global-style-form');
+    const activeElementId = document.activeElement?.id;
     if (!formContainer || !config) return; // Guard against running before config is loaded
 
     formContainer.innerHTML = '<p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>';
@@ -120,7 +117,10 @@ export function renderGlobalConfig(mainController) {
         const contentDiv = document.createElement('div');
         contentDiv.className = 'config-grid';
         fieldset.appendChild(contentDiv);
-        createFormFields(contentDiv, configSchema, config, properties);
+        createFormFields(contentDiv, configSchema, config, properties, {
+            // Pass the flashField utility to FormBuilder
+            flashField: (el) => mainController.flashField(el)
+        });
         formContainer.appendChild(fieldset);
     }
 
@@ -142,8 +142,10 @@ export function renderGlobalConfig(mainController) {
         const previewContainer = document.createElement('div');
         previewContainer.style.cssText = 'display: flex; justify-content: center; align-items: center; margin-bottom: 1rem; padding: 1rem; background-color: #1a1a1a; border-radius: 6px;';
         const mockTile = { id: 'Preview' };
-        const tileEl = createTileElement(mockTile, status, config, allStyles, {});
-
+        // FIX: Pass the correct baseClass for the setup page so the preview tile
+        // inherits the correct border styles from the .draggable-tile CSS rules.
+        const tileEl = createTileElement(mockTile, status, config, allStyles, { baseClass: 'draggable-tile' });
+ 
         // Override absolute positioning to make it fit in the form flow
         tileEl.style.position = 'relative';
         tileEl.style.width = '80px';
@@ -151,7 +153,7 @@ export function renderGlobalConfig(mainController) {
         tileEl.style.left = 'auto';
         tileEl.style.top = 'auto';
         tileEl.style.cursor = 'default';
-
+ 
         if (config.showTileNames && !tileEl.querySelector('.stamp-image')) {
             tileEl.textContent = status;
         }
@@ -165,17 +167,19 @@ export function renderGlobalConfig(mainController) {
     });
 
     formContainer.appendChild(stylesFieldset);
-    // Add listeners after the form is built
-    // FIX: Pass mainController to the handler
-    formContainer.querySelectorAll('input[type="file"]').forEach(input => input.addEventListener('change', (e) => handleImageUpload(e.target, mainController)));
+
+    // Restore focus if it was lost during re-render
+    if (activeElementId) {
+        const focusedEl = document.getElementById(activeElementId);
+        if (focusedEl) focusedEl.focus();
+    }
 }
 
-function handleGlobalStyleInputChange(event, mainController) {
+function handleGlobalConfigChange(event, mainController) {
     const input = event.target;
     const key = input.dataset.key;    
-    // If there's no key, it's not a field we manage. If it's a file, it's handled by handleImageUpload.
-    // If mainController isn't ready, we can't proceed.
-    if (!key || input.type === 'file' || !mainController) return;
+    // If there's no key, it's not a field we manage.
+    if (!key || !mainController) return;
 
     const status = input.dataset.status;
     let newValue = input.type === 'checkbox' ? input.checked : input.value;
@@ -195,38 +199,14 @@ function handleGlobalStyleInputChange(event, mainController) {
     if (status) {
         if (!allStyles[status]) allStyles[status] = {};
         allStyles[status][key] = newValue;
-        debouncedSaveStyle(status, { [key]: newValue });
+        saveStyle(status, key, newValue);
     } else {
         config[key] = newValue;
         if (key === 'boardImageUrl') mainController.loadBoardImage(newValue);
-        debouncedSaveConfig({ [key]: newValue });
+        saveConfig(key, newValue);
     }
     console.log("globalConfigEditor: Style/Config change detected, re-rendering tiles.");
     mainController.renderTiles();
-}
-
-async function handleImageUpload(input, mainController) {
-    const file = input.files[0];
-    console.log(`globalConfigEditor: handleImageUpload for ${input.dataset.path}`);
-    if (!file) return;
-    const storagePath = input.dataset.path;
-    if (!storagePath) return;
-    const compoundDiv = input.closest('.form-field-compound');
-    const textInput = compoundDiv.querySelector('input[type="text"]');
-
-    showGlobalLoader();
-    const oldUrl = textInput.value;
-
-    try {
-        const url = await configManager.uploadImage(storagePath, file, oldUrl);
-        if (textInput) textInput.value = url;
-        textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        showMessage(`Uploaded ${file.name}`, false);
-    } catch (error) {
-        showMessage(`Upload failed: ${error.message}`, true);
-    } finally {
-        hideGlobalLoader();
-    }
 }
 
 function toggleGlobalStyles() {
@@ -296,8 +276,8 @@ function addTeamRow(teamId, name = '', captainId = '') {
     item.append(idDisplay, nameInput, captainSelect, removeBtn);
     container.appendChild(item);
 
-    nameInput.oninput = (e) => debouncedUpdateTeam(teamId, 'name', e.target.value);
-    captainSelect.onchange = (e) => debouncedUpdateTeam(teamId, 'captainId', e.target.value || null);
+    nameInput.onchange = (e) => updateTeam(teamId, 'name', e.target.value);
+    captainSelect.onchange = (e) => updateTeam(teamId, 'captainId', e.target.value || null);
     removeBtn.onclick = () => {
         if (confirm(`Are you sure you want to delete team "${name || teamId}"?`)) {
             deleteTeam(teamId);

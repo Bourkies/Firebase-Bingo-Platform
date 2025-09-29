@@ -51,7 +51,8 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     andInput.className = 'prereq-and-input';
     andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
     andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
-    andInput.oninput = () => { console.log("prereqEditor: Input changed, updating JSON."); updatePrereqJson(mainController); };
+    // REFACTOR: Use 'change' event for more deliberate saves.
+    andInput.onchange = () => { console.log("prereqEditor: Input changed, updating JSON."); updatePrereqJson(mainController); };
 
     const validationSpan = document.createElement('span');
     validationSpan.className = 'prereq-validation-msg';
@@ -101,11 +102,11 @@ function updatePrereqJson(mainController) {
     } else if (orGroups.length > 1) {
         prereqValue = JSON.stringify(orGroups);
     }
-    // FIX: Pass mainController to debouncedSaveTile
     if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
-        mainController.debouncedSaveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController);
+        // FIX: Pass mainController as the third argument to match the function signature in setupController.
+        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController); 
     }
-    mainController.renderPrereqLines(); // Call the main controller's method
+    mainController.renderTiles(); // Re-render tiles which will in turn call renderPrereqLines
 }
 
 function parsePrerequisites(prereqString) {

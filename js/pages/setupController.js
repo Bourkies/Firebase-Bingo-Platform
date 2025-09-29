@@ -30,6 +30,21 @@ const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Veri
 let currentScale = 1;
 let pan = { x: 0, y: 0 };
 
+// --- FIX: Re-add the missing UI Feedback Utility ---
+function flashField(element) {
+    if (!element) return;
+    element.style.transition = 'none';
+    element.style.backgroundColor = 'rgba(129, 200, 132, 0.5)'; // Green flash
+    setTimeout(() => {
+        element.style.transition = 'background-color 0.5s ease';
+        // Find the original background color from the stylesheet or default.
+        // This is a simplified approach; a more robust one might store the original color.
+        const originalColor = window.getComputedStyle(element).getPropertyValue('background-color');
+        element.style.backgroundColor = originalColor;
+        setTimeout(() => element.style.transition = '', 500);
+    }, 100);
+}
+
 const boardContainer = document.getElementById('board-container');
 const boardContent = document.getElementById('board-content');
 const boardImage = document.getElementById('board-image');
@@ -57,7 +72,7 @@ function onAuthStateChanged(authState) {
             prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
             e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
             e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
-            renderPrereqLines();
+            renderPrereqLines(prereqVisMode);
         });
         createStylePreviewButtons();
         applyTileLockState();
@@ -90,13 +105,14 @@ function initializeApp(authState) {
         get tilesData() { return tilesData; },
         get config() { return config; },
         get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
+        updateEditorPanel, renderTiles, saveTile,
+        flashField, // Expose the new utility
     };
     
     unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
         console.log("setupController: Config/Styles updated.");
         config = newConfig.config || {};
-        allStyles = newConfig.styles || {}; // This line is correct
+        allStyles = newConfig.styles || {};
         
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
 
@@ -111,7 +127,7 @@ function initializeApp(authState) {
                 updatePrereqEditorData(tilesData, lastSelectedTileIndex); // Update data in prereqEditor
 
                 populateTileSelector();
-                renderTiles();
+                renderTiles(); // This will call renderPrereqLines internally
 
                 if (wasTileAdded) {
                     // Find the newly added tile and select it
@@ -143,7 +159,7 @@ function initializeApp(authState) {
             renderGlobalConfig(mainControllerInterface);
             updatePrereqEditorData(tilesData, lastSelectedTileIndex);
             loadBoardImage(config.boardImageUrl || '');
-            renderTiles();
+            renderTiles(); // This will call renderPrereqLines internally
         }
     })); // The error callback is no longer needed here
 
@@ -207,7 +223,7 @@ function renderTiles() {
 
         boardContent.appendChild(tileEl);
     });
-    renderPrereqLines();
+    renderPrereqLines(prereqVisMode);
 }
 
 function applyTransform() {
@@ -266,9 +282,9 @@ interact('.draggable-tile')
                 };
                 tilesData[index]['Left (%)'] = dataToSave['Left (%)'];
                 tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
-                debouncedSaveTile(tilesData[index].docId, dataToSave);
+                saveTile(tilesData[index].docId, dataToSave);
                 updateEditorPanel(index);
-                renderPrereqLines();
+                renderPrereqLines(prereqVisMode);
             }
         }
     })
@@ -307,9 +323,9 @@ interact('.draggable-tile')
                 tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
                 tilesData[index]['Width (%)'] = dataToSave['Width (%)'];
                 tilesData[index]['Height (%)'] = dataToSave['Height (%)'];
-                debouncedSaveTile(tilesData[index].docId, dataToSave);
+                saveTile(tilesData[index].docId, dataToSave);
                 updateEditorPanel(index);
-                renderPrereqLines();
+                renderPrereqLines(prereqVisMode);
             }
         }
     });
@@ -341,7 +357,7 @@ function updateEditorPanel(index) {
         get tilesData() { return tilesData; },
         get config() { return config; },
         get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, debouncedSaveTile, loadBoardImage
+        updateEditorPanel, renderTiles, saveTile, flashField
     };
 
     // Update data in sub-modules before re-rendering their content
@@ -351,7 +367,7 @@ function updateEditorPanel(index) {
     // Call the main content update function in tileEditor
     updateEditorPanelContent(index, mainControllerInterface);
 
-    renderPrereqLines();
+    renderPrereqLines(prereqVisMode);
 }
 
 function getDuplicateIds(tiles) {
@@ -412,23 +428,22 @@ function loadBoardImage(imageUrl) {
     boardImage.src = imageUrl;
 }
 
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) { 
-        const later = () => { clearTimeout(timeout); func(...args); };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// FIX: Pass mainControllerInterface to the debounced function so it's available in the callback.
-const debouncedSaveTile = debounce(async (docId, data, mainControllerInterface) => {
+async function saveTile(docId, data, mainControllerInterface) {
     if (!docId) return;
-    console.log(`setupController: Debounced save for tile ${docId}`, data);
+    console.log(`setupController: Saving tile ${docId}`, data);
     try {
         await tileManager.updateTile(docId, data);
-        if (data['Overrides (JSON)'] !== undefined && mainControllerInterface) updateOverridesCallback(mainControllerInterface);
+        
+        // Provide user feedback
+        const key = Object.keys(data)[0];
+        const value = data[key];
+        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
+        showMessage(`Saved ${key}: ${displayValue}`, false);
+
+        // FIX: Re-render tiles to show override changes immediately.
+        if (mainControllerInterface) mainControllerInterface.renderTiles();
+
     } catch (err) {
         showMessage(`Error saving tile: ${err.message}`, true);
     }
-}, 1000);
+}

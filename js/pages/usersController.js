@@ -1,6 +1,6 @@
 import '../components/Navbar.js';
 import { initAuth } from '../core/auth.js';
-import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
@@ -135,12 +135,9 @@ function renderUserAssignments() {
 
     // Use event delegation on the table body
     const tableBody = document.querySelector('#user-assignment-table tbody');
-    // Remove old listener to prevent duplicates if render is called again
-    tableBody.removeEventListener('change', handleFieldChange);
-    tableBody.removeEventListener('input', handleDebouncedFieldChange);
-    // Add new listeners
-    tableBody.addEventListener('change', handleFieldChange);
-    tableBody.addEventListener('input', handleDebouncedFieldChange);
+    // Use a single 'change' event listener for all field types.
+    // This fires when a text input loses focus, or a checkbox/select value changes.
+    tableBody.onchange = handleFieldChange;
 
     // Update sort indicators
     document.querySelectorAll('#user-assignment-table th').forEach(th => {
@@ -151,21 +148,6 @@ function renderUserAssignments() {
     });
 }
 
-let inputTimeout;
-function handleDebouncedFieldChange(e) {
-    if (e.target.type === 'text' && e.target.classList.contains('user-field')) {
-        clearTimeout(inputTimeout);
-        inputTimeout = setTimeout(() => processUpdate(e.target), 1000);
-    }
-}
-
-function handleFieldChange(e) {
-    const target = e.target;
-    if ((target.type === 'checkbox' || target.tagName === 'SELECT') && target.classList.contains('user-field')) {
-        processUpdate(target);
-    }
-}
-
 async function processUpdate(target) {
     const uid = target.dataset.uid;
     const field = target.dataset.field;
@@ -174,15 +156,21 @@ async function processUpdate(target) {
     showGlobalLoader();
     try {
         if (field === 'displayName' || field === 'isNameLocked') {
+            const user = allUsers.find(u => u.uid === uid);
             await userManager.updateUser(uid, { [field]: value });
+            const fieldLabel = field === 'displayName' ? 'Display Name' : 'Name Lock';
+            showMessage(`Updated ${user.displayName}'s ${fieldLabel} to "${value}".`, false);
         } else if (field === 'team') {
             const oldTeamId = allUsers.find(u => u.uid === uid)?.team;
             const newTeamId = value || null;
+            const user = allUsers.find(u => u.uid === uid);
+            const newTeamName = newTeamId ? allTeams[newTeamId]?.name : 'None';
             await userManager.updateUser(uid, { team: newTeamId });
             // If user was captain of old team, remove them as captain
             if (oldTeamId && oldTeamId !== newTeamId && allTeams[oldTeamId]?.captainId === uid) {
                 await teamManager.updateTeam(oldTeamId, { captainId: null });
             }
+            showMessage(`Moved ${user.displayName} to team "${newTeamName}".`, false);
         } else if (field === 'isCaptain') {
             const user = allUsers.find(u => u.uid === uid);
             const teamId = user?.team;
@@ -191,10 +179,12 @@ async function processUpdate(target) {
             if (value) { // isChecked
                 // Set this user as the new captain for the team
                 await teamManager.updateTeam(teamId, { captainId: uid });
+                showMessage(`${user.displayName} is now captain of ${allTeams[teamId]?.name}.`, false);
             } else {
                 // Only un-set captain if this user *is* the current captain
                 if (allTeams[teamId]?.captainId === uid) {
                     await teamManager.updateTeam(teamId, { captainId: null });
+                    showMessage(`${user.displayName} is no longer captain of ${allTeams[teamId]?.name}.`, false);
                 }
             }
         }
@@ -204,5 +194,13 @@ async function processUpdate(target) {
         // The real-time listener will automatically revert the UI on error.
     } finally {
         hideGlobalLoader();
+    }
+}
+
+function handleFieldChange(e) {
+    const target = e.target;
+    // Check if the event was triggered on an element we care about.
+    if (target.classList.contains('user-field')) {
+        processUpdate(target);
     }
 }

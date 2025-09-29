@@ -57,8 +57,12 @@ export function createTileElement(tile, status, config, allStyles, options) {
 
     const borderWidth = getProp('borderWidth', status) || '2px';
     const borderColor = getProp('borderColor', status) || 'transparent';
-    tileEl.style.border = `${borderWidth} solid ${borderColor}`;
-
+    // FIX: Use CSS variables for the border to allow hover effects from stylesheets.
+    // Inline styles would otherwise override the :hover pseudo-class.
+    tileEl.style.setProperty('--tile-border-width', borderWidth);
+    tileEl.style.setProperty('--tile-border-color', borderColor);
+    tileEl.style.borderStyle = 'solid'; // Set the non-changing part of the border
+ 
     // --- Page-Specific Overrides ---
     if (isHighlighted) {
         tileEl.style.borderColor = '#00d9f5';
@@ -91,15 +95,46 @@ export function createTileElement(tile, status, config, allStyles, options) {
         tileEl.appendChild(stampEl);
     }
 
-    // --- Hover Listeners ---
-    tileEl.addEventListener('mouseover', () => {
-        const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
-        const hoverColor = getProp('hoverBorderColor', status) || '#00d9f5';
-        tileEl.style.border = `${hoverWidth} solid ${hoverColor}`;
-    });
-    tileEl.addEventListener('mouseout', () => {
-        tileEl.style.border = `${borderWidth} solid ${borderColor}`; // Revert to non-hover state
-    });
-
     return tileEl;
+}
+
+/**
+ * Renders the color key legend into a given container.
+ * @param {object} config - The main application config object.
+ * @param {object} allStyles - An object of all status-specific styles.
+ * @param {HTMLElement} container - The DOM element to render the color key into.
+ */
+export function renderColorKey(config, allStyles, container) {
+    if (!config || !allStyles || !container) return;
+
+    container.innerHTML = ''; // Clear previous content
+
+    const statusesToDisplay = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+    const statusDisplayNames = {
+        'Partially Complete': 'Draft', 'Requires Action': 'Admin Feedback'
+    };
+
+    statusesToDisplay.forEach(status => {
+        const keyItem = document.createElement('div');
+        keyItem.className = 'key-item';
+
+        const displayName = statusDisplayNames[status] || status;
+        const mockTile = { id: 'Preview' };
+        // FIX: Assign a baseClass so the preview tile inherits the correct border styles
+        // from the page's stylesheet (e.g., .tile-overlay in index.html).
+        const options = { baseClass: 'tile-overlay' };
+        const tilePreview = createTileElement(mockTile, status, config, allStyles, options);
+
+        tilePreview.style.position = 'relative';
+        tilePreview.style.width = '40px';
+        tilePreview.style.height = '40px';
+        tilePreview.style.left = 'auto';
+        tilePreview.style.top = 'auto';
+        tilePreview.style.cursor = 'default';
+        tilePreview.style.fontSize = '10px';
+
+        if (config.showTileNames && !tilePreview.querySelector('.stamp-image')) tilePreview.textContent = displayName;
+        keyItem.append(tilePreview, displayName);
+        container.appendChild(keyItem);
+    });
 }

@@ -42,11 +42,7 @@ function createField(key, schema, value, options = {}) {
 
     switch (schema.type) {
         case 'image': {
-            const fileInputId = `file-upload-${key}-${status || 'global'}`;
             const val = value ?? '';
-
-            const compoundDiv = document.createElement('div');
-            compoundDiv.className = 'form-field-compound';
 
             const textInput = document.createElement('input');
             textInput.type = 'text';
@@ -55,34 +51,18 @@ function createField(key, schema, value, options = {}) {
             if (status) textInput.dataset.status = status;
             textInput.value = val;
             textInput.placeholder = 'Image URL';
-            textInput.style.flexGrow = '1';
-
-            const uploadLabel = document.createElement('label');
-            uploadLabel.htmlFor = fileInputId;
-            uploadLabel.className = 'button-like-label';
-            uploadLabel.textContent = 'Upload';
-
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.id = fileInputId;
-            fileInput.dataset.key = key;
-            if (status) fileInput.dataset.status = status;
-            fileInput.dataset.path = schema.path;
-            fileInput.style.display = 'none';
 
             const previewImg = document.createElement('img');
             previewImg.src = val;
             previewImg.className = 'image-upload-preview';
             previewImg.style.display = val ? 'block' : 'none';
 
-            // Event listener to update preview when URL is typed
             textInput.addEventListener('input', () => {
                 previewImg.src = textInput.value;
                 previewImg.style.display = textInput.value ? 'block' : 'none';
             });
 
-            compoundDiv.append(textInput, uploadLabel, fileInput);
-            fieldContainer.append(compoundDiv, previewImg);
+            fieldContainer.append(textInput, previewImg);
             break;
         }
         case 'textarea': {
