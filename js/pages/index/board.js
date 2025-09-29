@@ -5,12 +5,14 @@ import { showMessage, hexToRgba } from '../../core/utils.js';
 let mainController;
 
 export function initializeBoard(controller) {
+    console.log('[Board] Initializing with controller.');
     mainController = controller;
 }
 
 export function getTileStatus(tile, teamName) {
     const { config, teamData, authState } = mainController.getState();
 
+    // This function can be very noisy, so we'll keep its logging commented out unless needed for deep debugging.
     if (isGenericView()) return 'Unlocked';
 
     const isPublic = config.boardVisibility !== 'private';
@@ -65,14 +67,17 @@ export function getTileStatus(tile, teamName) {
 }
 
 export function renderBoard() {
+    console.log('[Board] renderBoard called.');
     const { config, authState, tiles, currentTeam, allTeams } = mainController.getState();
 
     if (!config || (config.boardVisibility === 'private' && !authState.isLoggedIn)) {
+        console.log('[Board] renderBoard aborted: No config or private board and not logged in.');
         return;
     }
 
     const shouldShowGeneric = isGenericView();
     if (!tiles || tiles.length === 0 || (!currentTeam && !shouldShowGeneric)) {
+        console.log('[Board] renderBoard aborted: No tiles or no current team in non-generic view.');
         document.getElementById('board-container').innerHTML = '';
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
         return;
@@ -176,6 +181,7 @@ export function isGenericView() {
 }
 
 export function renderScoreboard() {
+    console.log('[Board] renderScoreboard called.');
     const { scoreboardData, config, allTeams, authState, teamColorMap } = mainController.getState();
 
     // Render Scoreboard - This single line now handles everything.

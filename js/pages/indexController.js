@@ -29,34 +29,41 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function onAuthStateChanged(newAuthState) {
+    console.log('[IndexController] onAuthStateChanged triggered.', { isLoggedIn: newAuthState.isLoggedIn, profileExists: !!newAuthState.profile });
+    const oldAuthState = authState;
     authState = newAuthState;
     const loadFirstTeam = config.loadFirstTeamByDefault === true;
+
+    // If the user's login status hasn't changed, but their profile has (e.g., team assignment),
+    // we can proceed with updates. The key is to avoid acting before the profile is loaded.
+    // The key check: if logged in, but the profile doesn't yet have a team property (even if it's null),
+    // it means the Firestore profile hasn't been merged yet. So we wait.
+    if (newAuthState.isLoggedIn && newAuthState.profile && newAuthState.profile.team === undefined) {
+        console.log("[IndexController] Auth state updated, but full profile (with team) not ready. Deferring board render.");
+        return;
+    }
 
     if (newAuthState.teamChanged) {
         const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
         showMessage(`Your team has been changed to: ${newTeamName}. The board is updating.`, false);
     }
 
-    // Re-populate the selector to handle visibility changes (e.g., private boards).
-    populateTeamSelector(allTeams, loadFirstTeam);
-
-    // NEW: Logic to set the default selected team is now here.
-    // This ensures authState.profile is available before we try to use it.
+    // Re-populate the selector and set the correct team value now that we know the profile is loaded.
+    populateTeamSelector(allTeams, loadFirstTeam); // This will handle private board logic
     const selector = document.getElementById('team-selector');
-    if (selector.disabled) {
-        // The value is already set by populateTeamSelector for private boards.
-    } else if (authState.isLoggedIn && authState.profile?.team) {
-        // If logged in and on a team (on a public board), select their team.
+    
+    if (authState.isLoggedIn && authState.profile?.team && !selector.disabled) {
+        // For public boards, if the user is logged in and has a team, select it.
         selector.value = authState.profile.team;
-    } else if (loadFirstTeam && Object.keys(allTeams).length > 0 && !selector.value) {
-        // As a fallback, if the setting is enabled, select the first team in the list.
+    } else if (!selector.value && loadFirstTeam && Object.keys(allTeams).length > 0 && !selector.disabled) {
+        // Fallback for public boards if no user team is set but the config says to load the first one.
         selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
     }
 
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
-    // This is the key fix: After auth is confirmed, explicitly trigger a team change and board render.
+    // This is the key fix: After auth is confirmed and the profile is loaded, explicitly trigger a team change and board render.
     handleTeamChange();
 }
 
@@ -64,11 +71,16 @@ async function onAuthStateChanged(newAuthState) {
 const setupTilesListener = () => {
     if (unsubscribeTiles) unsubscribeTiles();
     // Use the centralized tileManager to handle fetching tiles based on permissions and config.
-    unsubscribeTiles = tileManager.listenToTiles((newTiles) => {
-        console.log("Tiles updated in real-time.");
+    unsubscribeTiles = tileManager.listenToTiles((newTiles) => { // FIX: Changed log to match format
+        console.log("[IndexController] Tiles updated in real-time.");
         tiles = newTiles;
         processAllData();
-        renderBoard(); // Render board with new tiles
+        // Do not render here directly. Let the auth state change or team selection be the trigger.
+        // Only render if a team is already selected, which means initial load is complete.
+        if (currentTeam) {
+            console.log("[IndexController] Tiles updated, re-rendering for current team.");
+            renderBoard();
+        }
     }, authState, config, true); // Pass true for includeDocId
 };
 
@@ -76,12 +88,17 @@ const setupTilesListener = () => {
 const setupSubmissionsListener = () => {
     if (unsubscribeSubmissions) unsubscribeSubmissions();
     // Use the centralized submissionManager to handle fetching submissions based on permissions and config.
-    unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => {
-        console.log("Submissions updated in real-time.");
+    unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => { // FIX: Changed log to match format
+        console.log("[IndexController] Submissions updated in real-time.");
         // The manager already converts timestamps, so we just assign the data.
         submissions = newSubmissions;
         processAllData();
-        renderBoard(); // Re-render board with new submission data
+        // Do not render here directly. Let the auth state change or team selection be the trigger.
+        // Only render if a team is already selected, which means initial load is complete.
+        if (currentTeam) {
+            console.log("[IndexController] Submissions updated, re-rendering for current team.");
+            renderBoard();
+        }
     }, authState, config);
 };
 
@@ -89,6 +106,12 @@ function initializeApp() {
     let unsubscribeTeams = null; // New listener for teams
 
     let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false, users: false };
+    // Check if initialization is already in progress to avoid race conditions on re-authentication
+    if (document.body.dataset.initializing === 'true') {
+        console.log("[IndexController] Initialization already in progress. Aborting new run.");
+        return;
+    }
+    document.body.dataset.initializing = 'true';
     const checkAllLoaded = () => {
         if (Object.values(initialDataLoaded).every(Boolean)) {
             hideGlobalLoader();
@@ -106,7 +129,7 @@ function initializeApp() {
 
     // Listener for the main configuration document
     unsubscribeConfig = configManager.listenToConfigAndStyles((newConfigData) => {
-        console.log("Config updated in real-time.");
+        console.log("[IndexController] Config updated in real-time.");
         if (newConfigData.error || !newConfigData.config) {
             document.getElementById('board-container').innerHTML = `<div class="error-message">Board configuration not found. Please contact an admin.</div>`;
             hideGlobalLoader();
@@ -121,16 +144,24 @@ function initializeApp() {
         applyGlobalStyles();
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         populateTeamSelector(allTeams, loadFirstTeam); // This is correct
-        if (authState.isLoggedIn || config.boardVisibility !== 'private') handleTeamChange();
+        // Do not call handleTeamChange here. Let onAuthStateChanged be the single source of truth for this.
+        // The initial render will happen when all data is loaded and auth state is confirmed.
+        // For a logged-out user on a public board, the first team selection will trigger the render.
+        // Only render if a team is already selected, which means initial load is complete.
+        if (currentTeam) {
+            console.log("[IndexController] Config updated, re-rendering for current team.");
+            renderBoard();
+        }
 
         document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
         mainControllerInterface.renderColorKey();
         if (!initialDataLoaded.config) { initialDataLoaded.config = true; initialDataLoaded.styles = true; checkAllLoaded(); }
+        document.body.dataset.initializing = 'false'; // Mark initialization as complete
     });
 
     // Listener for the new teams collection
-    unsubscribeTeams = teamManager.listenToTeams((newTeams) => {
-        console.log("Teams updated in real-time.");
+    unsubscribeTeams = teamManager.listenToTeams((newTeams) => { // FIX: Changed log to match format
+        console.log("[IndexController] Teams updated in real-time.");
         allTeams = newTeams;
         teamColorMap = generateTeamColors(Object.keys(newTeams));
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
@@ -143,7 +174,12 @@ function initializeApp() {
             selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
         }
 
-        handleTeamChange();
+        // Do not call handleTeamChange here. It will be called by onAuthStateChanged when ready.
+        // Only render if a team is already selected, which means initial load is complete.
+        if (currentTeam) {
+            console.log("[IndexController] Teams updated, re-rendering for current team.");
+            renderBoard();
+        }
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     });
 }
@@ -151,13 +187,14 @@ function initializeApp() {
 // Listener for users collection, must be called after auth state is known
 function setupUsersListener() {
     if (unsubscribeUsers) unsubscribeUsers();
-    unsubscribeUsers = userManager.listenToUsers((newUsers) => {
-        console.log(`indexController: Users updated. Received ${newUsers.length} users.`);
+    unsubscribeUsers = userManager.listenToUsers((newUsers) => { // FIX: Changed log to match format
+        console.log(`[IndexController] Users updated. Received ${newUsers.length} users.`);
         allUsers = newUsers;
     }, authState);
 }
 
 function processAllData() {
+    console.log('[IndexController] processAllData called.');
     teamData = {};
     const teamIds = allTeams ? Object.keys(allTeams) : [];
 
@@ -258,6 +295,7 @@ function populateTeamSelector(teams = {}, loadFirstTeam = false) {
 }
 
 function handleTeamChange() {
+    console.log('[IndexController] handleTeamChange called.');
     const selector = document.getElementById('team-selector');
     const isPrivate = config.boardVisibility === 'private';
     if (isPrivate) {
