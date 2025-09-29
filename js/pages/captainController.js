@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function onAuthStateChanged(newAuthState) {
+    console.log('[CaptainController] Auth state changed:', newAuthState);
     authState = newAuthState;
     // The initializeApp function will handle visibility after data is loaded
     // and we can determine if the user is a captain.
@@ -31,6 +32,7 @@ function onAuthStateChanged(newAuthState) {
 
 function checkCaptainStatus() {
     captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
+    console.log(`[CaptainController] Captain status check. User is captain of team: ${captainTeamId || 'None'}`);
     if (captainTeamId) {
         document.getElementById('access-denied').style.display = 'none';
         document.getElementById('users-view').style.display = 'block';
@@ -45,11 +47,13 @@ function checkCaptainStatus() {
 }
 
 function initializeApp() {
+    console.log('[CaptainController] Initializing app and data listeners...');
     showGlobalLoader();
     unsubscribeFromAll();
     const unsubs = [];
 
     // First, listen to teams to determine if the user is a captain.
+    console.log('[CaptainController] Subscribing to team data...');
     unsubs.push(teamManager.listenToTeams(newTeams => {
         allTeams = newTeams;
         checkCaptainStatus();
@@ -59,7 +63,9 @@ function initializeApp() {
         if (captainTeamId) {
             // Check if we're already listening to users to avoid multiple subscriptions.
             if (unsubs.length === 1) { // Only the team listener exists
+                console.log('[CaptainController] User is a captain. Subscribing to user data...');
                 unsubs.push(userManager.listenToUsers(newUsers => {
+                    console.log('[CaptainController] Received user data:', newUsers);
                     allUsers = newUsers;
                     renderUserAssignments();
                     hideGlobalLoader(); // Hide loader after users are loaded
@@ -91,10 +97,12 @@ function handleSort(event) {
 }
 
 function renderUserAssignments() {
+    console.log('[CaptainController] Rendering user assignments...');
     if (!captainTeamId) return; // Don't render if the user is not a captain
 
     // Filter users
     const filteredUsers = allUsers.filter(user => {
+        console.log(`[CaptainController] Filtering user: ${user.displayName} (Team: ${user.team})`);
         // Show only users on the captain's team or unassigned users
         const isEligible = user.team === captainTeamId || !user.team;
         if (!isEligible) return false;
@@ -105,6 +113,8 @@ function renderUserAssignments() {
         const teamName = (allTeams[user.team]?.name || '').toLowerCase();
         return name.includes(searchTerm) || uid.includes(searchTerm) || teamName.includes(searchTerm);
     });
+
+    console.log('[CaptainController] Filtered users to render:', filteredUsers);
 
     // Sort users (removed 'isCaptain' sort option)
     filteredUsers.sort((a, b) => {
@@ -157,6 +167,7 @@ async function processUpdate(target) {
     const field = target.dataset.field;
     const value = target.type === 'checkbox' ? target.checked : target.value;
 
+    console.log(`[CaptainController] Processing update for user ${uid}, field ${field}, new value ${value}`);
     // Captains can only change team assignments
     if (field !== 'team') return;
 

@@ -86,7 +86,12 @@ service cloud.firestore {
       
       // FIX: Add a 'list' rule to allow a user to query for their teammates.
       // This is what allows the `where('team', '==', ...)` query to succeed for non-admins.
-      allow list: if isEventMod() || (isAuth() && request.query.where.team == getUserData().team);
+      // A captain can also list users with no team (`team == null`).
+      allow list: if isEventMod() ||
+                     (isAuth() && request.query.where.team == getUserData().team) ||
+                     (isAuth() && isCaptainOfTeam(getUserData().team) &&
+                       (request.query.where.team == getUserData().team ||
+                        request.query.where.team == null));
 
       allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
 
