@@ -40,6 +40,12 @@
       background-image: linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
       /* The size for the placeholder gradient is now handled in JS to avoid conflicts */
     }
+    .tile-overlay:hover {
+      /* Use outline instead of border to prevent layout shift */
+      outline: 2px solid var(--accent-color);
+      z-index: 2;
+      outline-offset: -2px; /* Compensate for the outline width to keep it centered */
+    }
     @keyframes pulse-border {
       0% { box-shadow: 0 0 0 0 rgba(229, 115, 115, 0.7); }
       70% { box-shadow: 0 0 0 10px rgba(229, 115, 115, 0); }
@@ -66,13 +72,14 @@
       display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;
       padding: 1rem; background-color: var(--input-bg); border-radius: 8px;
     }
-    .key-item { display: flex; align-items: center; gap: 0.5rem; }
-    .key-color-box {
-      width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border-color);
-      /* For stamp images */
-      background-size: contain;
-      background-position: center;
-      background-repeat: no-repeat;
+    .key-item {
+      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+      font-size: 0.8rem; color: var(--secondary-text, #a0a0a0);
+    }
+    /* NEW: Ensure all tile previews in the legend are vertically aligned */
+    .key-item .tile-overlay {
+      vertical-align: middle;
+      outline: 1px solid transparent; /* Add a transparent outline to prevent layout shift on hover */
     }
     /* NEW: Styles for the table-based scoreboard, matching overview.html */
     .scoreboard-wrapper {
