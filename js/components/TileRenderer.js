@@ -57,8 +57,12 @@ export function createTileElement(tile, status, config, allStyles, options) {
 
     const borderWidth = getProp('borderWidth', status) || '2px';
     const borderColor = getProp('borderColor', status) || 'transparent';
-    tileEl.style.border = `${borderWidth} solid ${borderColor}`;
-
+    // FIX: Use CSS variables for the border to allow hover effects from stylesheets.
+    // Inline styles would otherwise override the :hover pseudo-class.
+    tileEl.style.setProperty('--tile-border-width', borderWidth);
+    tileEl.style.setProperty('--tile-border-color', borderColor);
+    tileEl.style.borderStyle = 'solid'; // Set the non-changing part of the border
+ 
     // --- Page-Specific Overrides ---
     if (isHighlighted) {
         tileEl.style.borderColor = '#00d9f5';
@@ -116,7 +120,10 @@ export function renderColorKey(config, allStyles, container) {
 
         const displayName = statusDisplayNames[status] || status;
         const mockTile = { id: 'Preview' };
-        const tilePreview = createTileElement(mockTile, status, config, allStyles, {});
+        // FIX: Assign a baseClass so the preview tile inherits the correct border styles
+        // from the page's stylesheet (e.g., .tile-overlay in index.html).
+        const options = { baseClass: 'tile-overlay' };
+        const tilePreview = createTileElement(mockTile, status, config, allStyles, options);
 
         tilePreview.style.position = 'relative';
         tilePreview.style.width = '40px';

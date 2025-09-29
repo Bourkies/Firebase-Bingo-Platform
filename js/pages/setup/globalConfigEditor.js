@@ -142,7 +142,9 @@ export function renderGlobalConfig(mainController) {
         const previewContainer = document.createElement('div');
         previewContainer.style.cssText = 'display: flex; justify-content: center; align-items: center; margin-bottom: 1rem; padding: 1rem; background-color: #1a1a1a; border-radius: 6px;';
         const mockTile = { id: 'Preview' };
-        const tileEl = createTileElement(mockTile, status, config, allStyles, {});
+        // FIX: Pass the correct baseClass for the setup page so the preview tile
+        // inherits the correct border styles from the .draggable-tile CSS rules.
+        const tileEl = createTileElement(mockTile, status, config, allStyles, { baseClass: 'draggable-tile' });
 
         // Override absolute positioning to make it fit in the form flow
         tileEl.style.position = 'relative';

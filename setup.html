@@ -119,8 +119,10 @@
         }
         .draggable-tile {
             position: absolute;
-            border: 2px solid rgba(255, 255, 255, 0.7);
-            background-color: rgba(0, 170, 255, 0.3);
+            /* FIX: Use CSS variables set by TileRenderer.js for the border */
+            border-width: var(--tile-border-width, 2px);
+            border-color: var(--tile-border-color, rgba(255, 255, 255, 0.7));
+            background-color: rgba(0, 170, 255, 0.3); /* Default background, will be overridden */
             color: white;
             font-size: 12px;
             display: flex;
@@ -136,7 +138,10 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            cursor: pointer; /* Change cursor to indicate it's clickable */
+            cursor: pointer;
+        }
+        .draggable-tile:hover {
+            border-color: #00d9f5; /* Highlight color on hover */
         }
         #csv-output {
             width: 100%;
