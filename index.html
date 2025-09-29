@@ -74,15 +74,24 @@
       background-position: center;
       background-repeat: no-repeat;
     }
-    #scoreboard-container {
-      display: none; flex-direction: column; gap: 0.5rem; padding: 1rem;
-      background-color: var(--input-bg); border-radius: 8px;
+    /* NEW: Styles for the table-based scoreboard, matching overview.html */
+    .scoreboard-wrapper {
+      display: none; /* Controlled by JS */
+      padding: 1.5rem;
+      background-color: var(--input-bg);
+      border-radius: 8px;
     }
-    #scoreboard-container h2 { margin: 0 0 0.5rem 0; text-align: center; font-weight: 500; }
-    .scoreboard-item { display: grid; grid-template-columns: 30px 1fr 60px; align-items: center; padding: 0.5rem; border-radius: 6px; }
-    .scoreboard-item:nth-child(odd) { background-color: rgba(0,0,0,0.2); }
-    .scoreboard-rank, .scoreboard-score { font-weight: bold; }
-    .scoreboard-score { text-align: right; }
+    .scoreboard-wrapper h2 { margin: 0 0 1rem 0; text-align: center; font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+    #scoreboard-table { width: 100%; border-collapse: collapse; }
+    #scoreboard-table th, #scoreboard-table td {
+      padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color);
+    }
+    #scoreboard-table th { font-weight: bold; }
+    #scoreboard-table tr:last-child td { border-bottom: none; }
+    #scoreboard-table td:nth-child(1) { font-weight: bold; width: 40px; } /* Rank */
+    #scoreboard-table td:nth-child(3), #scoreboard-table td:nth-child(4) { text-align: right; } /* Tiles, Score */
+
+
     #submission-modal, #welcome-modal {
       display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; /* Login modal shares some styles */
       background-color: var(--modal-bg); backdrop-filter: blur(5px); justify-content: center; align-items: center;
@@ -290,7 +299,16 @@
   </div>
   <div class="info-container">
     <div id="color-key-container"></div>
-    <div id="scoreboard-container"></div>
+    <div id="scoreboard-wrapper" class="scoreboard-wrapper">
+      <h2>Scoreboard</h2>
+      <table id="scoreboard-table">
+        <thead>
+          <tr><th>#</th><th>Team</th><th>Tiles</th><th>Score</th></tr>
+        </thead>
+        <tbody id="scoreboard-container">
+        </tbody>
+      </table>
+    </div>
   </div>
   <div id="submission-modal">
     <div class="modal-content">

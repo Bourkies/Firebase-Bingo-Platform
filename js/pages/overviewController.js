@@ -1,6 +1,6 @@
 import '../components/Navbar.js';
-import { initAuth, getAuthState } from '../core/auth.js';
-import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { initAuth } from '../core/auth.js';
+import { showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 // Import the new data managers
 import * as configManager from '../core/data/configManager.js';
@@ -8,7 +8,7 @@ import * as teamManager from '../core/data/teamManager.js';
 import * as tileManager from '../core/data/tileManager.js';
 import * as submissionManager from '../core/data/submissionManager.js';
 import * as userManager from '../core/data/userManager.js';
-import { calculateScoreboardData } from '../components/Scoreboard.js';
+import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
 let config = {}, allTeams = {}, allUsers = {}, tiles = [], submissions = [];
 let authState = {};
@@ -99,13 +99,12 @@ function initializeApp() {
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }));
 
-    // For the public overview page, we always want to fetch all users to display names in the feed.
-    // We call listenToUsers without an authState to get the default "fetch all" behavior.
+    // Always pass authState to respect security rules for all user roles.
     unsubs.push(userManager.listenToUsers(newUsers => {
         console.log("Overview: Users updated.");
         handleDataUpdateAndRender('users', newUsers);
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); } 
-    }));
+    }, authState));
 
     const setupTilesListener = () => {
         unsubs.push(tileManager.listenToTiles(newTiles => {
@@ -137,20 +136,8 @@ function processAllData() {
     const allTeamIds = Object.keys(allTeams);
     const leaderboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
 
-    // Filter leaderboard for private boards if user is not a mod
-    let finalLeaderboardData = leaderboardData;
-    const isPrivate = config.boardVisibility === 'private';
-    if (isPrivate) { // This logic is now consistent for all users, including admins/mods
-        if (authState.isLoggedIn && authState.profile?.team) {
-            // User is on a team, show only their team
-            finalLeaderboardData = leaderboardData.filter(item => item.teamId === authState.profile.team);
-        } else {
-            // User not on a team, show no scores
-            finalLeaderboardData = [];
-        }
-    }
-
     // Filter submissions for private boards before processing feed and chart data
+    const isPrivate = config.boardVisibility === 'private';
     let relevantSubmissions = submissions;
     if (isPrivate && authState.isLoggedIn && authState.profile?.team) {
         relevantSubmissions = submissions.filter(sub => sub.Team === authState.profile.team);
@@ -160,7 +147,7 @@ function processAllData() {
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : sub.IsComplete;
+            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified === true : sub.IsComplete === true;
             return {
                 playerIds: sub.PlayerIDs || [],
                 additionalPlayerNames: sub.AdditionalPlayerNames || '',
@@ -177,7 +164,7 @@ function processAllData() {
         .filter(sub => sub.CompletionTimestamp && !sub.IsArchived)
         .map(sub => {
             const tile = tilesByVisibleId[sub.id];
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : sub.IsComplete;
+            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified === true : sub.IsComplete === true;
             return {
                 teamId: sub.Team,
                 points: isScored ? (parseInt(tile?.Points) || 0) : 0,
@@ -195,27 +182,9 @@ function processAllData() {
         return { timestamp: event.timestamp, ...teamScores };
     });
 
-    renderLeaderboard(finalLeaderboardData);
+    // Use the single, centralized scoreboard renderer
+    renderScoreboard(document.querySelector('#leaderboard-table tbody'), leaderboardData, allTeams, config, authState, teamColorMap, 'Overview Page');
     handleFilterChange();
-}
-
-function renderLeaderboard(leaderboardData) {
-    const tbody = document.querySelector('#leaderboard-table tbody');
-    tbody.innerHTML = '';
-    if (!leaderboardData || leaderboardData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No data available.</td></tr>';
-        return;
-    }
-    leaderboardData.forEach((team, index) => {
-        const row = tbody.insertRow();
-        const teamName = allTeams[team.teamId]?.name || team.teamId;
-        row.innerHTML = `
-          <td>${index + 1}</td>
-          <td style="color: ${teamColorMap[team.teamId] || '#fff'}">${teamName}</td>
-          <td>${team.completedTiles}</td>
-          <td>${team.score}</td>
-        `;
-    });
 }
 
 function populateFeedFilter(teams = {}) {
@@ -284,16 +253,6 @@ function renderFeed() {
         `;
         container.appendChild(div);
     });
-}
-
-function generateTeamColors(teamIds = []) {
-    const colors = {};
-    const goldenAngle = 137.5;
-    teamIds.forEach((teamId, i) => {
-        const hue = (i * goldenAngle) % 360;
-        colors[teamId] = `hsl(${hue}, 70%, 55%)`;
-    });
-    return colors;
 }
 
 function renderChart(chartData = [], teamIds = []) {

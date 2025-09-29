@@ -1,5 +1,5 @@
 import { createTileElement } from '../../components/TileRenderer.js';
-import { renderScoreboard as renderScoreboardComponent } from '../../components/Scoreboard.js';
+import { renderScoreboard as renderScoreboardComponent, renderColorKey as renderColorKeyComponent } from '../../components/Scoreboard.js';
 import { showMessage, hexToRgba } from '../../core/utils.js';
 
 let mainController;
@@ -173,4 +173,12 @@ export function isGenericView() {
     if (isPrivate && !isLoggedInWithTeam) return true;
     if (isPublic && !currentTeam) return true;
     return false;
+}
+
+export function renderScoreboard() {
+    const { scoreboardData, config, allTeams, authState, teamColorMap } = mainController.getState();
+
+    // Render Scoreboard - This single line now handles everything.
+    const scoreboardTbody = document.getElementById('scoreboard-container'); // This ID now refers to the tbody
+    renderScoreboardComponent(scoreboardTbody, scoreboardData, allTeams, config, authState, teamColorMap, 'Index Page');
 }

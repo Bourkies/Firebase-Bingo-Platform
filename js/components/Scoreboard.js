@@ -24,8 +24,8 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
             const sub = teamSubmissions.find(s => s.id === tile.id);
             if (!sub) return; // No submission for this tile, so no points.
 
-            // This logic is from the working overviewController.
-            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified : (sub.IsComplete || sub.AdminVerified);
+            // This logic is from the working overviewController. If scoring is on verified only, only AdminVerified counts. Otherwise, IsComplete is sufficient.
+            const isScored = scoreOnVerifiedOnly ? sub.AdminVerified === true : sub.IsComplete === true;
 
             if (isScored) {
                 score += parseInt(tile.Points) || 0;
@@ -44,59 +44,92 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
  * @param {Array<object>} scoreboardData - The pre-calculated and sorted scoreboard data.
  * @param {object} allTeams - An object of all team documents, keyed by teamId.
  * @param {object} config - The main application config object.
- * @param {object} authState - The current user authentication state.
- * @param {string} [currentTeamId] - The currently selected team ID, for filtering on public boards.
+ * @param {object} authState - The current user authentication state. 
  */
-export function renderScoreboard(container, scoreboardData, allTeams, config, authState, currentTeamId) {
-    if (!config || config.showScoreboard !== true) {
-        container.style.display = 'none';
+export function renderScoreboard(container, scoreboardData, allTeams, config, authState, teamColorMap = {}, sourcePage = 'Unknown') {
+    const wrapper = container.closest('.scoreboard-wrapper');
+
+    // --- DEBUGGING ---
+    console.log(`[Scoreboard Debug - ${sourcePage}] Rendering scoreboard.`, {
+        showScoreboard: config?.showScoreboard,
+        boardVisibility: config?.boardVisibility,
+        isLoggedIn: authState?.isLoggedIn,
+        userTeam: authState?.profile?.team,
+    });
+
+    // If the wrapper exists (on index.html), check the config to show/hide it.
+    // If it doesn't exist (on overview.html), skip this check and proceed.
+    if (wrapper && (!config || config.showScoreboard !== true)) {
+        wrapper.style.display = 'none';
         return;
     }
-    container.style.display = 'flex';
-    container.innerHTML = '<h2>Scoreboard</h2>';
+    if (wrapper) wrapper.style.display = 'block';
+    container.innerHTML = ''; // Clear the tbody for re-rendering
 
-    let dataToRender = scoreboardData;
+    let dataToRender;
     const isPrivate = config.boardVisibility === 'private';
 
-    // Filter scoreboard data based on board visibility and auth state
+    // This is the exact filtering logic from the working overviewController.
     if (isPrivate) {
-        // On a private board, only show the user's own team score
-        const userTeamId = authState.profile?.team;
-        dataToRender = userTeamId ? scoreboardData.filter(item => item.teamId === userTeamId) : [];
-    } else {
-        // On a public board, if a specific team is selected, show only that team
-        if (currentTeamId) {
-            dataToRender = scoreboardData.filter(item => item.teamId === currentTeamId);
+        if (authState.isLoggedIn && authState.profile?.team) {
+            dataToRender = scoreboardData.filter(item => item.teamId === authState.profile.team);
         } else {
-            // If no team is selected on a public board, show nothing.
             dataToRender = [];
         }
+    } else {
+        dataToRender = scoreboardData;
     }
+
+    // --- DEBUGGING ---
+    console.log(`[Scoreboard Debug - ${sourcePage}] Filtered data to render:`, {
+        totalItems: scoreboardData.length,
+        itemsToRender: dataToRender.length,
+    });
 
     if (dataToRender.length === 0) {
-        const noScoreItem = document.createElement('div');
-        noScoreItem.textContent = 'No scores to display for the current selection.';
-        noScoreItem.style.textAlign = 'center';
-        noScoreItem.style.color = '#888';
-        container.appendChild(noScoreItem);
+        container.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #888;">No scores to display.</td></tr>';
         return;
     }
-
-    dataToRender.forEach((team) => {
-        const item = document.createElement('div');
-        item.className = 'scoreboard-item';
+    
+    // This is the exact rendering logic from the working overviewController.
+    dataToRender.forEach((team, index) => {
+        const row = container.insertRow();
         const teamName = allTeams[team.teamId]?.name || team.teamId;
+        
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td style="color: ${teamColorMap[team.teamId] || '#fff'}">${teamName}</td>
+            <td>${team.completedTiles}</td>
+            <td>${team.score}</td>
+        `;
+    });
+}
 
-        if (isPrivate) {
-            // For private boards, hide rank and adjust grid
-            item.style.gridTemplateColumns = '1fr 60px';
-            item.innerHTML = `<div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
-        } else {
-            // For public boards, show rank as normal. Find the original rank from the full, unfiltered data.
-            const originalIndex = scoreboardData.findIndex(item => item.teamId === team.teamId);
-            const rank = originalIndex !== -1 ? originalIndex + 1 : '-';
-            item.innerHTML = `<div class="scoreboard-rank">${rank}.</div><div class="scoreboard-team">${teamName}</div><div class="scoreboard-score">${team.score}</div>`;
-        }
-        container.appendChild(item);
+/**
+ * Renders the color key legend into a given container.
+ * @param {object} config - The main application config object.
+ * @param {object} allStyles - An object of all status-specific styles.
+ * @param {HTMLElement} container - The DOM element to render the color key into.
+ */
+export function renderColorKey(config, allStyles, container) {
+    if (!config || !allStyles || !container) return;
+
+    container.innerHTML = ''; // Clear previous content
+
+    const statusesToDisplay = ['Verified', 'Submitted', 'Partially Complete', 'Requires Action', 'Unlocked', 'Locked'];
+
+    statusesToDisplay.forEach(status => {
+        const style = allStyles[status] || {};
+        const color = style.color || '#888';
+
+        const keyItem = document.createElement('div');
+        keyItem.className = 'color-key-item';
+
+        const colorBox = document.createElement('div');
+        colorBox.className = 'color-key-box';
+        colorBox.style.backgroundColor = color;
+
+        keyItem.append(colorBox, status);
+        container.appendChild(keyItem);
     });
 }

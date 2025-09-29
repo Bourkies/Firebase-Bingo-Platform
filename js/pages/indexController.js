@@ -5,15 +5,15 @@ import * as tileManager from '../core/data/tileManager.js';
 import * as configManager from '../core/data/configManager.js';
 import * as teamManager from '../core/data/teamManager.js';
 import * as submissionManager from '../core/data/submissionManager.js';
-import { calculateScoreboardData } from '../components/Scoreboard.js';
-import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { calculateScoreboardData, renderColorKey as renderColorKeyComponent } from '../components/Scoreboard.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 // Import new sub-modules
-import { initializeBoard, renderBoard, isGenericView } from './index/board.js';
+import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal } from './index/submissionModal.js';
 import { initializeLoginModal } from './index/loginModal.js';
 
-let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [];
+let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -133,6 +133,7 @@ function initializeApp() {
     unsubscribeTeams = teamManager.listenToTeams((newTeams) => {
         console.log("Teams updated in real-time.");
         allTeams = newTeams;
+        teamColorMap = generateTeamColors(Object.keys(newTeams));
         const loadFirstTeam = config.loadFirstTeamByDefault === true;
         const selector = document.getElementById('team-selector');
 
@@ -180,6 +181,9 @@ function processAllData() {
 
     // NEW: Use the centralized scoreboard calculation function
     scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
+
+    // NEW: Render the scoreboard here, now that scoreboardData is guaranteed to be calculated.
+    renderScoreboard();
 }
 
 function applyGlobalStyles() {
@@ -269,11 +273,12 @@ function handleTeamChange() {
 
 // This object acts as an interface for the sub-modules to access the main controller's state and methods.
 const mainControllerInterface = {
-    getState: () => ({ config, allTeams, allStyles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers }),
+    getState: () => ({ config, allTeams, allStyles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap }),
     openSubmissionModal: (tile, status) => openSubmissionModal(tile, status),
-    renderColorKey: () => {
-        const { renderScoreboard } = require('./index/board.js');
-        renderScoreboard();
+    renderColorKey: () => { // This now renders both the scoreboard and color key
+        // The scoreboard is now rendered in processAllData(). This function now only renders the color key.
+        const { config, allStyles } = mainControllerInterface.getState();
+        renderColorKeyComponent(config, allStyles, document.getElementById('color-key-container'));
     },
     logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
         if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
