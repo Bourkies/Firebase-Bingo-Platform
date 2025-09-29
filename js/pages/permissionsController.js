@@ -1,7 +1,7 @@
 
 import '../components/Navbar.js';
 import { initAuth } from '../core/auth.js';
-import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
@@ -116,9 +116,9 @@ function renderUserManagement() {
         }
     });
 
-    document.querySelectorAll('.user-field').forEach(input => {
-        input.addEventListener('change', handleUserFieldChange);
-    });
+    // Use event delegation on the table body for the 'change' event.
+    const tableBody = document.querySelector('#user-management-table tbody');
+    tableBody.onchange = handleUserFieldChange;
 }
 
 async function handleUserFieldChange(e) {
@@ -128,19 +128,26 @@ async function handleUserFieldChange(e) {
     const field = e.target.dataset.field;
     const value = e.target.checked;
     const dataToUpdate = { [field]: value };
+    const user = allUsers.find(u => u.uid === uid);
 
     // NEW: If making a user an admin, also make them a mod.
     if (field === 'isAdmin' && value) {
         dataToUpdate.isEventMod = true;
         // Visually check the mod box in the same row immediately.
-        const modCheckbox = e.target.closest('tr').querySelector('.mod-checkbox');
-        if (modCheckbox) modCheckbox.checked = true;
+        const modCheckbox = e.target.closest('tr')?.querySelector('.mod-checkbox');
+        if (modCheckbox) {
+            modCheckbox.checked = true;
+            modCheckbox.disabled = true; // Also disable it as it's now locked by admin status
+        }
     }
 
     try {
         showGlobalLoader();
         await userManager.updateUser(uid, dataToUpdate);
-        // The real-time listener will handle the UI update.
+        const role = field === 'isAdmin' ? 'Admin' : 'Event Mod';
+        const action = value ? 'granted' : 'revoked';
+        showMessage(`${role} role ${action} for ${user.displayName}.`, false);
+        // The real-time listener will handle the UI re-render.
     } catch (error) {
         console.error(`Failed to update user ${uid}:`, error);
         alert(`Update failed: ${error.message}`);
