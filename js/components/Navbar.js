@@ -202,6 +202,7 @@ class AppNavbar extends HTMLElement {
 
         // Listen to auth changes
         initAuth(newAuthState => {
+            console.log('[Navbar] Auth state received:', { isLoggedIn: newAuthState.isLoggedIn, isTeamCaptain: newAuthState.isTeamCaptain, profile: newAuthState.profile ? { displayName: newAuthState.profile.displayName, team: newAuthState.profile.team } : null });
             this.authState = newAuthState;
             // Check if we should show the welcome modal on first login
             if (this.authState.isLoggedIn && this.authState.profile && this.config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
@@ -231,8 +232,10 @@ class AppNavbar extends HTMLElement {
             const canChangeName = !profile.isAnonymous && !profile.isNameLocked;
             this.changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
             const roles = [];
-            if (profile.isAdmin) roles.push('Admin');
-            else if (profile.isEventMod) roles.push('Event Mod');
+            if (profile.isAdmin) { roles.push('Admin'); }
+            if (profile.isEventMod) { roles.push('Event Mod'); }
+            if (profile.isTeamCaptain) { roles.push('Captain'); }
+            console.log('[Navbar] Rendering roles:', roles);
 
             const teamName = (profile.team && this.allTeams) ? (this.allTeams[profile.team]?.name || profile.team) : '';
             const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
@@ -247,10 +250,12 @@ class AppNavbar extends HTMLElement {
 
     renderNavLinks() {
         const currentPage = window.location.pathname.split('/').pop();
+        console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
         const links = [
             { href: './index.html', text: 'Player View', show: true },
             { href: './overview.html', text: 'Overview', show: this.config.enableOverviewPage === true || this.authState.isEventMod },
+            { href: './captain.html', text: 'Team Admin', show: this.authState.isTeamCaptain },
             { href: './admin.html', text: 'Admin', show: this.authState.isEventMod },
             { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
