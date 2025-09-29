@@ -103,9 +103,10 @@ function updatePrereqJson(mainController) {
         prereqValue = JSON.stringify(orGroups);
     }
     if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
-        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController);
+        // FIX: Pass mainController as the third argument to match the function signature in setupController.
+        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController); 
     }
-    mainController.renderPrereqLines(); // Call the main controller's method
+    mainController.renderTiles(); // Re-render tiles which will in turn call renderPrereqLines
 }
 
 function parsePrerequisites(prereqString) {

@@ -72,7 +72,7 @@ function onAuthStateChanged(authState) {
             prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
             e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
             e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
-            renderPrereqLines();
+            renderPrereqLines(prereqVisMode);
         });
         createStylePreviewButtons();
         applyTileLockState();
@@ -127,7 +127,7 @@ function initializeApp(authState) {
                 updatePrereqEditorData(tilesData, lastSelectedTileIndex); // Update data in prereqEditor
 
                 populateTileSelector();
-                renderTiles();
+                renderTiles(); // This will call renderPrereqLines internally
 
                 if (wasTileAdded) {
                     // Find the newly added tile and select it
@@ -159,7 +159,7 @@ function initializeApp(authState) {
             renderGlobalConfig(mainControllerInterface);
             updatePrereqEditorData(tilesData, lastSelectedTileIndex);
             loadBoardImage(config.boardImageUrl || '');
-            renderTiles();
+            renderTiles(); // This will call renderPrereqLines internally
         }
     })); // The error callback is no longer needed here
 
@@ -223,7 +223,7 @@ function renderTiles() {
 
         boardContent.appendChild(tileEl);
     });
-    renderPrereqLines();
+    renderPrereqLines(prereqVisMode);
 }
 
 function applyTransform() {
@@ -284,7 +284,7 @@ interact('.draggable-tile')
                 tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
                 saveTile(tilesData[index].docId, dataToSave);
                 updateEditorPanel(index);
-                renderPrereqLines();
+                renderPrereqLines(prereqVisMode);
             }
         }
     })
@@ -325,7 +325,7 @@ interact('.draggable-tile')
                 tilesData[index]['Height (%)'] = dataToSave['Height (%)'];
                 saveTile(tilesData[index].docId, dataToSave);
                 updateEditorPanel(index);
-                renderPrereqLines();
+                renderPrereqLines(prereqVisMode);
             }
         }
     });
@@ -367,7 +367,7 @@ function updateEditorPanel(index) {
     // Call the main content update function in tileEditor
     updateEditorPanelContent(index, mainControllerInterface);
 
-    renderPrereqLines();
+    renderPrereqLines(prereqVisMode);
 }
 
 function getDuplicateIds(tiles) {
