@@ -12,7 +12,6 @@ import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } f
 // Import new sub-modules
 import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal } from './index/submissionModal.js';
-import { initializeLoginModal } from './index/loginModal.js';
 
 let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize sub-modules
     initializeBoard(mainControllerInterface);
     initializeSubmissionModal(mainControllerInterface);
-    initializeLoginModal();
 
     initializeApp();
     initAuth(onAuthStateChanged);
