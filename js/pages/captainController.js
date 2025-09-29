@@ -63,12 +63,12 @@ function initializeApp() {
         if (captainTeamId) {
             // Check if we're already listening to users to avoid multiple subscriptions.
             if (unsubs.length === 1) { // Only the team listener exists
-                console.log('[CaptainController] User is a captain. Subscribing to user data...');
+                console.log('[CaptainController] User is a captain. Subscribing to all user data.');
                 unsubs.push(userManager.listenToUsers(newUsers => {
-                    console.log('[CaptainController] Received user data:', newUsers);
+                    console.log(`[CaptainController] Received ${newUsers.length} total users.`);
                     allUsers = newUsers;
                     renderUserAssignments();
-                    hideGlobalLoader(); // Hide loader after users are loaded
+                    hideGlobalLoader();
                 }));
             }
         } else {
@@ -102,11 +102,11 @@ function renderUserAssignments() {
 
     // Filter users
     const filteredUsers = allUsers.filter(user => {
-        console.log(`[CaptainController] Filtering user: ${user.displayName} (Team: ${user.team})`);
-        // Show only users on the captain's team or unassigned users
+        // Only show users who are on the captain's team or are unassigned.
         const isEligible = user.team === captainTeamId || !user.team;
-        if (!isEligible) return false;
-
+        if (!isEligible) {
+            return false;
+        }
         // Apply search term
         const name = (user.displayName || '').toLowerCase();
         const uid = (user.uid || '').toLowerCase();
@@ -130,13 +130,21 @@ function renderUserAssignments() {
         const loginTypeClass = user.isAnonymous ? 'login-type-anon' : 'login-type-google';
         const captainTeamName = allTeams[captainTeamId]?.name || 'Your Team';
         const isThisUserTheCaptain = user.uid === authState.user?.uid;
+        const isUserOnAnotherTeam = user.team && user.team !== captainTeamId;
 
-        const teamCellContent = isThisUserTheCaptain
-            ? `<span>${captainTeamName} (You)</span>`
-            : `<select class="user-field" data-uid="${user.uid}" data-field="team">
-                   <option value="">--None--</option>
-                   <option value="${captainTeamId}" ${user.team === captainTeamId ? 'selected' : ''}>${captainTeamName}</option>
-               </select>`;
+        let teamCellContent;
+        if (isThisUserTheCaptain) {
+            teamCellContent = `<span>${captainTeamName} (You)</span>`;
+        } else if (isUserOnAnotherTeam) {
+            // User is on another team, show text instead of a dropdown
+            teamCellContent = `<span>${allTeams[user.team]?.name || 'Other Team'}</span>`;
+        } else {
+            // User is on the captain's team or unassigned, show the dropdown
+            teamCellContent = `<select class="user-field" data-uid="${user.uid}" data-field="team">
+                                   <option value="">--None--</option>
+                                   <option value="${captainTeamId}" ${user.team === captainTeamId ? 'selected' : ''}>${captainTeamName}</option>
+                               </select>`;
+        }
 
         return `
             <tr>
@@ -184,7 +192,7 @@ async function processUpdate(target) {
         }
 
         // Security check: Captain can only assign to their own team or unassign from their own team.
-        if (oldTeamId && oldTeamId !== captainTeamId) {
+        if (oldTeamId && oldTeamId !== captainTeamId && oldTeamId !== null) { // Allow changing users that are unassigned (oldTeamId is null)
             throw new Error("You cannot remove a user from another captain's team.");
         }
         if (newTeamId && newTeamId !== captainTeamId) {
