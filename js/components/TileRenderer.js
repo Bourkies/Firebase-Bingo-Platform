@@ -91,15 +91,43 @@ export function createTileElement(tile, status, config, allStyles, options) {
         tileEl.appendChild(stampEl);
     }
 
-    // --- Hover Listeners ---
-    tileEl.addEventListener('mouseover', () => {
-        const hoverWidth = getProp('hoverBorderWidth', status) || '3px';
-        const hoverColor = getProp('hoverBorderColor', status) || '#00d9f5';
-        tileEl.style.border = `${hoverWidth} solid ${hoverColor}`;
-    });
-    tileEl.addEventListener('mouseout', () => {
-        tileEl.style.border = `${borderWidth} solid ${borderColor}`; // Revert to non-hover state
-    });
-
     return tileEl;
+}
+
+/**
+ * Renders the color key legend into a given container.
+ * @param {object} config - The main application config object.
+ * @param {object} allStyles - An object of all status-specific styles.
+ * @param {HTMLElement} container - The DOM element to render the color key into.
+ */
+export function renderColorKey(config, allStyles, container) {
+    if (!config || !allStyles || !container) return;
+
+    container.innerHTML = ''; // Clear previous content
+
+    const statusesToDisplay = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+    const statusDisplayNames = {
+        'Partially Complete': 'Draft', 'Requires Action': 'Admin Feedback'
+    };
+
+    statusesToDisplay.forEach(status => {
+        const keyItem = document.createElement('div');
+        keyItem.className = 'key-item';
+
+        const displayName = statusDisplayNames[status] || status;
+        const mockTile = { id: 'Preview' };
+        const tilePreview = createTileElement(mockTile, status, config, allStyles, {});
+
+        tilePreview.style.position = 'relative';
+        tilePreview.style.width = '40px';
+        tilePreview.style.height = '40px';
+        tilePreview.style.left = 'auto';
+        tilePreview.style.top = 'auto';
+        tilePreview.style.cursor = 'default';
+        tilePreview.style.fontSize = '10px';
+
+        if (config.showTileNames && !tilePreview.querySelector('.stamp-image')) tilePreview.textContent = displayName;
+        keyItem.append(tilePreview, displayName);
+        container.appendChild(keyItem);
+    });
 }

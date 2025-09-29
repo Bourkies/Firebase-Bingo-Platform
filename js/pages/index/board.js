@@ -1,5 +1,5 @@
 import { createTileElement } from '../../components/TileRenderer.js';
-import { renderScoreboard as renderScoreboardComponent, renderColorKey as renderColorKeyComponent } from '../../components/Scoreboard.js';
+import { renderScoreboard as renderScoreboardComponent } from '../../components/Scoreboard.js';
 import { showMessage, hexToRgba } from '../../core/utils.js';
 
 let mainController;

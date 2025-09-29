@@ -104,32 +104,3 @@ export function renderScoreboard(container, scoreboardData, allTeams, config, au
         `;
     });
 }
-
-/**
- * Renders the color key legend into a given container.
- * @param {object} config - The main application config object.
- * @param {object} allStyles - An object of all status-specific styles.
- * @param {HTMLElement} container - The DOM element to render the color key into.
- */
-export function renderColorKey(config, allStyles, container) {
-    if (!config || !allStyles || !container) return;
-
-    container.innerHTML = ''; // Clear previous content
-
-    const statusesToDisplay = ['Verified', 'Submitted', 'Partially Complete', 'Requires Action', 'Unlocked', 'Locked'];
-
-    statusesToDisplay.forEach(status => {
-        const style = allStyles[status] || {};
-        const color = style.color || '#888';
-
-        const keyItem = document.createElement('div');
-        keyItem.className = 'color-key-item';
-
-        const colorBox = document.createElement('div');
-        colorBox.className = 'color-key-box';
-        colorBox.style.backgroundColor = color;
-
-        keyItem.append(colorBox, status);
-        container.appendChild(keyItem);
-    });
-}

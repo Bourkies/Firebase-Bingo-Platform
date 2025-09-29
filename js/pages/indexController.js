@@ -5,7 +5,8 @@ import * as tileManager from '../core/data/tileManager.js';
 import * as configManager from '../core/data/configManager.js';
 import * as teamManager from '../core/data/teamManager.js';
 import * as submissionManager from '../core/data/submissionManager.js';
-import { calculateScoreboardData, renderColorKey as renderColorKeyComponent } from '../components/Scoreboard.js';
+import { calculateScoreboardData } from '../components/Scoreboard.js';
+import { renderColorKey as renderColorKeyComponent } from '../components/TileRenderer.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 // Import new sub-modules
