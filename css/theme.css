@@ -21,6 +21,9 @@
   --accent-color-light: #00d9f5;
   --disabled-bg-color: #555;
   --warn-color: #ffc107; /* Amber */
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --text-shadow-color: #000;
+  --modal-backdrop-color: rgba(0, 0, 0, 0.6);
 }
 
 
@@ -43,6 +46,9 @@
   --accent-color-light: #00acc1;
   --disabled-bg-color: #bdbdbd;
   --warn-color: #ffa000; /* Darker Amber */
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --text-shadow-color: rgba(255, 255, 255, 0.5);
+  --modal-backdrop-color: rgba(0, 0, 0, 0.4);
 }
 
 /* Australian Theme Overrides */
@@ -64,6 +70,9 @@
   --accent-color-light: #ffcf40;
   --disabled-bg-color: #3A503C;
   --warn-color: #FFC107; /* Wattle Gold, same as accent */
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --text-shadow-color: #263A29;
+  --modal-backdrop-color: rgba(0, 0, 0, 0.6);
 }
 
 body {
