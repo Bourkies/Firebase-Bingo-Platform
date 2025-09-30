@@ -6,36 +6,11 @@
   <title>Scoreboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <link rel="stylesheet" href="./css/theme.css">
   <style>
-    :root {
-      --bg-color: #1e1e1e; --surface-color: #2d2d2d; --primary-text: #e0e0e0;
-      --secondary-text: #a0a0a0; --accent-color: #00b8d4; --border-color: #444;
-      --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
-    }
     body {
-      font-family: var(--font-main); background-color: var(--bg-color); color: var(--primary-text);
-      margin: 0; padding: 2rem; box-sizing: border-box; display: flex;
-      flex-direction: column;
-      align-items: center;
+      padding: 2rem; box-sizing: border-box; display: flex; flex-direction: column; align-items: center;
     }
-    .navbar {
-      width: 100%; max-width: 1400px; background-color: var(--surface-color); border-radius: 8px;
-      padding: 0.5rem 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between;
-      align-items: center; box-sizing: border-box;
-    }
-    .nav-links a, .nav-actions button {
-      color: var(--primary-text);
-      text-decoration: none;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      transition: background-color 0.2s;
-      background: none;
-      border: none;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-    .nav-links a:hover, .nav-actions button:hover { background-color: rgba(255, 255, 255, 0.1); }
-    .nav-links a.active { background-color: var(--accent-color); color: #111; font-weight: bold; }
     /* --- NEW: Global Loader --- */
     .global-loader {
         position: fixed;
