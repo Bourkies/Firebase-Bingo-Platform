@@ -84,7 +84,7 @@ export function initializeGlobalConfig(mainController) {
     const toggleTeamsBtn = document.getElementById('toggle-teams-btn');
     const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
 
-    console.log("globalConfigEditor: Initializing...");
+    console.log("[GlobalConfigEditor] Initializing...");
     toggleTeamsBtn?.addEventListener('click', toggleTeams);
     toggleGlobalStylesBtn?.addEventListener('click', toggleGlobalStyles);
     // REFACTOR: Use 'change' event instead of 'input' for more deliberate saves.
@@ -103,7 +103,7 @@ export function updateGlobalConfigData(newConfig, newStyles, newUsers, newTeams)
 }
 
 export function renderGlobalConfig(mainController) {
-    console.log("globalConfigEditor: renderGlobalConfig called.");
+    console.log("[GlobalConfigEditor] renderGlobalConfig called.");
     const formContainer = document.getElementById('global-style-form');
     const activeElementId = document.activeElement?.id;
     if (!formContainer || !config) return; // Guard against running before config is loaded
@@ -205,7 +205,7 @@ function handleGlobalConfigChange(event, mainController) {
         if (key === 'boardImageUrl') mainController.loadBoardImage(newValue);
         saveConfig(key, newValue);
     }
-    console.log("globalConfigEditor: Style/Config change detected, re-rendering tiles.");
+    console.log("[GlobalConfigEditor] Style/Config change detected, re-rendering tiles.");
     mainController.renderTiles();
 }
 
@@ -217,7 +217,7 @@ function toggleGlobalStyles() {
 }
 
 export function renderTeamsList(users) {
-    console.log("globalConfigEditor: renderTeamsList called.");
+    console.log("[GlobalConfigEditor] renderTeamsList called.");
     if (users) allUsers = users; // Only update if new users are passed in
     const teamsContainer = document.getElementById('teams-container');
     let activeElement = document.activeElement;

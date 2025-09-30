@@ -40,7 +40,7 @@ export function initializeTileEditor(mainController) {
     const addNewTileBtn = document.getElementById('add-new-tile-btn');
     const deleteTileBtn = document.getElementById('delete-tile-btn');
 
-    console.log("tileEditor: Initializing...");
+    console.log("[TileEditor] Initializing...");
     document.getElementById('delete-all-tiles-btn')?.addEventListener('click', openDeleteAllModal);
     document.querySelector('#delete-all-modal .close-button')?.addEventListener('click', closeDeleteAllModal);
     document.getElementById('delete-confirm-input')?.addEventListener('input', validateDeleteAll);
@@ -69,7 +69,7 @@ export function updateTileEditorData(newTilesData, newLastSelectedTileIndex) {
 }
 
 export function createEditorForm(tileData, mainController) {
-    console.log("tileEditor: createEditorForm called for tile:", tileData?.id || 'None');
+    console.log("[TileEditor] createEditorForm called for tile:", tileData?.id || 'None');
     const detailsForm = document.getElementById('details-form');
     if (!detailsForm) return;
     detailsForm.innerHTML = '';
@@ -96,7 +96,7 @@ export function createEditorForm(tileData, mainController) {
 }
 
 export function populateTileSelector() {
-    console.log("tileEditor: populateTileSelector called.");
+    console.log("[TileEditor] populateTileSelector called.");
     const selector = document.getElementById('tile-selector-dropdown');
     if (!selector) return;
 
@@ -119,7 +119,7 @@ export function populateTileSelector() {
 }
 
 export function updateEditorPanelContent(index, mainController) {
-    console.log(`tileEditor: updateEditorPanelContent called for index: ${index}`);
+    console.log(`[TileEditor] updateEditorPanelContent called for index: ${index}`);
     const deleteTileBtn = document.getElementById('delete-tile-btn');
     if (!deleteTileBtn || !mainController) return; // Guard against element not existing or controller not ready
 
@@ -226,7 +226,7 @@ function handleEditorInputChange(event, mainController) {
 }
 
 async function addNewTile(mainController) {
-    console.log("tileEditor: addNewTile called.");
+    console.log("[TileEditor] addNewTile called.");
     const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
     const maxNumber = existingNumbers.length > 0 ? Math.max(0, ...existingNumbers) : 0;
     const newDocId = String(maxNumber + 1).padStart(5, '0');
@@ -251,7 +251,7 @@ async function addNewTile(mainController) {
 
 async function deleteSelectedTile(mainController) {
     if (lastSelectedTileIndex === null) return;
-    console.log(`tileEditor: deleteSelectedTile called for index: ${lastSelectedTileIndex}`);
+    console.log(`[TileEditor] deleteSelectedTile called for index: ${lastSelectedTileIndex}`);
     const tileToDelete = tilesData[lastSelectedTileIndex];
     if (confirm(`Are you sure you want to delete tile "${tileToDelete.id}"?`)) {
         try {
@@ -281,7 +281,7 @@ function validateDeleteAll() {
 }
 
 async function executeDeleteAll() {
-    console.log("tileEditor: executeDeleteAll called.");
+    console.log("[TileEditor] executeDeleteAll called.");
     showGlobalLoader();
     const confirmBtn = document.getElementById('delete-confirm-btn');
     confirmBtn.disabled = true;

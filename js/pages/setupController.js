@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function onAuthStateChanged(authState) {
-    console.log("setupController: onAuthStateChanged triggered. isAdmin:", authState.isAdmin);
+    console.log("[SetupController] onAuthStateChanged triggered. isAdmin:", authState.isAdmin);
     if (authState.isAdmin) {
         document.getElementById('setup-view').style.display = 'flex';
         document.getElementById('access-denied').style.display = 'none';
@@ -85,7 +85,7 @@ function onAuthStateChanged(authState) {
 }
 
 function initializeApp(authState) {
-    console.log("setupController: initializeApp starting...");
+    console.log("[SetupController] initializeApp starting...");
     showGlobalLoader();
     unsubscribeFromAll();
     let unsubs = [];
@@ -93,7 +93,7 @@ function initializeApp(authState) {
     let initialDataLoaded = { config: false, tiles: false, users: false, teams: false };
     const checkAllLoaded = () => {
         if (Object.values(initialDataLoaded).every(Boolean)) {
-            console.log("setupController: All initial data loaded.");
+            console.log("[SetupController] All initial data loaded.");
             hideGlobalLoader();
             showMessage('Live editor initialized and synced!', false);
         }
@@ -106,19 +106,19 @@ function initializeApp(authState) {
         get config() { return config; },
         get allStyles() { return allStyles; },
         updateEditorPanel, renderTiles, saveTile,
-        flashField, // Expose the new utility
+        flashField, loadBoardImage, // Expose the new utilities
     };
     
     unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
-        console.log("setupController: Config/Styles updated.");
+        console.log("[SetupController] Config/Styles updated.");
         config = newConfig.config || {};
         allStyles = newConfig.styles || {};
         
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
 
         if (!initialDataLoaded.config) {
-            unsubs.push(tileManager.listenToTiles(newTiles => {
-                console.log("setupController: Tiles updated.");
+            unsubs.push(tileManager.listenToTiles(newTiles => { // FIX: Changed log to match format
+                console.log("[SetupController] Tiles updated in real-time.");
                 const oldTileDocIds = new Set(tilesData.map(t => t.docId));
                 const wasTileAdded = newTiles.length > tilesData.length;
 
@@ -164,16 +164,16 @@ function initializeApp(authState) {
     })); // The error callback is no longer needed here
 
     // FIX: The authState object was being passed as the callback. Swapped argument order.
-    unsubs.push(userManager.listenToUsers(newUsers => {
-        console.log("setupController: Users updated.");
+    unsubs.push(userManager.listenToUsers(newUsers => { // FIX: Changed log to match format
+        console.log("[SetupController] Users updated in real-time.");
         allUsers = newUsers;
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
         if (initialDataLoaded.teams) renderTeamsList(allUsers);
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
     }, authState));
 
-    unsubs.push(teamManager.listenToTeams(newTeams => {
-        console.log("setupController: Teams updated.");
+    unsubs.push(teamManager.listenToTeams(newTeams => { // FIX: Changed log to match format
+        console.log("[SetupController] Teams updated in real-time.");
         allTeams = newTeams;
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
         renderTeamsList(allUsers);
@@ -190,7 +190,7 @@ function initializeApp(authState) {
 }
 
 function renderTiles() {
-    console.log("setupController: renderTiles called.");
+    console.log("[SetupController] renderTiles called.");
     boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
@@ -357,7 +357,8 @@ function updateEditorPanel(index) {
         get tilesData() { return tilesData; },
         get config() { return config; },
         get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, saveTile, flashField
+        updateEditorPanel, renderTiles, saveTile, flashField,
+        loadBoardImage
     };
 
     // Update data in sub-modules before re-rendering their content
@@ -430,7 +431,7 @@ function loadBoardImage(imageUrl) {
 
 async function saveTile(docId, data, mainControllerInterface) {
     if (!docId) return;
-    console.log(`setupController: Saving tile ${docId}`, data);
+    console.log(`[SetupController] Saving tile ${docId}`, data);
     try {
         await tileManager.updateTile(docId, data);
         
