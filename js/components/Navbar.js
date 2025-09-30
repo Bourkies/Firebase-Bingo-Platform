@@ -11,7 +11,7 @@ template.innerHTML = `
         }
         .navbar {
             width: 100%;
-            background-color: #2d2d2d;
+            background-color: var(--surface-color);
             border-radius: 8px;
             padding: 0.5rem 1rem;
             margin-bottom: 1.5rem;
@@ -22,6 +22,15 @@ template.innerHTML = `
             position: relative; /* For positioning the mobile menu */
         }
         .nav-links {
+            display: none; /* Hidden by default on mobile */
+        }
+        .nav-links-desktop {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links-mobile {
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -51,6 +60,15 @@ template.innerHTML = `
             align-items: center;
             gap: 1rem;
         }
+        #theme-switcher {
+            background-color: var(--surface-color, #2d2d2d);
+            color: var(--primary-text, #f0f0f0);
+            border: 1px solid var(--border-color, #444);
+            padding: 0.4rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
         #user-info {
             font-size: 0.9rem;
             color: #a0a0a0;
@@ -77,7 +95,7 @@ template.innerHTML = `
         }
         /* Responsive Styles */
         @media (max-width: 850px) {
-            .nav-links {
+            .nav-links-mobile {
                 display: none;
                 flex-direction: column;
                 align-items: flex-start;
@@ -90,8 +108,11 @@ template.innerHTML = `
                 border-bottom-right-radius: 8px;
                 padding: 1rem 0;
             }
-            .nav-links.active {
+            .nav-links-mobile.active {
                 display: flex;
+            }
+            .nav-links-desktop {
+                display: none; /* Hide desktop links on mobile */
             }
             .hamburger {
                 display: flex;
@@ -130,7 +151,8 @@ template.innerHTML = `
         .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; }
     </style>
     <div class="navbar">
-        <div class="nav-links">
+        <!-- Desktop Links -->
+        <div class="nav-links-desktop">
             <!-- Links will be populated by JS -->
         </div>
         <button id="hamburger-btn" class="hamburger">
@@ -138,10 +160,13 @@ template.innerHTML = `
             <span></span>
             <span></span>
         </button>
+        <!-- Mobile Links (initially hidden) -->
+        <div class="nav-links-mobile"></div>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
             <button id="change-name-btn" style="display: none;">Change Name</button>
             <button id="auth-button">Login</button>
+            <select id="theme-switcher"></select>
         </div>
     </div>
 
@@ -194,10 +219,14 @@ class AppNavbar extends HTMLElement {
 
         this.authButton = this.shadowRoot.querySelector('#auth-button');
         this.userInfo = this.shadowRoot.querySelector('#user-info');
-        this.navLinksContainer = this.shadowRoot.querySelector('.nav-links');
+        this.navLinksDesktop = this.shadowRoot.querySelector('.nav-links-desktop');
+        this.navLinksMobile = this.shadowRoot.querySelector('.nav-links-mobile');
         this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
 
         this.hamburgerBtn = this.shadowRoot.querySelector('#hamburger-btn');
+
+        this.themeSwitcher = this.shadowRoot.querySelector('#theme-switcher');
+
         // Modal elements
         this.welcomeModal = this.shadowRoot.querySelector('#welcome-modal');
         this.welcomeForm = this.shadowRoot.querySelector('#welcome-form');
@@ -212,6 +241,11 @@ class AppNavbar extends HTMLElement {
         this.allTeams = {};
         this.config = {};
         this.authState = getAuthState(); // Get initial state
+
+        this.availableThemes = [
+            { value: 'dark', text: '🌙 Dark' },
+            { value: 'light', text: '☀️ Light' },
+        ];
     }
 
     showLoginModal() {
@@ -240,9 +274,11 @@ class AppNavbar extends HTMLElement {
         this.loginAnonBtn.addEventListener('click', () => { signInAnonymously(); this.hideLoginModal(); });
 
         this.hamburgerBtn.addEventListener('click', () => {
-            this.navLinksContainer.classList.toggle('active');
+            this.navLinksMobile.classList.toggle('active');
         });
 
+        this.themeSwitcher.addEventListener('change', (e) => this.setTheme(e.target.value));
+        this.populateThemeSwitcher();
 
         // Listen to data
         this.unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
@@ -266,6 +302,7 @@ class AppNavbar extends HTMLElement {
             if (this.authState.isLoggedIn && this.authState.profile && this.config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
                 this.showWelcomeModal();
             }
+            this.updateCurrentThemeSelection();
             this.render();
         });
     }
@@ -290,6 +327,7 @@ class AppNavbar extends HTMLElement {
         }
         this.renderAuthInfo();
         this.renderNavLinks();
+        this.updateCurrentThemeSelection();
     }
 
     renderAuthInfo() {
@@ -329,11 +367,38 @@ class AppNavbar extends HTMLElement {
             { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
 
-        this.navLinksContainer.innerHTML = links
+        const linksHtml = links
             .filter(link => link.show)
             .map(link => `<a href="${link.href}" class="${link.href.includes(currentPage) ? 'active' : ''}">${link.text}</a>`)
             .join('');
+        
+        this.navLinksDesktop.innerHTML = linksHtml;
+        this.navLinksMobile.innerHTML = linksHtml;
     }
+
+    populateThemeSwitcher() {
+        this.themeSwitcher.innerHTML = this.availableThemes
+            .map(theme => `<option value="${theme.value}">${theme.text}</option>`)
+            .join('');
+    }
+
+    updateCurrentThemeSelection() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        this.themeSwitcher.value = currentTheme;
+    }
+
+    setTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+        localStorage.setItem('theme', theme);
+
+        // Dispatch an event that other components (like charts) can listen to
+        document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+    }
+
 
     showWelcomeModal(isUpdate = false) {
         const messageEl = this.shadowRoot.getElementById('welcome-modal-message');

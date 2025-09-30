@@ -23,6 +23,10 @@ let initialDataLoaded = { config: false, teams: false, tiles: false, submissions
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('feed-team-filter').addEventListener('change', handleFilterChange);
     initializeApp();
+    // NEW: Listen for theme changes to re-render the chart with new colors.
+    document.addEventListener('theme-changed', () => {
+        handleFilterChange(); // This function already re-renders the chart and feed.
+    });
     initAuth(onAuthStateChanged);
 });
 
