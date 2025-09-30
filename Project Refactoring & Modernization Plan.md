@@ -355,6 +355,17 @@ This is the target architecture we are working towards. It separates shared serv
   - [x]  **5.1.12** Fix legend on index page
   - [ ]  **5.1.13** General revision of page tiles and other texts
   - [ ]  **5.1.14** Add management to submission updates while in modals
+  - [ ]  **5.1.14** Check theme implementation on each page
+    - [x]  **5.1.14.1** admin.html
+    - [ ]  **5.1.14.2** index.html
+    - [ ]  **5.1.14.3** overview.html
+    - [ ]  **5.1.14.4** permissions.html
+    - [ ]  **5.1.14.5** setup.html
+    - [ ]  **5.1.14.6** users.html
+    - [ ]  **5.1.14.7** import_config.html
+    - [ ]  **5.1.14.8** import_submissions.html
+    - [ ]  **5.1.14.19** import_tiles.html
+    - [ ]  **5.1.14.20** captain.html
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.
