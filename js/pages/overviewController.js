@@ -258,6 +258,13 @@ function renderFeed() {
 function renderChart(chartData = [], teamIds = []) {
     if (myScoreChart) myScoreChart.destroy();
     const ctx = document.getElementById('score-chart').getContext('2d');
+
+    // Get computed style values from the root element
+    const computedStyle = getComputedStyle(document.documentElement);
+    const primaryTextColor = computedStyle.getPropertyValue('--primary-text').trim();
+    const secondaryTextColor = computedStyle.getPropertyValue('--secondary-text').trim();
+    const borderColor = computedStyle.getPropertyValue('--border-color').trim();
+
     const datasets = teamIds.map((teamId) => {
         const color = teamColorMap[teamId] || '#ffffff';
         return {
@@ -272,7 +279,7 @@ function renderChart(chartData = [], teamIds = []) {
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'top', labels: { color: 'var(--primary-text)' } },
+                legend: { position: 'top', labels: { color: primaryTextColor } }, // Team names in the legend
                 tooltip: {
                     mode: 'index', intersect: false,
                     callbacks: {
@@ -283,12 +290,12 @@ function renderChart(chartData = [], teamIds = []) {
             scales: {
                 x: {
                     type: 'time', time: {},
-                    title: { display: true, text: 'Date', color: 'var(--secondary-text)' },
-                    ticks: { color: 'var(--secondary-text)' }, grid: { color: 'var(--border-color)' }
+                    title: { display: true, text: 'Date', color: secondaryTextColor }, // X-axis title
+                    ticks: { color: secondaryTextColor }, grid: { color: borderColor } // X-axis values
                 },
                 y: {
-                    title: { display: true, text: 'Points', color: 'var(--secondary-text)' },
-                    ticks: { color: 'var(--secondary-text)', beginAtZero: true }, grid: { color: 'var(--border-color)' }
+                    title: { display: true, text: 'Points', color: secondaryTextColor }, // Y-axis title
+                    ticks: { color: secondaryTextColor, beginAtZero: true }, grid: { color: borderColor } // Y-axis values
                 }
             }
         }
