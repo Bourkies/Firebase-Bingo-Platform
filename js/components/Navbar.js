@@ -322,10 +322,10 @@ class AppNavbar extends HTMLElement {
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
         const links = [
-            { href: './index.html', text: 'Player View', show: true },
-            { href: './overview.html', text: 'Overview', show: this.config.enableOverviewPage === true || this.authState.isEventMod },
-            { href: './captain.html', text: 'Team Admin', show: this.authState.isTeamCaptain },
-            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod },
+            { href: './index.html', text: 'Board', show: true },
+            { href: './overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
+            { href: './captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
+            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod  || this.authState.isAdmin },
             { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
 
