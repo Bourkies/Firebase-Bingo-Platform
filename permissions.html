@@ -34,11 +34,11 @@
       cursor: pointer;
     }
     .nav-links a:hover, .nav-actions button:hover {
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: var(--hover-bg-color);
     }
     .nav-links a.active {
       background-color: var(--accent-color);
-      color: #111;
+      color: var(--accent-text-color);
       font-weight: bold;
     }
     .container { width: 100%; max-width: 1200px; margin: 0 auto; }
@@ -51,7 +51,7 @@
     #user-management-table td, #user-management-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
     #user-management-table th { font-weight: bold; white-space: nowrap; }
     #user-management-table input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; box-sizing: border-box; }
-    #user-management-table input:disabled { background-color: #333; color: #888; cursor: not-allowed; }
+    #user-management-table input:disabled { background-color: var(--disabled-bg-color); color: var(--secondary-text); cursor: not-allowed; opacity: 0.7; }
   </style>
 </head>
 <body>
