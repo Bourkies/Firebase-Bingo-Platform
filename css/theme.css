@@ -1,4 +1,7 @@
 /* Central Theme File */
+/* The firts theme will be the default theme */
+
+/* Dark Theme Overrides */
 :root {
   --theme-name: "🌙 Dark";
   --bg-color: #1e1e1e;
