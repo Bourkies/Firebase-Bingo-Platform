@@ -358,9 +358,9 @@ This is the target architecture we are working towards. It separates shared serv
   - [ ]  **5.1.14** Check theme implementation on each page
     - [x]  **5.1.14.1** admin.html
     - [x]  **5.1.14.2** index.html
-    - [ ]  **5.1.14.3** overview.html
+    - [x]  **5.1.14.3** overview.html
     - [ ]  **5.1.14.4** permissions.html
-    - [ ]  **5.1.14.5** setup.html
+    - [x]  **5.1.14.5** setup.html
     - [ ]  **5.1.14.6** users.html
     - [ ]  **5.1.14.7** import_config.html
     - [ ]  **5.1.14.8** import_submissions.html
