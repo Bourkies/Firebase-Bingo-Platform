@@ -13,29 +13,28 @@
             box-sizing: border-box;
         }
         /* Modal Styles (adapted from admin.html) */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
-        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; text-align: center; }
-        .modal-content .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .modal-content h3 { margin-top: 0; color: #e57373; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: var(--modal-backdrop-color); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; text-align: center; }
+        .modal-content .close-button { color: var(--secondary-text); position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content h3 { margin-top: 0; color: var(--error-color); }
         .modal-content p { text-align: center; }
-        .modal-content input { width: 100%; padding: 10px; margin: 1rem 0; box-sizing: border-box; background-color: #1a1a1a; color: #f0f0f0; border: 1px solid #444; border-radius: 4px; }
-        .modal-content button { background-color: #dc3545; width: 100%; }
-        .modal-content button:disabled { background-color: #555; cursor: not-allowed; }
+        .modal-content input { width: 100%; padding: 10px; margin: 1rem 0; box-sizing: border-box; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 4px; }
+        .modal-content button { background-color: var(--error-color); color: var(--accent-text-color); width: 100%; }
+        .modal-content button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
         .button-like-link {
-            background-color: #17a2b8; /* A different color */
-            color: white;
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
             padding: 10px 15px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.3s;
-            display: inline-block;
-            text-align: center;
+            display: inline-block; text-align: center;
         }
         #message-box {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;
+            background-color: var(--surface-color); color: var(--primary-text); padding: 1rem 2rem; border-radius: 8px;
             z-index: 2000; opacity: 0; transition: opacity 0.5s; pointer-events: none;
         }
         #message-box.show { opacity: 1; }
@@ -80,7 +79,7 @@
             margin: auto;
             border-radius: 8px;
             overflow: hidden; /* Crucial for panning effect */
-            border: 2px solid #444;
+            border: 2px solid var(--border-color);
             cursor: grab;
         }
         #board-container:active {
@@ -105,9 +104,9 @@
             position: absolute;
             /* FIX: Use CSS variables set by TileRenderer.js for the border */
             border-width: var(--tile-border-width, 2px);
-            border-color: var(--tile-border-color, rgba(255, 255, 255, 0.7));
-            background-color: rgba(0, 170, 255, 0.3); /* Default background, will be overridden */
-            color: white;
+            border-color: var(--tile-border-color, transparent);
+            background-color: transparent; /* Default background, will be overridden by renderer */
+            color: var(--primary-text);
             font-size: 12px;
             display: flex;
             align-items: center;
@@ -132,9 +131,9 @@
             width: 100%;
             height: 400px; /* Adjusted height slightly */
             font-family: 'Courier New', Courier, monospace;
-            background-color: #2d2d2d;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--surface-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             resize: vertical;
             box-sizing: border-box; /* Ensure padding/border is included in width */
@@ -144,25 +143,25 @@
             gap: 10px;
         }
         button {
-            background-color: #00aaff;
-            color: white;
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
             border: none;
             padding: 10px 15px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
             margin-top: 10px;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s;
         }
         button:hover {
-            background-color: #0088cc;
+            background-color: var(--accent-color-darker);
         }
         .controls button {
             /* NEW: Give buttons in the control bar a min-width to prevent layout shifts */
             min-width: 110px;
         }
         button:disabled {
-            background-color: #555;
+            background-color: var(--disabled-bg-color);
             cursor: not-allowed;
             opacity: 0.7;
         }
@@ -173,7 +172,7 @@
             gap: 20px;
             align-items: center;
             justify-content: center;
-            background-color: #2d2d2d;
+            background-color: var(--surface-color);
             padding: 15px;
             border-radius: 8px;
             width: 100%;
@@ -215,9 +214,9 @@
             gap: 10px;
         }
         .prereq-vis-control select {
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             padding: 5px;
         }
@@ -230,7 +229,7 @@
         /* Details Panel Styles */
         .details-panel {
             width: 100%;
-            background-color: #2d2d2d;
+            background-color: var(--surface-color);
             padding: 15px;
             border-radius: 8px;
             box-sizing: border-box;
@@ -249,24 +248,24 @@
         }
         #add-new-tile-btn {
             margin-top: 0;
-            background-color: #28a745;
+            background-color: var(--success-color);
         }
         #tile-selector-dropdown {
             flex-grow: 1;
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             padding: 8px;
             max-width: 400px;
         }
         #delete-tile-btn {
             margin-top: 0;
-            background-color: #dc3545;
+            background-color: var(--error-color);
         }
         #delete-all-tiles-btn {
             margin-top: 0;
-            background-color: #c82333; /* A darker red */
+            background-color: var(--error-color);
         }
         #toggle-global-styles-btn {
             margin-top: 0;
@@ -285,26 +284,26 @@
         .form-field label {
             margin-bottom: 5px;
             font-size: 14px;
-            color: #aaa;
+            color: var(--secondary-text);
         }
         .form-field input, .form-field textarea, .form-field select {
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
         }
         .form-field textarea {
             resize: vertical;
             min-height: 80px;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: monospace;
         }
         .form-field input:disabled, .form-field textarea:disabled, .form-field select:disabled {
-            background-color: #2a2a2a;
+            background-color: var(--bg-color);
             cursor: not-allowed;
-            color: #666;
+            color: var(--secondary-text);
         }
         .overrides-fieldset {
             grid-column: 1 / -1; /* Span all columns */
@@ -344,21 +343,21 @@
         #overrides-json-textarea {
             width: 100%;
             min-height: 100px;
-            font-family: 'Courier New', Courier, monospace;
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            font-family: monospace;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             resize: vertical;
             box-sizing: border-box;
             margin-bottom: 10px;
         }
         #add-override-btn {
-            background-color: #007bff;
+            background-color: var(--accent-color);
             width: fit-content;
         }
         #add-override-btn:disabled {
-            background-color: #555;
+            background-color: var(--disabled-bg-color);
             cursor: not-allowed;
         }
         #style-preview-controls {
@@ -369,7 +368,7 @@
             justify-content: center;
         }
         .remove-override-btn {
-            background-color: #c0392b;
+            background-color: var(--error-color);
             padding: 8px;
         }
         .override-item input,
@@ -377,9 +376,9 @@
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
         }
         .form-field-compound {
@@ -398,7 +397,7 @@
             flex-grow: 1;
         }
         .color-text-input {
-            font-family: 'Courier New', Courier, monospace;
+            font-family: monospace;
             flex-grow: 1;
         }
         .form-field-compound input[type="text"] {
@@ -416,9 +415,6 @@
             white-space: nowrap;
             transition: background-color 0.2s;
         }
-        .button-like-label:hover {
-            background-color: #0088cc; /* A darker shade of the accent */
-        }
         #teams-container {
             display: flex;
             flex-direction: column;
@@ -435,9 +431,9 @@
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
-            background-color: #1a1a1a;
-            color: #f0f0f0;
-            border: 1px solid #444;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
         }
         #add-team-btn {
@@ -445,7 +441,7 @@
             width: fit-content;
         }
         .remove-team-btn {
-            background-color: #c0392b;
+            background-color: var(--error-color);
         }
         .team-item-header {
             display: grid;
@@ -453,8 +449,8 @@
             gap: 10px;
             padding-bottom: 8px;
             font-weight: bold;
-            color: #aaa;
-            border-bottom: 1px solid #444;
+            color: var(--secondary-text);
+            border-bottom: 1px solid var(--border-color);
         }
         /* New layout for the tile details form */
         #details-form {
@@ -487,21 +483,21 @@
             align-items: center;
         }
         .team-id-display {
-            background-color: #1a1a1a;
+            background-color: var(--bg-color);
             padding: 8px;
             border-radius: 4px;
-            font-family: 'Courier New', Courier, monospace;
-            color: #aaa;
+            font-family: monospace;
+            color: var(--secondary-text);
             text-align: center;
         }
         .prereq-or-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            border: 1px solid #444;
+            border: 1px solid var(--border-color);
             padding: 10px;
             border-radius: 4px;
-            background-color: #1a1a1a;
+            background-color: var(--bg-color);
         }
         #prereq-ui-container {
             display: flex;
@@ -532,27 +528,27 @@
         .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
         .image-upload-preview {
             max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px;
-            border: 1px solid #444; background-color: #111; border-radius: 4px;
+            border: 1px solid var(--border-color); background-color: var(--bg-color); border-radius: 4px;
         }
         .prereq-or-label {
             font-weight: bold;
             color: var(--accent-color);
         }
         .error-message {
-            padding: 2rem; background-color: #4d2a2a; border: 2px dashed #c0392b;
+            padding: 2rem; background-color: var(--bg-color); border: 2px dashed var(--error-color);
             border-radius: 8px; text-align: center; width: 80%; word-wrap: break-word;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 10;
         }
         .tooltip-icon {
-            margin-left: 8px; color: #888; cursor: help; font-size: 0.8em;
-            font-weight: normal; border-bottom: 1px dotted #888; display: inline-block;
+            margin-left: 8px; color: var(--secondary-text); cursor: help; font-size: 0.8em;
+            font-weight: normal; border-bottom: 1px dotted var(--secondary-text); display: inline-block;
         }
         .stamp-fieldset legend label {
             margin-bottom: 0; /* Override default form-field margin */
         }
         .prereq-validation-msg, .validation-msg {
-            font-size: 0.8em; color: #e57373; margin-top: 4px;
+            font-size: 0.8em; color: var(--error-color); margin-top: 4px;
             display: block; min-height: 1.2em;
         }
 
