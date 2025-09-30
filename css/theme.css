@@ -1,5 +1,6 @@
 /* Central Theme File */
 :root {
+  --theme-name: "🌙 Dark";
   --bg-color: #1e1e1e;
   --surface-color: #2d2d2d;
   --primary-text: #e0e0e0;
@@ -9,10 +10,12 @@
   --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
   --error-color: #e57373;
   --success-color: #81c784;
+  --accent-text-color: #111; /* Text color for on top of accent backgrounds */
 }
 
 /* Light Theme Overrides */
 [data-theme="light"] {
+  --theme-name: "☀️ Light";
   --bg-color: #f5f5f5;
   --surface-color: #ffffff;
   --primary-text: #212121;
@@ -21,6 +24,21 @@
   --border-color: #e0e0e0;
   --error-color: #d32f2f;
   --success-color: #388e3c;
+  --accent-text-color: #fff; /* Text color for on top of accent backgrounds */
+}
+
+/* Australian Theme Overrides */
+[data-theme="australian"] {
+  --theme-name: "🐨 Australian";
+  --bg-color: #263A29; /* Dark Eucalyptus Green */
+  --surface-color: #415D43; /* Lighter Green */
+  --primary-text: #F0EAD6; /* Warm Off-White (like sand) */
+  --secondary-text: #A7BCA9; /* Muted Green-Gray */
+  --accent-color: #FFC107; /* Wattle Gold */
+  --border-color: #3A503C; /* Darker Border */
+  --error-color: #e57373;
+  --success-color: #81c784;
+  --accent-text-color: #111; /* Dark text on gold accent */
 }
 
 body {

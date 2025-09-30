@@ -31,13 +31,17 @@ template.innerHTML = `
         }
 
         .nav-links-mobile {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            display: none; /* Hide mobile container by default */
         }
-        .nav-links a, .nav-actions button {
-            color: #f0f0f0;
+        .nav-links-desktop a, .nav-links-mobile a {
+            color: var(--primary-text);
             text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+        .nav-actions button {
+            color: var(--primary-text);
             padding: 0.5rem 1rem;
             border-radius: 6px;
             transition: background-color 0.2s;
@@ -45,14 +49,14 @@ template.innerHTML = `
             border: none;
             font-size: 1rem;
             cursor: pointer;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: var(--font-main);
         }
-        .nav-links a:hover, .nav-actions button:hover {
+        .nav-links-desktop a:hover, .nav-links-mobile a:hover, .nav-actions button:hover {
             background-color: rgba(255, 255, 255, 0.1);
         }
-        .nav-links a.active {
-            background-color: var(--accent-color, #00aaff);
-            color: #111;
+        .nav-links-desktop a.active, .nav-links-mobile a.active {
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
             font-weight: bold;
         }
         .nav-actions {
@@ -71,7 +75,7 @@ template.innerHTML = `
         }
         #user-info {
             font-size: 0.9rem;
-            color: #a0a0a0;
+            color: var(--secondary-text);
         }
         /* Hamburger Menu Styles */
         .hamburger {
@@ -89,7 +93,7 @@ template.innerHTML = `
         .hamburger span {
             width: 2rem;
             height: 0.25rem;
-            background: #f0f0f0;
+            background: var(--primary-text);
             border-radius: 10px;
             transition: all 0.3s linear;
         }
@@ -102,8 +106,8 @@ template.innerHTML = `
                 position: absolute;
                 top: 100%;
                 left: 0;
-                width: 100%;
-                background-color: #333;
+                width: 100%;                
+                background-color: var(--surface-color);
                 border-bottom-left-radius: 8px;
                 border-bottom-right-radius: 8px;
                 padding: 1rem 0;
@@ -119,16 +123,16 @@ template.innerHTML = `
             }
         }
         /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
-        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; border: 1px solid var(--border-color); }
         .modal-content h2 { margin-top: 0; color: var(--accent-color, #00aaff); }
-        .modal-content p { color: #ccc; }
+        .modal-content p { color: var(--secondary-text); }
         .modal-content form { display: flex; flex-direction: column; gap: 1rem; }
         .modal-content label { font-weight: bold; }
-        .modal-content input { width: 100%; background-color: #1e1e1e; color: #f0f0f0; border: 1px solid #444; padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }
-        .modal-content button[type="submit"] { background-color: var(--accent-color, #00aaff); color: #111; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .modal-content input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }        
+        .modal-content button[type="submit"] { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
         .modal-content button[type="submit"]:disabled { background-color: #555; cursor: not-allowed; }
-        .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-button { color: var(--secondary-text); position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
         /* Login Modal Specific Styles */
         #login-modal .modal-content { max-width: 400px; text-align: center; }
         .login-options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
@@ -144,11 +148,11 @@ template.innerHTML = `
         .login-options svg { width: 20px; height: 20px; }
         .anon-warning {
             margin-top: 1.5rem; padding: 0.75rem; background-color: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem;
-            text-align: left; color: #ffecb3;
+            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; text-align: left;
+            color: var(--secondary-text);
         }
         .anon-warning strong { color: #ffc107; }
-        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; }
+        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); }
     </style>
     <div class="navbar">
         <!-- Desktop Links -->
@@ -242,10 +246,6 @@ class AppNavbar extends HTMLElement {
         this.config = {};
         this.authState = getAuthState(); // Get initial state
 
-        this.availableThemes = [
-            { value: 'dark', text: '🌙 Dark' },
-            { value: 'light', text: '☀️ Light' },
-        ];
     }
 
     showLoginModal() {
@@ -377,9 +377,29 @@ class AppNavbar extends HTMLElement {
     }
 
     populateThemeSwitcher() {
-        this.themeSwitcher.innerHTML = this.availableThemes
-            .map(theme => `<option value="${theme.value}">${theme.text}</option>`)
-            .join('');
+        const availableThemes = [];
+        // Find the theme.css stylesheet
+        const styleSheet = Array.from(document.styleSheets).find(
+            sheet => sheet.href && sheet.href.endsWith('theme.css')
+        );
+
+        if (styleSheet) {
+            try {
+                for (const rule of styleSheet.cssRules) {
+                    if (rule.selectorText === ':root') {
+                        const name = rule.style.getPropertyValue('--theme-name').trim().replace(/"/g, '');
+                        if (name) availableThemes.push({ value: 'dark', text: name });
+                    } else if (rule.selectorText?.startsWith('[data-theme=')) {
+                        const match = rule.selectorText.match(/\[data-theme="([^"]+)"\]/);
+                        const name = rule.style.getPropertyValue('--theme-name').trim().replace(/"/g, '');
+                        if (match && name) {
+                            availableThemes.push({ value: match[1], text: name });
+                        }
+                    }
+                }
+            } catch (e) { console.error("Could not parse stylesheet rules. This may be a CORS issue in local development.", e); }
+        }
+        this.themeSwitcher.innerHTML = availableThemes.map(theme => `<option value="${theme.value}">${theme.text}</option>`).join('');
     }
 
     updateCurrentThemeSelection() {
