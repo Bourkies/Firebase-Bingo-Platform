@@ -124,8 +124,9 @@
             white-space: nowrap;
             cursor: pointer;
         }
-        .draggable-tile:hover {
-            border-color: #00d9f5; /* Highlight color on hover */
+        .draggable-tile:hover { 
+            border-color: var(--tile-hover-border-color, var(--accent-color-light));
+            border-width: var(--tile-hover-border-width, 2px);
         }
         #csv-output {
             width: 100%;
