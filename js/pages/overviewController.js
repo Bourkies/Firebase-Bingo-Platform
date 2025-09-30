@@ -82,7 +82,7 @@ function initializeApp() {
             return;
         }
 
-        document.title = (config.pageTitle || 'Bingo') + ' | Overview';
+        document.title = (config.pageTitle || 'Bingo') + ' | Scoreboard';
 
         // Setup other listeners that depend on config
         setupTilesListener();

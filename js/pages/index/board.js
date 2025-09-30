@@ -89,7 +89,8 @@ export function renderBoard() {
     const displayTeam = isPrivate ? authState.profile?.team : currentTeam;
     const displayTeamName = (displayTeam && allTeams) ? (allTeams[displayTeam]?.name || displayTeam) : '';
 
-    document.title = displayTeamName ? `${config.pageTitle || 'Bingo'} : ${displayTeamName}` : (config.pageTitle || 'Bingo');
+    const pageName = displayTeamName || 'Bingo Board';
+    document.title = `${config.pageTitle || 'Bingo'} | ${pageName}`;
     document.getElementById('page-title').textContent = displayTeam ? displayTeamName : (config.pageTitle || 'Bingo');
     const tooltip = document.getElementById('tile-tooltip');
 

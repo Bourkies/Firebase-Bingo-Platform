@@ -5,6 +5,7 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
 import * as teamManager from '../core/data/teamManager.js';
+import * as configManager from '../core/data/configManager.js';
 
 let allUsers = [], allTeams = {};
 let authState = {};
@@ -51,6 +52,11 @@ function initializeApp() {
     showGlobalLoader();
     unsubscribeFromAll();
     const unsubs = [];
+
+    // Listen for config to set the page title
+    unsubs.push(configManager.listenToConfig(newConfig => {
+        document.title = (newConfig.pageTitle || 'Bingo') + " | Captain's Dashboard";
+    }));
 
     // First, listen to teams to determine if the user is a captain.
     console.log('[CaptainController] Subscribing to team data...');

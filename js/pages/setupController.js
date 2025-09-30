@@ -113,6 +113,7 @@ function initializeApp(authState) {
         console.log("[SetupController] Config/Styles updated.");
         config = newConfig.config || {};
         allStyles = newConfig.styles || {};
+        document.title = (config.pageTitle || 'Bingo') + ' | Live Editor';
         
         updateGlobalConfigData(config, allStyles, allUsers, allTeams);
 
