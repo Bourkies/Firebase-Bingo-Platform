@@ -14,7 +14,15 @@
   --error-color: #e57373;
   --success-color: #81c784;
   --accent-text-color: #111; /* Text color for on top of accent backgrounds */
+  --hover-bg-color: rgba(255, 255, 255, 0.1); /* For transparent hover effects */
+  --status-submitted-color: #ffeb3b; /* Yellow */
+  --status-partially-complete-color: #64b5f6; /* Light Blue */
+  --accent-color-darker: #008c9e;
+  --accent-color-light: #00d9f5;
+  --disabled-bg-color: #555;
+  --warn-color: #ffc107; /* Amber */
 }
+
 
 /* Light Theme Overrides */
 [data-theme="light"] {
@@ -28,6 +36,13 @@
   --error-color: #d32f2f;
   --success-color: #388e3c;
   --accent-text-color: #fff; /* Text color for on top of accent backgrounds */
+  --hover-bg-color: rgba(0, 0, 0, 0.05); /* For transparent hover effects */
+  --status-submitted-color: #fbc02d; /* Darker Yellow */
+  --status-partially-complete-color: #1976d2; /* Standard Blue */
+  --accent-color-darker: #007986;
+  --accent-color-light: #00acc1;
+  --disabled-bg-color: #bdbdbd;
+  --warn-color: #ffa000; /* Darker Amber */
 }
 
 /* Australian Theme Overrides */
@@ -42,6 +57,13 @@
   --error-color: #e57373;
   --success-color: #81c784;
   --accent-text-color: #111; /* Dark text on gold accent */
+  --hover-bg-color: rgba(255, 255, 255, 0.1); /* For transparent hover effects */
+  --status-submitted-color: #ffd600; /* Bright Gold */
+  --status-partially-complete-color: #4FC3F7; /* Sky Blue */
+  --accent-color-darker: #d4a100;
+  --accent-color-light: #ffcf40;
+  --disabled-bg-color: #3A503C;
+  --warn-color: #FFC107; /* Wattle Gold, same as accent */
 }
 
 body {
@@ -52,3 +74,17 @@ body {
   /* Add a smooth transition for theme changes */
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Global Loader Style */
+.global-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(to right, var(--accent-color) 20%, var(--accent-color-light) 50%, var(--accent-color) 80%);
+    background-size: 200% auto;
+    animation: loading-animation 1.5s linear infinite;
+    z-index: 9999;
+}
+@keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

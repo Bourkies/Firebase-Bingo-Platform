@@ -52,7 +52,7 @@ template.innerHTML = `
             font-family: var(--font-main);
         }
         .nav-links-desktop a:hover, .nav-links-mobile a:hover, .nav-actions button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--hover-bg-color);
         }
         .nav-links-desktop a.active, .nav-links-mobile a.active {
             background-color: var(--accent-color);

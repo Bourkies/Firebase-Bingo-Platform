@@ -21,13 +21,6 @@
         }
         .nav-links a:hover { background-color: rgba(255, 255, 255, 0.1); }
         .nav-links a.active { background-color: var(--accent-color); color: #111; font-weight: bold; }
-        .global-loader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 3px;
-            background: linear-gradient(to right, var(--accent-color) 20%, #00d9f5 50%, var(--accent-color) 80%);
-            background-size: 200% auto; animation: loading-animation 1.5s linear infinite;
-            z-index: 9999; display: none;
-        }
-        @keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         #message-box {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             background-color: #333; color: white; padding: 1rem 2rem; border-radius: 8px;

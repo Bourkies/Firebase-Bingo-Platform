@@ -71,6 +71,12 @@
             box-sizing: border-box;
             margin-top: 1rem;
         }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+        }
         .preview-panel {
             display: flex;
             flex-direction: column;
@@ -90,18 +96,44 @@
         /* Example Component Styles (copied and simplified) */
         .example-table { width: 100%; border-collapse: collapse; }
         .example-table th, .example-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .example-table tbody tr:hover { background-color: var(--hover-bg-color); }
         .example-table th { font-weight: bold; }
         .example-modal { padding: 2rem; border-radius: 12px; border: 1px solid var(--border-color); }
         .example-modal h4 { margin-top: 0; color: var(--accent-color); }
         .example-modal p { color: var(--secondary-text); }
         .example-modal input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; margin: 1rem 0; }
         .example-button { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .example-button:hover:not(:disabled) { background-color: var(--accent-color-darker); }
+        .example-button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
         .example-link { color: var(--primary-text); text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; }
+        .example-link:hover { background-color: var(--hover-bg-color); }
         .example-link.active { background-color: var(--accent-color); color: var(--accent-text-color); font-weight: bold; }
         .example-embed { background-color: var(--bg-color); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-color); }
         .example-embed p { margin: 0; }
         .example-embed .title { font-weight: bold; }
         .example-embed .meta { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.25rem; }
+        /* NEW: Board Preview styles */
+        .example-board-container {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background-color: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            position: relative;
+            box-sizing: border-box;
+            background-size: cover;
+            background-position: center;
+        }
+        .status-dots-container { display: flex; gap: 1rem; align-items: center; }
+        .status-dot { height: 12px; width: 12px; border-radius: 50%; }
+        .example-loader { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent-color) 20%, var(--accent-color-light) 50%, var(--accent-color) 80%); }
+        .copy-button {
+            background-color: var(--accent-color); color: var(--accent-text-color); border: none;
+            padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px;
+        }
+        .copy-button:hover {
+            background-color: var(--accent-color-darker);
+        }
 
         @media (max-width: 960px) {
             .container { grid-template-columns: 1fr; }
@@ -119,7 +151,12 @@
             </div>
             <input type="text" id="theme-name-input" class="theme-name-input" placeholder="Enter theme ID (e.g., oceanic)">
             <input type="text" id="theme-display-name-input" class="theme-name-input" placeholder="Enter display name (e.g., 🌊 Oceanic)">
-            <textarea id="css-output" readonly placeholder="Generated CSS will appear here..."></textarea>
+            <input type="text" id="board-image-url-input" class="theme-name-input" placeholder="Paste board image URL for preview...">
+            <div class="output-header">
+                <label for="css-output">Generated CSS:</label>
+                <button id="copy-css-btn" class="copy-button">Copy</button>
+            </div>
+            <textarea id="css-output" readonly></textarea>
         </div>
 
         <div id="preview-panel" class="preview-panel">
@@ -140,7 +177,8 @@
                     <h4>Modal Title</h4>
                     <p>This is some text inside a modal. It uses the secondary text color.</p>
                     <input type="text" placeholder="An input field">
-                    <button class="example-button">Submit</button>
+                    <button class="example-button">Enabled Button</button>
+                    <button class="example-button" disabled>Disabled Button</button>
                 </div>
             </div>
 
@@ -157,13 +195,36 @@
                     </div>
                 </div>
             </div>
+
+            <div class="preview-item">
+                <h3>Status Indicators & Loader</h3>
+                <div class="status-dots-container">
+                    <div class="status-dot" style="background-color: var(--success-color);"></div><span>Success</span>
+                    <div class="status-dot" style="background-color: var(--error-color);"></div><span>Error</span>
+                    <div class="status-dot" style="background-color: var(--warn-color);"></div><span>Warning</span>
+                    <div class="status-dot" style="background-color: var(--status-submitted-color);"></div><span>Submitted</span>
+                    <div class="status-dot" style="background-color: var(--status-partially-complete-color);"></div><span>Partial</span>
+                </div>
+                <div style="margin-top: 1.5rem;">
+                    <p style="text-align: left; margin-bottom: 0.5rem; color: var(--secondary-text);">Loader Bar:</p>
+                    <div class="example-loader"></div>
+                </div>
+            </div>
+
+            <div class="preview-item">
+                <h3>Board Background Preview</h3>
+                <div id="example-board-preview" class="example-board-container">
+                </div>
+            </div>
         </div>
     </div>
 
     <script type="module">
         import './js/components/Navbar.js';
+        import * as configManager from './js/core/data/configManager.js';
 
         document.addEventListener('DOMContentLoaded', () => {
+
             const themeVariables = [
                 '--bg-color',
                 '--surface-color',
@@ -173,16 +234,49 @@
                 '--border-color',
                 '--accent-text-color',
                 '--error-color',
-                '--success-color'
+                '--success-color',
+                '--warn-color',
+                '--disabled-bg-color',
+                '--hover-bg-color',
+                '--status-submitted-color',
+                '--status-partially-complete-color',
+                '--accent-color-darker',
+                '--accent-color-light'
             ];
 
             const pickerContainer = document.getElementById('color-picker-container');
             const previewPanel = document.getElementById('preview-panel');
             const themeNameInput = document.getElementById('theme-name-input');
             const themeDisplayNameInput = document.getElementById('theme-display-name-input');
+            const boardImageUrlInput = document.getElementById('board-image-url-input');
             const cssOutput = document.getElementById('css-output');
+            const copyBtn = document.getElementById('copy-css-btn');
 
             const computedStyle = getComputedStyle(document.documentElement);
+
+            function setBoardPreviewImage(url) {
+                const boardPreview = document.getElementById('example-board-preview');
+                if (!url) {
+                    boardPreview.style.backgroundImage = 'none';
+                    boardPreview.style.aspectRatio = '1 / 1';
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    boardPreview.style.backgroundImage = `url('${url}')`;
+                    boardPreview.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+                };
+                img.onerror = () => { boardPreview.style.backgroundImage = 'none'; boardPreview.style.aspectRatio = '1 / 1'; };
+                img.src = url;
+            }
+
+            // Fetch config to get the current board image URL
+            configManager.listenToConfigAndStyles(configData => {
+                if (configData && configData.config && configData.config.boardImageUrl) {
+                    setBoardPreviewImage(configData.config.boardImageUrl);
+                    document.getElementById('board-image-url-input').value = configData.config.boardImageUrl;
+                }
+            });
 
             // Initialize pickers and generate CSS
             function initialize() {
@@ -215,7 +309,7 @@
                 const themeId = themeNameInput.value.trim().toLowerCase().replace(/\s+/g, '-') || 'my-theme';
                 const themeDisplayName = themeDisplayNameInput.value.trim() || 'My Theme';
 
-                let output = `/* ${themeDisplayName} Theme */\n`;
+                let output = `/* ${themeDisplayName.replace(/[^a-zA-Z0-9\s]/g, '')} Theme */\n`;
                 output += `[data-theme="${themeId}"] {\n`;
                 output += `  --theme-name: "${themeDisplayName}";\n`;
                 themeVariables.forEach(variable => {
@@ -229,6 +323,19 @@
 
             themeNameInput.addEventListener('input', generateCss);
             themeDisplayNameInput.addEventListener('input', generateCss);
+            boardImageUrlInput.addEventListener('input', (e) => {
+                setBoardPreviewImage(e.target.value);
+            });
+            copyBtn.addEventListener('click', () => {
+                cssOutput.select();
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                }, 1500);
+            });
+
+
 
             // Re-initialize if the main theme changes (e.g., via navbar)
             document.addEventListener('theme-changed', () => {
