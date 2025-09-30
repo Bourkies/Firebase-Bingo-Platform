@@ -17,7 +17,7 @@ const styleSchema = {
 };
 
 export function initializeOverrideEditor(mainController) {
-    console.log("overrideEditor: Initializing...");
+    console.log("[OverrideEditor] Initializing...");
     // The main logic is now in updateOverridesJsonFromCurrentTile, triggered by events.
 }
 
@@ -56,7 +56,7 @@ function saveOverrides(mainController) {
 }
 
 export function populateOverridesUI(overrides, mainController) {
-    console.log("overrideEditor: populateOverridesUI called.");
+    console.log("[OverrideEditor] populateOverridesUI called.");
     if (!document.getElementById('overrides-container')) return;
     const container = document.getElementById('overrides-container');
     container.innerHTML = '';
@@ -73,7 +73,7 @@ export function populateOverridesUI(overrides, mainController) {
 }
 
 export function addOverrideRow(status = '', key = '', value = '', mainController) {
-    console.log(`overrideEditor: addOverrideRow called for ${status}, ${key}`);
+    console.log(`[OverrideEditor] addOverrideRow called for ${status}, ${key}`);
     if (!document.getElementById('overrides-container')) return;
     const container = document.getElementById('overrides-container');
     const item = document.createElement('div');
@@ -248,7 +248,7 @@ function populateValueContainer(container, propertyName, value) {
 }
 
 export function handleRawJsonOverrideChange(event, mainController) {
-    console.log("overrideEditor: handleRawJsonOverrideChange called.");
+    console.log("[OverrideEditor] handleRawJsonOverrideChange called.");
     const textarea = event.target;
     if (!mainController) return;
     try {
@@ -275,7 +275,7 @@ export function updateOverridesJsonFromCurrentTile(mainController) {
 }
 
 export function createOverrideFieldset(mainController) {
-    console.log("overrideEditor: createOverrideFieldset called.");
+    console.log("[OverrideEditor] createOverrideFieldset called.");
     const fieldset = Object.assign(document.createElement('fieldset'), {
         className: 'overrides-fieldset',
         id: 'overrides-editor-container',

@@ -1,0 +1,99 @@
+/* Central Theme File */
+/* The firts theme will be the default theme */
+
+/* Dark Theme Overrides */
+:root {
+  --theme-name: "🌙 Dark";
+  --bg-color: #1e1e1e;
+  --surface-color: #2d2d2d;
+  --primary-text: #e0e0e0;
+  --secondary-text: #a0a0a0;
+  --accent-color: #00b8d4;
+  --border-color: #444;
+  --font-main: 'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+  --error-color: #e57373;
+  --success-color: #81c784;
+  --accent-text-color: #111; /* Text color for on top of accent backgrounds */
+  --hover-bg-color: rgba(255, 255, 255, 0.1); /* For transparent hover effects */
+  --status-submitted-color: #ffeb3b; /* Yellow */
+  --status-partially-complete-color: #64b5f6; /* Light Blue */
+  --accent-color-darker: #008c9e;
+  --accent-color-light: #00d9f5;
+  --disabled-bg-color: #555;
+  --warn-color: #ffc107; /* Amber */
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --text-shadow-color: #000;
+  --modal-backdrop-color: rgba(0, 0, 0, 0.6);
+}
+
+
+/* Light Theme Overrides */
+[data-theme="light"] {
+  --theme-name: "☀️ Light";
+  --bg-color: #f5f5f5;
+  --surface-color: #ffffff;
+  --primary-text: #212121;
+  --secondary-text: #757575;
+  --accent-color: #0097a7;
+  --border-color: #e0e0e0;
+  --error-color: #d32f2f;
+  --success-color: #388e3c;
+  --accent-text-color: #fff; /* Text color for on top of accent backgrounds */
+  --hover-bg-color: rgba(0, 0, 0, 0.05); /* For transparent hover effects */
+  --status-submitted-color: #fbc02d; /* Darker Yellow */
+  --status-partially-complete-color: #1976d2; /* Standard Blue */
+  --accent-color-darker: #007986;
+  --accent-color-light: #00acc1;
+  --disabled-bg-color: #bdbdbd;
+  --warn-color: #ffa000; /* Darker Amber */
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --text-shadow-color: rgba(255, 255, 255, 0.5);
+  --modal-backdrop-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Australian Theme Overrides */
+[data-theme="australian"] {
+  --theme-name: "🐨 Australian";
+  --bg-color: #263A29; /* Dark Eucalyptus Green */
+  --surface-color: #415D43; /* Lighter Green */
+  --primary-text: #F0EAD6; /* Warm Off-White (like sand) */
+  --secondary-text: #A7BCA9; /* Muted Green-Gray */
+  --accent-color: #FFC107; /* Wattle Gold */
+  --border-color: #3A503C; /* Darker Border */
+  --error-color: #e57373;
+  --success-color: #81c784;
+  --accent-text-color: #111; /* Dark text on gold accent */
+  --hover-bg-color: rgba(255, 255, 255, 0.1); /* For transparent hover effects */
+  --status-submitted-color: #ffd600; /* Bright Gold */
+  --status-partially-complete-color: #4FC3F7; /* Sky Blue */
+  --accent-color-darker: #d4a100;
+  --accent-color-light: #ffcf40;
+  --disabled-bg-color: #3A503C;
+  --warn-color: #FFC107; /* Wattle Gold, same as accent */
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --text-shadow-color: #263A29;
+  --modal-backdrop-color: rgba(0, 0, 0, 0.6);
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-color);
+  color: var(--primary-text);
+  margin: 0;
+  /* Add a smooth transition for theme changes */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Global Loader Style */
+.global-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(to right, var(--accent-color) 20%, var(--accent-color-light) 50%, var(--accent-color) 80%);
+    background-size: 200% auto;
+    animation: loading-animation 1.5s linear infinite;
+    z-index: 9999;
+}
+@keyframes loading-animation { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

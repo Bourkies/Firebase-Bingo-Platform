@@ -14,6 +14,9 @@ firebase-config.js
 project-notes.md
 Test_Plan.xlx
 
+# Custom user folders
+Example and test config/*
+
 # Logs
 *.log
 npm-debug.log*

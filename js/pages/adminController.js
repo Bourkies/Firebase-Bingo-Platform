@@ -59,6 +59,7 @@ function initializeApp(authState) {
     unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
         console.log("Admin: Config updated in real-time.");
         const config = doc.data() || {};
+        document.title = (config.pageTitle || 'Bingo') + ' | Admin Dashboard';
         // The navbar component now handles showing/hiding its own links.
         
         if (authState.isEventMod) {

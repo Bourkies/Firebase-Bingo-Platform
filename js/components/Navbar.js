@@ -11,7 +11,7 @@ template.innerHTML = `
         }
         .navbar {
             width: 100%;
-            background-color: #2d2d2d;
+            background-color: var(--surface-color);
             border-radius: 8px;
             padding: 0.5rem 1rem;
             margin-bottom: 1.5rem;
@@ -22,13 +22,26 @@ template.innerHTML = `
             position: relative; /* For positioning the mobile menu */
         }
         .nav-links {
+            display: none; /* Hidden by default on mobile */
+        }
+        .nav-links-desktop {
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
-        .nav-links a, .nav-actions button {
-            color: #f0f0f0;
+
+        .nav-links-mobile {
+            display: none; /* Hide mobile container by default */
+        }
+        .nav-links-desktop a, .nav-links-mobile a {
+            color: var(--primary-text);
             text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+        .nav-actions button {
+            color: var(--primary-text);
             padding: 0.5rem 1rem;
             border-radius: 6px;
             transition: background-color 0.2s;
@@ -36,14 +49,14 @@ template.innerHTML = `
             border: none;
             font-size: 1rem;
             cursor: pointer;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: var(--font-main);
         }
-        .nav-links a:hover, .nav-actions button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
+        .nav-links-desktop a:hover, .nav-links-mobile a:hover, .nav-actions button:hover {
+            background-color: var(--hover-bg-color);
         }
-        .nav-links a.active {
-            background-color: var(--accent-color, #00aaff);
-            color: #111;
+        .nav-links-desktop a.active, .nav-links-mobile a.active {
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
             font-weight: bold;
         }
         .nav-actions {
@@ -51,9 +64,18 @@ template.innerHTML = `
             align-items: center;
             gap: 1rem;
         }
+        #theme-switcher {
+            background-color: var(--surface-color, #2d2d2d);
+            color: var(--primary-text, #f0f0f0);
+            border: 1px solid var(--border-color, #444);
+            padding: 0.4rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
         #user-info {
             font-size: 0.9rem;
-            color: #a0a0a0;
+            color: var(--secondary-text);
         }
         /* Hamburger Menu Styles */
         .hamburger {
@@ -71,43 +93,46 @@ template.innerHTML = `
         .hamburger span {
             width: 2rem;
             height: 0.25rem;
-            background: #f0f0f0;
+            background: var(--primary-text);
             border-radius: 10px;
             transition: all 0.3s linear;
         }
         /* Responsive Styles */
         @media (max-width: 850px) {
-            .nav-links {
+            .nav-links-mobile {
                 display: none;
                 flex-direction: column;
                 align-items: flex-start;
                 position: absolute;
                 top: 100%;
                 left: 0;
-                width: 100%;
-                background-color: #333;
+                width: 100%;                
+                background-color: var(--surface-color);
                 border-bottom-left-radius: 8px;
                 border-bottom-right-radius: 8px;
                 padding: 1rem 0;
             }
-            .nav-links.active {
+            .nav-links-mobile.active {
                 display: flex;
+            }
+            .nav-links-desktop {
+                display: none; /* Hide desktop links on mobile */
             }
             .hamburger {
                 display: flex;
             }
         }
         /* Modal Styles */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
-        .modal-content { background-color: #2d2d2d; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; position: relative; border: 1px solid var(--border-color); }
         .modal-content h2 { margin-top: 0; color: var(--accent-color, #00aaff); }
-        .modal-content p { color: #ccc; }
+        .modal-content p { color: var(--secondary-text); }
         .modal-content form { display: flex; flex-direction: column; gap: 1rem; }
         .modal-content label { font-weight: bold; }
-        .modal-content input { width: 100%; background-color: #1e1e1e; color: #f0f0f0; border: 1px solid #444; padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }
-        .modal-content button[type="submit"] { background-color: var(--accent-color, #00aaff); color: #111; border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .modal-content input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }        
+        .modal-content button[type="submit"] { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
         .modal-content button[type="submit"]:disabled { background-color: #555; cursor: not-allowed; }
-        .close-button { color: #aaa; position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-button { color: var(--secondary-text); position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
         /* Login Modal Specific Styles */
         #login-modal .modal-content { max-width: 400px; text-align: center; }
         .login-options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
@@ -123,14 +148,15 @@ template.innerHTML = `
         .login-options svg { width: 20px; height: 20px; }
         .anon-warning {
             margin-top: 1.5rem; padding: 0.75rem; background-color: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem;
-            text-align: left; color: #ffecb3;
+            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; text-align: left;
+            color: var(--secondary-text);
         }
         .anon-warning strong { color: #ffc107; }
-        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; }
+        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); }
     </style>
     <div class="navbar">
-        <div class="nav-links">
+        <!-- Desktop Links -->
+        <div class="nav-links-desktop">
             <!-- Links will be populated by JS -->
         </div>
         <button id="hamburger-btn" class="hamburger">
@@ -138,10 +164,13 @@ template.innerHTML = `
             <span></span>
             <span></span>
         </button>
+        <!-- Mobile Links (initially hidden) -->
+        <div class="nav-links-mobile"></div>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
             <button id="change-name-btn" style="display: none;">Change Name</button>
             <button id="auth-button">Login</button>
+            <select id="theme-switcher"></select>
         </div>
     </div>
 
@@ -194,10 +223,14 @@ class AppNavbar extends HTMLElement {
 
         this.authButton = this.shadowRoot.querySelector('#auth-button');
         this.userInfo = this.shadowRoot.querySelector('#user-info');
-        this.navLinksContainer = this.shadowRoot.querySelector('.nav-links');
+        this.navLinksDesktop = this.shadowRoot.querySelector('.nav-links-desktop');
+        this.navLinksMobile = this.shadowRoot.querySelector('.nav-links-mobile');
         this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
 
         this.hamburgerBtn = this.shadowRoot.querySelector('#hamburger-btn');
+
+        this.themeSwitcher = this.shadowRoot.querySelector('#theme-switcher');
+
         // Modal elements
         this.welcomeModal = this.shadowRoot.querySelector('#welcome-modal');
         this.welcomeForm = this.shadowRoot.querySelector('#welcome-form');
@@ -212,6 +245,7 @@ class AppNavbar extends HTMLElement {
         this.allTeams = {};
         this.config = {};
         this.authState = getAuthState(); // Get initial state
+
     }
 
     showLoginModal() {
@@ -240,9 +274,11 @@ class AppNavbar extends HTMLElement {
         this.loginAnonBtn.addEventListener('click', () => { signInAnonymously(); this.hideLoginModal(); });
 
         this.hamburgerBtn.addEventListener('click', () => {
-            this.navLinksContainer.classList.toggle('active');
+            this.navLinksMobile.classList.toggle('active');
         });
 
+        this.themeSwitcher.addEventListener('change', (e) => this.setTheme(e.target.value));
+        this.populateThemeSwitcher();
 
         // Listen to data
         this.unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
@@ -266,6 +302,7 @@ class AppNavbar extends HTMLElement {
             if (this.authState.isLoggedIn && this.authState.profile && this.config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
                 this.showWelcomeModal();
             }
+            this.updateCurrentThemeSelection();
             this.render();
         });
     }
@@ -290,6 +327,7 @@ class AppNavbar extends HTMLElement {
         }
         this.renderAuthInfo();
         this.renderNavLinks();
+        this.updateCurrentThemeSelection();
     }
 
     renderAuthInfo() {
@@ -322,18 +360,65 @@ class AppNavbar extends HTMLElement {
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
         const links = [
-            { href: './index.html', text: 'Player View', show: true },
-            { href: './overview.html', text: 'Overview', show: this.config.enableOverviewPage === true || this.authState.isEventMod },
-            { href: './captain.html', text: 'Team Admin', show: this.authState.isTeamCaptain },
-            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod },
+            { href: './index.html', text: 'Board', show: true },
+            { href: './overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
+            { href: './captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
+            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod  || this.authState.isAdmin },
             { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
 
-        this.navLinksContainer.innerHTML = links
+        const linksHtml = links
             .filter(link => link.show)
             .map(link => `<a href="${link.href}" class="${link.href.includes(currentPage) ? 'active' : ''}">${link.text}</a>`)
             .join('');
+        
+        this.navLinksDesktop.innerHTML = linksHtml;
+        this.navLinksMobile.innerHTML = linksHtml;
     }
+
+    populateThemeSwitcher() {
+        const availableThemes = [];
+        // Find the theme.css stylesheet
+        const styleSheet = Array.from(document.styleSheets).find(
+            sheet => sheet.href && sheet.href.endsWith('theme.css')
+        );
+
+        if (styleSheet) {
+            try {
+                for (const rule of styleSheet.cssRules) {
+                    if (rule.selectorText === ':root') {
+                        const name = rule.style.getPropertyValue('--theme-name').trim().replace(/"/g, '');
+                        if (name) availableThemes.push({ value: 'dark', text: name });
+                    } else if (rule.selectorText?.startsWith('[data-theme=')) {
+                        const match = rule.selectorText.match(/\[data-theme="([^"]+)"\]/);
+                        const name = rule.style.getPropertyValue('--theme-name').trim().replace(/"/g, '');
+                        if (match && name) {
+                            availableThemes.push({ value: match[1], text: name });
+                        }
+                    }
+                }
+            } catch (e) { console.error("Could not parse stylesheet rules. This may be a CORS issue in local development.", e); }
+        }
+        this.themeSwitcher.innerHTML = availableThemes.map(theme => `<option value="${theme.value}">${theme.text}</option>`).join('');
+    }
+
+    updateCurrentThemeSelection() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        this.themeSwitcher.value = currentTheme;
+    }
+
+    setTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.removeAttribute('data-theme');
+        } else {
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+        localStorage.setItem('theme', theme);
+
+        // Dispatch an event that other components (like charts) can listen to
+        document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+    }
+
 
     showWelcomeModal(isUpdate = false) {
         const messageEl = this.shadowRoot.getElementById('welcome-modal-message');

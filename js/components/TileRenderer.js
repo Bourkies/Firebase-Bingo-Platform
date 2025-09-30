@@ -57,11 +57,15 @@ export function createTileElement(tile, status, config, allStyles, options) {
 
     const borderWidth = getProp('borderWidth', status) || '2px';
     const borderColor = getProp('borderColor', status) || 'transparent';
-    // FIX: Use CSS variables for the border to allow hover effects from stylesheets.
-    // Inline styles would otherwise override the :hover pseudo-class.
+    const hoverBorderColor = getProp('hoverBorderColor', status) || borderColor; // Fallback to the normal border color
+    const hoverBorderWidth = getProp('hoverBorderWidth', status) || borderWidth; // Fallback to the normal border width
+
+    // Use CSS variables for the border to allow hover effects from stylesheets.
     tileEl.style.setProperty('--tile-border-width', borderWidth);
     tileEl.style.setProperty('--tile-border-color', borderColor);
-    tileEl.style.borderStyle = 'solid'; // Set the non-changing part of the border
+    tileEl.style.setProperty('--tile-hover-border-color', hoverBorderColor);
+    tileEl.style.setProperty('--tile-hover-border-width', hoverBorderWidth);
+    tileEl.style.borderStyle = 'solid';
  
     // --- Page-Specific Overrides ---
     if (isHighlighted) {

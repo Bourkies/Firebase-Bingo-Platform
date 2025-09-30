@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="./js/theme-loader.js"></script> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Creator</title>
+    <link rel="stylesheet" href="./css/theme.css">
+    <style>
+        body {
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+        }
+        .controls-panel {
+            background-color: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: 12px;
+            height: fit-content;
+        }
+        .controls-panel h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        .color-picker-grid {
+            display: grid;
+            grid-template-columns: 1fr 80px;
+            gap: 1rem;
+            align-items: center;
+        }
+        .color-picker-grid label {
+            font-weight: bold;
+            color: var(--secondary-text);
+        }
+        .color-picker-grid input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            padding: 0;
+            background: none;
+            cursor: pointer;
+        }
+        .theme-name-input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+        #css-output {
+            width: 100%;
+            height: 250px;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-top: 1rem;
+        }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+        }
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .preview-item {
+            background-color: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+        .preview-item h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        /* Example Component Styles (copied and simplified) */
+        .example-table { width: 100%; border-collapse: collapse; }
+        .example-table th, .example-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .example-table tbody tr:hover { background-color: var(--hover-bg-color); }
+        .example-table th { font-weight: bold; }
+        .example-modal { padding: 2rem; border-radius: 12px; border: 1px solid var(--border-color); }
+        .example-modal h4 { margin-top: 0; color: var(--accent-color); }
+        .example-modal p { color: var(--secondary-text); }
+        .example-modal input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; margin: 1rem 0; }
+        .example-button { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .example-button:hover:not(:disabled) { background-color: var(--accent-color-darker); }
+        .example-button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
+        .example-link { color: var(--primary-text); text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; }
+        .example-link:hover { background-color: var(--hover-bg-color); }
+        .example-link.active { background-color: var(--accent-color); color: var(--accent-text-color); font-weight: bold; }
+        .example-embed { background-color: var(--bg-color); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-color); }
+        .example-embed p { margin: 0; }
+        .example-embed .title { font-weight: bold; }
+        .example-embed .meta { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.25rem; }
+        /* NEW: Board Preview styles */
+        .example-board-container {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background-color: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            position: relative;
+            box-sizing: border-box;
+            background-size: cover;
+            background-position: center;
+        }
+        .status-dots-container { display: flex; gap: 1rem; align-items: center; }
+        .status-dot { height: 12px; width: 12px; border-radius: 50%; }
+        .example-loader { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent-color) 20%, var(--accent-color-light) 50%, var(--accent-color) 80%); }
+        .copy-button {
+            background-color: var(--accent-color); color: var(--accent-text-color); border: none;
+            padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px;
+        }
+        .copy-button:hover {
+            background-color: var(--accent-color-darker);
+        }
+
+        @media (max-width: 960px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <app-navbar></app-navbar>
+
+    <div class="container">
+        <div class="controls-panel">
+            <h2>Theme Creator</h2>
+            <div id="color-picker-container" class="color-picker-grid">
+                <!-- Color pickers will be injected here by JS -->
+            </div>
+            <input type="text" id="theme-name-input" class="theme-name-input" placeholder="Enter theme ID (e.g., oceanic)">
+            <input type="text" id="theme-display-name-input" class="theme-name-input" placeholder="Enter display name (e.g., 🌊 Oceanic)">
+            <input type="text" id="board-image-url-input" class="theme-name-input" placeholder="Paste board image URL for preview...">
+            <div class="output-header">
+                <label for="css-output">Generated CSS:</label>
+                <button id="copy-css-btn" class="copy-button">Copy</button>
+            </div>
+            <textarea id="css-output" readonly></textarea>
+        </div>
+
+        <div id="preview-panel" class="preview-panel">
+            <div class="preview-item">
+                <h3>Example Table</h3>
+                <table class="example-table">
+                    <thead><tr><th>#</th><th>Team</th><th>Score</th></tr></thead>
+                    <tbody>
+                        <tr><td>1</td><td>Green Team</td><td>150</td></tr>
+                        <tr><td>2</td><td>Gold Team</td><td>125</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="preview-item">
+                <h3>Example Modal</h3>
+                <div class="example-modal">
+                    <h4>Modal Title</h4>
+                    <p>This is some text inside a modal. It uses the secondary text color.</p>
+                    <input type="text" placeholder="An input field">
+                    <button class="example-button">Enabled Button</button>
+                    <button class="example-button" disabled>Disabled Button</button>
+                </div>
+            </div>
+
+            <div class="preview-item">
+                <h3>Example Components</h3>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="example-embed">
+                        <p class="title">An Example Embed</p>
+                        <p class="meta">This is metadata text.</p>
+                    </div>
+                    <div>
+                        <a href="#" class="example-link active">Active Link</a>
+                        <a href="#" class="example-link">Inactive Link</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="preview-item">
+                <h3>Status Indicators & Loader</h3>
+                <div class="status-dots-container">
+                    <div class="status-dot" style="background-color: var(--success-color);"></div><span>Success</span>
+                    <div class="status-dot" style="background-color: var(--error-color);"></div><span>Error</span>
+                    <div class="status-dot" style="background-color: var(--warn-color);"></div><span>Warning</span>
+                    <div class="status-dot" style="background-color: var(--status-submitted-color);"></div><span>Submitted</span>
+                    <div class="status-dot" style="background-color: var(--status-partially-complete-color);"></div><span>Partial</span>
+                </div>
+                <div style="margin-top: 1.5rem;">
+                    <p style="text-align: left; margin-bottom: 0.5rem; color: var(--secondary-text);">Loader Bar:</p>
+                    <div class="example-loader"></div>
+                </div>
+            </div>
+
+            <div class="preview-item">
+                <h3>Board Background Preview</h3>
+                <div id="example-board-preview" class="example-board-container">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import './js/components/Navbar.js';
+        import * as configManager from './js/core/data/configManager.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const themeVariables = [
+                '--bg-color',
+                '--surface-color',
+                '--primary-text',
+                '--secondary-text',
+                '--accent-color',
+                '--border-color',
+                '--accent-text-color',
+                '--error-color',
+                '--success-color',
+                '--warn-color',
+                '--disabled-bg-color',
+                '--hover-bg-color',
+                '--status-submitted-color',
+                '--status-partially-complete-color',
+                '--accent-color-darker',
+                '--accent-color-light'
+            ];
+
+            const pickerContainer = document.getElementById('color-picker-container');
+            const previewPanel = document.getElementById('preview-panel');
+            const themeNameInput = document.getElementById('theme-name-input');
+            const themeDisplayNameInput = document.getElementById('theme-display-name-input');
+            const boardImageUrlInput = document.getElementById('board-image-url-input');
+            const cssOutput = document.getElementById('css-output');
+            const copyBtn = document.getElementById('copy-css-btn');
+
+            const computedStyle = getComputedStyle(document.documentElement);
+
+            function setBoardPreviewImage(url) {
+                const boardPreview = document.getElementById('example-board-preview');
+                if (!url) {
+                    boardPreview.style.backgroundImage = 'none';
+                    boardPreview.style.aspectRatio = '1 / 1';
+                    return;
+                }
+                const img = new Image();
+                img.onload = () => {
+                    boardPreview.style.backgroundImage = `url('${url}')`;
+                    boardPreview.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+                };
+                img.onerror = () => { boardPreview.style.backgroundImage = 'none'; boardPreview.style.aspectRatio = '1 / 1'; };
+                img.src = url;
+            }
+
+            // Fetch config to get the current board image URL
+            configManager.listenToConfigAndStyles(configData => {
+                if (configData && configData.config && configData.config.boardImageUrl) {
+                    setBoardPreviewImage(configData.config.boardImageUrl);
+                    document.getElementById('board-image-url-input').value = configData.config.boardImageUrl;
+                }
+            });
+
+            // Initialize pickers and generate CSS
+            function initialize() {
+                pickerContainer.innerHTML = '';
+                themeVariables.forEach(variable => {
+                    const initialValue = computedStyle.getPropertyValue(variable).trim();
+
+                    const label = document.createElement('label');
+                    label.textContent = variable;
+                    label.htmlFor = `picker-${variable}`;
+
+                    const input = document.createElement('input');
+                    input.type = 'color';
+                    input.id = `picker-${variable}`;
+                    input.dataset.variable = variable;
+                    input.value = initialValue;
+
+                    input.addEventListener('input', (e) => {
+                        previewPanel.style.setProperty(variable, e.target.value);
+                        generateCss();
+                    });
+
+                    pickerContainer.appendChild(label);
+                    pickerContainer.appendChild(input);
+                });
+                generateCss();
+            }
+
+            function generateCss() {
+                const themeId = themeNameInput.value.trim().toLowerCase().replace(/\s+/g, '-') || 'my-theme';
+                const themeDisplayName = themeDisplayNameInput.value.trim() || 'My Theme';
+
+                let output = `/* ${themeDisplayName.replace(/[^a-zA-Z0-9\s]/g, '')} Theme */\n`;
+                output += `[data-theme="${themeId}"] {\n`;
+                output += `  --theme-name: "${themeDisplayName}";\n`;
+                themeVariables.forEach(variable => {
+                    const picker = document.getElementById(`picker-${variable}`);
+                    output += `  ${variable}: ${picker.value};\n`;
+                });
+
+                output += `}`;
+                cssOutput.value = output;
+            }
+
+            themeNameInput.addEventListener('input', generateCss);
+            themeDisplayNameInput.addEventListener('input', generateCss);
+            boardImageUrlInput.addEventListener('input', (e) => {
+                setBoardPreviewImage(e.target.value);
+            });
+            copyBtn.addEventListener('click', () => {
+                cssOutput.select();
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                }, 1500);
+            });
+
+
+
+            // Re-initialize if the main theme changes (e.g., via navbar)
+            document.addEventListener('theme-changed', () => {
+                setTimeout(() => {
+                    const newComputedStyle = getComputedStyle(document.documentElement);
+                    themeVariables.forEach(variable => {
+                        previewPanel.style.removeProperty(variable);
+                        document.getElementById(`picker-${variable}`).value = newComputedStyle.getPropertyValue(variable).trim();
+                    });
+                    generateCss();
+                }, 100);
+            });
+
+            initialize();
+        });
+    </script>
+</body>
+</html>

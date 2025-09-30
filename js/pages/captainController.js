@@ -5,6 +5,7 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
 import * as teamManager from '../core/data/teamManager.js';
+import * as configManager from '../core/data/configManager.js';
 
 let allUsers = [], allTeams = {};
 let authState = {};
@@ -12,6 +13,7 @@ let captainTeamId = null; // ID of the team this captain leads
 let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
+let unsubscribeUsers = null; // NEW: Separate tracker for the user listener
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
@@ -50,7 +52,18 @@ function initializeApp() {
     console.log('[CaptainController] Initializing app and data listeners...');
     showGlobalLoader();
     unsubscribeFromAll();
+    // NEW: Also specifically clear the user listener if it exists
+    if (unsubscribeUsers) {
+        unsubscribeUsers();
+        unsubscribeUsers = null;
+    }
     const unsubs = [];
+
+    // Listen for config to set the page title
+    unsubs.push(configManager.listenToConfigAndStyles(configData => {
+        const config = configData.config || {};
+        document.title = (config.pageTitle || 'Bingo') + " | Captain's Dashboard";
+    }));
 
     // First, listen to teams to determine if the user is a captain.
     console.log('[CaptainController] Subscribing to team data...');
@@ -60,24 +73,22 @@ function initializeApp() {
 
         // If the user is a captain, we can now safely listen to users.
         // We assume the security rules allow a captain to read user data.
-        if (captainTeamId) {
-            // Check if we're already listening to users to avoid multiple subscriptions.
-            if (unsubs.length === 1) { // Only the team listener exists
-                console.log('[CaptainController] User is a captain. Subscribing to all user data.');
-                unsubs.push(userManager.listenToUsers(newUsers => {
-                    console.log(`[CaptainController] Received ${newUsers.length} total users.`);
-                    allUsers = newUsers;
-                    renderUserAssignments();
-                    hideGlobalLoader();
-                }));
-            }
+        if (captainTeamId && !unsubscribeUsers) { // NEW: Check if we are already subscribed
+            console.log('[CaptainController] User is a captain. Subscribing to all user data.');
+            // NEW: Assign the unsubscribe function to our specific variable
+            unsubscribeUsers = userManager.listenToUsers(newUsers => {
+                console.log(`[CaptainController] Received ${newUsers.length} total users.`);
+                allUsers = newUsers;
+                renderUserAssignments();
+                hideGlobalLoader();
+            });
         } else {
             // If not a captain, we don't need to fetch users.
             hideGlobalLoader();
         }
     }));
 
-    unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
+    unsubscribeFromAll = () => { unsubs.forEach(unsub => unsub && unsub()); if (unsubscribeUsers) unsubscribeUsers(); };
 }
 
 function handleSearch(event) {
