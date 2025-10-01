@@ -1,8 +1,11 @@
 import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
 
+// NEW: Centralized variable for the responsive breakpoint.
+const MOBILE_BREAKPOINT = '1000px';
+
 const template = document.createElement('template');
-template.innerHTML = `
+template.innerHTML = /*html*/`
     <style>
         :host {
             width: 100%;
@@ -109,7 +112,7 @@ template.innerHTML = `
             transition: all 0.3s linear;
         }
         /* Responsive Styles */
-        @media (max-width: 850px) {
+        @media (max-width: ${MOBILE_BREAKPOINT}) {
             .nav-links-mobile {
                 display: none;
                 flex-direction: column;
@@ -335,7 +338,7 @@ class AppNavbar extends HTMLElement {
         });
 
         // Handle responsive element placement
-        this.mediaQuery = window.matchMedia('(max-width: 850px)');
+        this.mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT})`);
         this.handleResponsiveLayout(this.mediaQuery); // Initial check
         this.mediaQuery.addEventListener('change', this.handleResponsiveLayout.bind(this));
 
