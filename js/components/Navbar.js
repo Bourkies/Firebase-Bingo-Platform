@@ -1,8 +1,11 @@
 import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
 
+// NEW: Centralized variable for the responsive breakpoint.
+const MOBILE_BREAKPOINT = '1000px';
+
 const template = document.createElement('template');
-template.innerHTML = `
+template.innerHTML = /*html*/`
     <style>
         :host {
             width: 100%;
@@ -20,7 +23,7 @@ template.innerHTML = `
             align-items: center;
             box-sizing: border-box;
             position: relative; /* For positioning the mobile menu */
-        }
+        } 
         .nav-links {
             display: none; /* Hidden by default on mobile */
         }
@@ -29,7 +32,7 @@ template.innerHTML = `
             align-items: center;
             gap: 0.5rem;
         }
-
+ 
         .nav-links-mobile {
             display: none; /* Hide mobile container by default */
         }
@@ -70,12 +73,23 @@ template.innerHTML = `
             border: 1px solid var(--border-color, #444);
             padding: 0.4rem 0.5rem;
             border-radius: 6px;
-            font-size: 0.9rem;
+            font-size: 1rem; /* Match other button font sizes */
             cursor: pointer;
         }
         #user-info {
             font-size: 0.9rem;
             color: var(--secondary-text);
+            text-align: right;
+            line-height: 1.3;
+            /* Truncate to 2 lines */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            /* Ensure it doesn't collapse vertically */
+            min-height: 2.4em; /* Approx 2 lines */
+            max-width: 250px; /* Prevent it from getting too wide */
         }
         /* Hamburger Menu Styles */
         .hamburger {
@@ -98,7 +112,7 @@ template.innerHTML = `
             transition: all 0.3s linear;
         }
         /* Responsive Styles */
-        @media (max-width: 850px) {
+        @media (max-width: ${MOBILE_BREAKPOINT}) {
             .nav-links-mobile {
                 display: none;
                 flex-direction: column;
@@ -106,11 +120,16 @@ template.innerHTML = `
                 position: absolute;
                 top: 100%;
                 left: 0;
-                width: 100%;                
-                background-color: var(--surface-color);
-                border-bottom-left-radius: 8px;
-                border-bottom-right-radius: 8px;
+                width: 100%;
+                /* Style Revamp */
+                background-color: var(--bg-color); /* Use main background for contrast */
+                border-radius: 8px;
                 padding: 1rem 0;
+                z-index: 10; /* Ensure it's on top of page content */
+                border: 1px solid var(--border-color);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                margin-top: 4px;
+                box-sizing: border-box;
             }
             .nav-links-mobile.active {
                 display: flex;
@@ -120,6 +139,23 @@ template.innerHTML = `
             }
             .hamburger {
                 display: flex;
+            }
+            /* Hide elements from the main bar on mobile */
+            #auth-container #change-name-btn,
+            #auth-container #theme-switcher {
+                display: none;
+            }
+            /* Style for the change name button when it's in the mobile menu */
+            #mobile-actions-container #change-name-btn {
+                color: var(--primary-text);
+                text-decoration: none;
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                transition: background-color 0.2s;
+                background: none; /* Make background transparent to match links */
+            }
+            #mobile-actions-container #change-name-btn:hover {
+                background-color: var(--hover-bg-color);
             }
         }
         /* Modal Styles */
@@ -165,12 +201,16 @@ template.innerHTML = `
             <span></span>
         </button>
         <!-- Mobile Links (initially hidden) -->
-        <div class="nav-links-mobile"></div>
+        <div class="nav-links-mobile">
+            <div id="mobile-actions-container" style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem; margin-top: 1rem; border-top: 1px solid var(--border-color); align-items: flex-start;">
+                <!-- Mobile-specific actions will be moved here by JS -->
+            </div>
+        </div>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
+            <select id="theme-switcher"></select>
             <button id="change-name-btn" style="display: none;">Change Name</button>
             <button id="auth-button">Login</button>
-            <select id="theme-switcher"></select>
         </div>
     </div>
 
@@ -226,6 +266,9 @@ class AppNavbar extends HTMLElement {
         this.navLinksDesktop = this.shadowRoot.querySelector('.nav-links-desktop');
         this.navLinksMobile = this.shadowRoot.querySelector('.nav-links-mobile');
         this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
+        this.authContainer = this.shadowRoot.querySelector('#auth-container');
+        this.mobileActionsContainer = this.shadowRoot.querySelector('#mobile-actions-container');
+        this.authButton = this.shadowRoot.querySelector('#auth-button');
 
         this.hamburgerBtn = this.shadowRoot.querySelector('#hamburger-btn');
 
@@ -294,6 +337,12 @@ class AppNavbar extends HTMLElement {
             this.render();
         });
 
+        // Handle responsive element placement
+        this.mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT})`);
+        this.handleResponsiveLayout(this.mediaQuery); // Initial check
+        this.mediaQuery.addEventListener('change', this.handleResponsiveLayout.bind(this));
+
+
         // Listen to auth changes
         initAuth(newAuthState => {
             console.log('[Navbar] Auth state received:', { isLoggedIn: newAuthState.isLoggedIn, isTeamCaptain: newAuthState.isTeamCaptain, profile: newAuthState.profile ? { displayName: newAuthState.profile.displayName, team: newAuthState.profile.team } : null });
@@ -356,24 +405,48 @@ class AppNavbar extends HTMLElement {
     }
 
     renderNavLinks() {
-        const currentPage = window.location.pathname.split('/').pop();
+        // Get the base filename of the current page, defaulting to 'index' for the root.
+        let currentPageFile = window.location.pathname.split('/').pop().replace('.html', '');
+        if (currentPageFile === '') {
+            currentPageFile = 'index';
+        }
+
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
         const links = [
             { href: './index.html', text: 'Board', show: true },
             { href: './overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
             { href: './captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
-            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod  || this.authState.isAdmin },
+            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod || this.authState.isAdmin },
             { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
 
         const linksHtml = links
             .filter(link => link.show)
-            .map(link => `<a href="${link.href}" class="${link.href.includes(currentPage) ? 'active' : ''}">${link.text}</a>`)
+            .map(link => {
+                // Get the base filename of the link's href.
+                const linkFile = link.href.split('/').pop().replace('.html', '');
+                const isActive = linkFile === currentPageFile;
+                return `<a href="${link.href}" class="${isActive ? 'active' : ''}">${link.text}</a>`;
+            })
             .join('');
         
         this.navLinksDesktop.innerHTML = linksHtml;
-        this.navLinksMobile.innerHTML = linksHtml;
+        // Clear mobile links but preserve the actions container
+        this.navLinksMobile.querySelectorAll('a').forEach(a => a.remove());
+        this.navLinksMobile.insertAdjacentHTML('afterbegin', linksHtml);
+    }
+
+    handleResponsiveLayout(event) {
+        if (event.matches) { // Mobile view
+            // Move elements to the mobile menu
+            this.mobileActionsContainer.appendChild(this.changeNameBtn);
+            this.mobileActionsContainer.appendChild(this.themeSwitcher);
+        } else { // Desktop view
+            // Move elements back to the main auth container, before the auth button
+            this.authContainer.insertBefore(this.themeSwitcher, this.authButton);
+            this.authContainer.insertBefore(this.changeNameBtn, this.authButton);
+        }
     }
 
     populateThemeSwitcher() {

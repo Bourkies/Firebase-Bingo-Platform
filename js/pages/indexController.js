@@ -1,5 +1,6 @@
 import '../components/Navbar.js';
 import { initAuth } from '../core/auth.js';
+import { db, fb } from '../core/firebase-config.js'; // NEW: Import db and fb for direct listener
 import * as userManager from '../core/data/userManager.js';
 import * as tileManager from '../core/data/tileManager.js';
 import * as configManager from '../core/data/configManager.js';
@@ -11,10 +12,11 @@ import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } f
 
 // Import new sub-modules
 import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
-import { initializeSubmissionModal, openModal as openSubmissionModal } from './index/submissionModal.js';
+import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
 let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
+let unsubscribeFromSingleSubmission = null; // NEW: For the modal listener
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
@@ -22,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize sub-modules
     initializeBoard(mainControllerInterface);
-    initializeSubmissionModal(mainControllerInterface);
+    initializeSubmissionModal(mainControllerInterface); // This sets up the base modal listeners
 
     initializeApp();
     initAuth(onAuthStateChanged);
@@ -311,7 +313,29 @@ function handleTeamChange() {
 // This object acts as an interface for the sub-modules to access the main controller's state and methods.
 const mainControllerInterface = {
     getState: () => ({ config, allTeams, allStyles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap }),
-    openSubmissionModal: (tile, status) => openSubmissionModal(tile, status),
+    openSubmissionModal: (tile, status) => {
+        // NEW: When opening the modal, attach a real-time listener to its specific submission document.
+        if (unsubscribeFromSingleSubmission) unsubscribeFromSingleSubmission();
+
+        const teamSubmissions = submissions.filter(s => s.Team === authState.profile.team && !s.IsArchived);
+        const existingSubmission = teamSubmissions.find(s => s.id === tile.id) || {};
+
+        if (existingSubmission.docId) {
+            unsubscribeFromSingleSubmission = fb.onSnapshot(fb.doc(db, 'submissions', existingSubmission.docId), (doc) => {
+                console.log('[IndexController] Live update for open submission modal.');
+                const updatedData = doc.data();
+                // Call a new function in submissionModal.js to refresh its content
+                updateModalContent(tile, updatedData);
+            });
+        }
+        // Open the modal with the initial data. The listener will handle subsequent updates.
+        openSubmissionModal(tile, status);
+    },
+    closeSubmissionModal: () => {
+        if (unsubscribeFromSingleSubmission) unsubscribeFromSingleSubmission();
+        unsubscribeFromSingleSubmission = null;
+        closeSubmissionModal(); // Call the original close function from the module
+    },
     renderColorKey: () => { // This now renders both the scoreboard and color key
         // The scoreboard is now rendered in processAllData(). This function now only renders the color key.
         const { config, allStyles } = mainControllerInterface.getState();

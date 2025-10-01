@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="./js/theme-loader.js"></script> 
+    <script src="../js/theme-loader.js"></script> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Theme Creator</title>
-    <link rel="stylesheet" href="./css/theme.css">
+    <link rel="stylesheet" href="../css/theme.css">
     <style>
         body {
             padding: 2rem;
@@ -13,10 +13,10 @@
         }
         .container {
             width: 100%;
-            max-width: 1400px;
+            max-width: 1800px; /* Increased width */
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 350px 1fr;
+            grid-template-columns: 750px 1fr; /* Widened controls panel */
             gap: 2rem;
         }
         .controls-panel {
@@ -33,20 +33,40 @@
         }
         .color-picker-grid {
             display: grid;
-            grid-template-columns: 1fr 80px;
-            gap: 1rem;
+            grid-template-columns: 1fr 1fr; /* Two columns for controls */
+            gap: 1.5rem; /* Gap between control items */
+        }
+        /* NEW: Wrapper for a single color control block */
+        .color-control-item {
+            display: grid;
+            grid-template-columns: 1fr 40px; /* Layout for text input and color swatch */
+            gap: 0.5rem 1rem;
             align-items: center;
         }
-        .color-picker-grid label {
+
+        .color-control-item label {
             font-weight: bold;
             color: var(--secondary-text);
         }
-        .color-picker-grid input[type="color"] {
+        .color-control-item input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .color-control-item input[type="color"] {
             width: 100%;
             height: 40px;
             border: none;
             padding: 0;
-            background: none;
+            cursor: pointer;
+        }
+        .color-control-item input[type="range"] {
+            width: 100%;
             cursor: pointer;
         }
         .theme-name-input {
@@ -98,18 +118,30 @@
         .example-table th, .example-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
         .example-table tbody tr:hover { background-color: var(--hover-bg-color); }
         .example-table th { font-weight: bold; }
-        .example-modal { padding: 2rem; border-radius: 12px; border: 1px solid var(--border-color); }
+        .example-modal {
+            background-color: var(--surface-color); padding: 2rem; border-radius: 12px;
+            box-shadow: 0 5px 15px var(--shadow-color); position: relative;
+            max-width: 500px; margin: 0 auto; /* Center it within the backdrop */
+            text-align: left; /* Reset text-align from backdrop */
+        }
         .example-modal h4 { margin-top: 0; color: var(--accent-color); }
         .example-modal p { color: var(--secondary-text); }
-        .example-modal input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; margin: 1rem 0; }
+        .example-modal input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px; box-sizing: border-box; margin: 1rem 0; }
+        .example-modal .close-button {
+            position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem;
+            font-weight: bold; color: var(--secondary-text); cursor: pointer; line-height: 1;
+        }
+        .example-modal .close-button:hover { color: var(--primary-text); }
         .example-button { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
         .example-button:hover:not(:disabled) { background-color: var(--accent-color-darker); }
         .example-button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
+        .example-button-container { display: flex; gap: 0.75rem; margin-top: 1rem; }
+
         .example-link { color: var(--primary-text); text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; }
         .example-link:hover { background-color: var(--hover-bg-color); }
         .example-link.active { background-color: var(--accent-color); color: var(--accent-text-color); font-weight: bold; }
         .example-embed { background-color: var(--bg-color); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-color); }
-        .example-embed p { margin: 0; }
+        .example-embed p { margin: 0; text-shadow: 1px 1px 2px var(--text-shadow-color); }
         .example-embed .title { font-weight: bold; }
         .example-embed .meta { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.25rem; }
         /* NEW: Board Preview styles */
@@ -138,6 +170,23 @@
         @media (max-width: 960px) {
             .container { grid-template-columns: 1fr; }
         }
+        /* Example Modal Backdrop */
+        .modal-backdrop-preview {
+            background-color: var(--modal-backdrop-color);
+            padding: 1rem; border-radius: 8px; text-align: center;
+        }
+        /* NEW: Highlighting effect for theme creator */
+        @keyframes highlight-pulse {
+            0% { outline: 2px solid rgba(255, 255, 0, 0.7); }
+            50% { outline: 2px solid rgba(255, 255, 0, 0); }
+            100% { outline: 2px solid rgba(255, 255, 0, 0.7); }
+        }
+        .highlight-bg-color { background-color: var(--bg-color); animation: highlight-pulse 1.5s infinite; }
+        .highlight-surface-color { background-color: var(--surface-color); animation: highlight-pulse 1.5s infinite; }
+        .highlight-primary-text { color: var(--primary-text); animation: highlight-pulse 1.5s infinite; }
+        .highlight-secondary-text { color: var(--secondary-text); animation: highlight-pulse 1.5s infinite; }
+        .highlight-accent-color { background-color: var(--accent-color); animation: highlight-pulse 1.5s infinite; }
+        .highlight-border-color { border: 2px solid var(--border-color); animation: highlight-pulse 1.5s infinite; }
     </style>
 </head>
 <body>
@@ -173,12 +222,17 @@
 
             <div class="preview-item">
                 <h3>Example Modal</h3>
-                <div class="example-modal">
-                    <h4>Modal Title</h4>
-                    <p>This is some text inside a modal. It uses the secondary text color.</p>
-                    <input type="text" placeholder="An input field">
-                    <button class="example-button">Enabled Button</button>
-                    <button class="example-button" disabled>Disabled Button</button>
+                <div class="modal-backdrop-preview">
+                    <div class="example-modal">
+                        <span class="close-button">&times;</span>
+                        <h4>Modal Title</h4>
+                        <p>This is some text inside a modal. It uses the secondary text color.</p>
+                        <input type="text" placeholder="An input field">
+                        <div class="example-button-container">
+                            <button class="example-button">Enabled Button</button>
+                            <button class="example-button" disabled>Disabled Button</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -220,8 +274,8 @@
     </div>
 
     <script type="module">
-        import './js/components/Navbar.js';
-        import * as configManager from './js/core/data/configManager.js';
+        import '../js/components/Navbar.js';
+        import * as configManager from '../js/core/data/configManager.js';
 
         document.addEventListener('DOMContentLoaded', () => {
 
@@ -241,7 +295,10 @@
                 '--status-submitted-color',
                 '--status-partially-complete-color',
                 '--accent-color-darker',
-                '--accent-color-light'
+                '--accent-color-light',
+                '--shadow-color',
+                '--text-shadow-color',
+                '--modal-backdrop-color'
             ];
 
             const pickerContainer = document.getElementById('color-picker-container');
@@ -253,6 +310,71 @@
             const copyBtn = document.getElementById('copy-css-btn');
 
             const computedStyle = getComputedStyle(document.documentElement);
+
+            function hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+
+            function parseColor(colorString) {
+                const rgbaMatch = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                if (rgbaMatch) return { r: rgbaMatch[1], g: rgbaMatch[2], b: rgbaMatch[3], a: rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1 };
+                if (colorString.startsWith('#')) return { ...hexToRgb(colorString), a: 1 };
+                return null; // Could add more parsing for named colors etc. if needed
+            }
+
+            function addHighlight(variable) {
+                const mapping = {
+                    '--bg-color': ['.preview-panel', '.example-modal input', '.example-embed', '.example-board-container'],
+                    '--surface-color': ['.preview-item', '.example-modal'],
+                    '--primary-text': ['.example-table', '.example-modal input', '.example-link', '.example-embed .title'],
+                    '--secondary-text': ['.example-modal p', '.example-modal .close-button', '.example-embed .meta'],
+                    '--accent-color': ['.preview-item h3', '.example-modal h4', '.example-button', '.example-link.active', '.example-embed'],
+                    '--border-color': ['.example-table td', '.example-modal input', '.example-board-container'],
+                    '--accent-text-color': ['.example-button', '.example-link.active'],
+                    '--error-color': ['.status-dot[style*="--error-color"]'],
+                    '--success-color': ['.status-dot[style*="--success-color"]'],
+                    '--warn-color': ['.status-dot[style*="--warn-color"]'],
+                    '--disabled-bg-color': ['.example-button:disabled'],
+                    // Special case for hover state
+                    '--accent-color-darker': { 
+                        type: 'class', 
+                        selector: '.example-button:not(:disabled)', 
+                        className: 'highlight-hover-state' 
+                    },
+                     '--status-submitted-color': ['.status-dot[style*="--status-submitted-color"]'],
+                    '--status-partially-complete-color': ['.status-dot[style*="--status-partially-complete-color"]'],
+                    '--accent-color-darker': [], // Hover state, hard to highlight
+                    '--accent-color-light': ['.example-loader'],
+                    '--shadow-color': ['.example-modal'],
+                    '--text-shadow-color': ['.example-embed p'],
+                    '--modal-backdrop-color': ['.modal-backdrop-preview']
+                };
+                const rule = mapping[variable];
+                if (rule) {
+                    if (Array.isArray(rule)) { // Standard outline highlight
+                        rule.forEach(selector => {
+                            previewPanel.querySelectorAll(selector).forEach(el => el.style.outline = '2px solid yellow');
+                        });
+                    } else if (rule.type === 'class') { // Special class-based highlight
+                        previewPanel.querySelectorAll(rule.selector).forEach(el => el.classList.add(rule.className));
+                    }
+                }
+            }
+
+            function removeAllHighlights() {
+                // Remove standard outline highlights
+                previewPanel.querySelectorAll('[style*="outline"]').forEach(el => el.style.outline = '');
+                // Remove special class-based highlights
+                const hoverHighlight = previewPanel.querySelector('.highlight-hover-state');
+                if (hoverHighlight) {
+                    hoverHighlight.classList.remove('highlight-hover-state');
+                }
+            }
 
             function setBoardPreviewImage(url) {
                 const boardPreview = document.getElementById('example-board-preview');
@@ -284,23 +406,82 @@
                 themeVariables.forEach(variable => {
                     const initialValue = computedStyle.getPropertyValue(variable).trim();
 
+                    const controlWrapper = document.createElement('div');
+                    controlWrapper.className = 'color-control-item';
+
+
                     const label = document.createElement('label');
                     label.textContent = variable;
+                    label.style.gridColumn = '1 / -1'; // Make label span all columns
                     label.htmlFor = `picker-${variable}`;
 
-                    const input = document.createElement('input');
-                    input.type = 'color';
-                    input.id = `picker-${variable}`;
-                    input.dataset.variable = variable;
-                    input.value = initialValue;
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.id = `text-${variable}`;
+                    textInput.value = initialValue;
 
-                    input.addEventListener('input', (e) => {
-                        previewPanel.style.setProperty(variable, e.target.value);
+                    const parsedInitial = parseColor(initialValue);
+
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.id = `picker-${variable}`;
+                    if (parsedInitial) {
+                        colorInput.value = `#${Number(parsedInitial.r).toString(16).padStart(2, '0')}${Number(parsedInitial.g).toString(16).padStart(2, '0')}${Number(parsedInitial.b).toString(16).padStart(2, '0')}`;
+                    } else {
+                        colorInput.value = '#000000'; // Fallback
+                    }
+
+                    const alphaSlider = document.createElement('input');
+                    alphaSlider.type = 'range';
+                    alphaSlider.id = `alpha-${variable}`;
+                    alphaSlider.min = 0;
+                    alphaSlider.max = 1;
+                    alphaSlider.step = 0.01;
+                    alphaSlider.value = parsedInitial ? parsedInitial.a : 1;
+                    alphaSlider.style.gridColumn = '1 / -1'; // Make slider span all columns
+
+                    const updateFromInputs = () => {
+                        const rgb = hexToRgb(colorInput.value);
+                        const alpha = parseFloat(alphaSlider.value);
+                        let newValue;
+                        if (alpha < 1) {
+                            newValue = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+                        } else {
+                            newValue = colorInput.value;
+                        }
+                        textInput.value = newValue;
+                        previewPanel.style.setProperty(variable, newValue);
+                        generateCss();
+                    };
+
+                    // Text input is the "source of truth" when manually edited
+                    textInput.addEventListener('input', (e) => {
+                        const newValue = e.target.value;
+                        previewPanel.style.setProperty(variable, newValue);
+                        const parsed = parseColor(newValue);
+                        if (parsed) {
+                            colorInput.value = `#${Number(parsed.r).toString(16).padStart(2, '0')}${Number(parsed.g).toString(16).padStart(2, '0')}${Number(parsed.b).toString(16).padStart(2, '0')}`;
+                            alphaSlider.value = parsed.a;
+                        }
                         generateCss();
                     });
 
-                    pickerContainer.appendChild(label);
-                    pickerContainer.appendChild(input);
+                    // Color picker and slider update the final value
+                    colorInput.addEventListener('input', updateFromInputs);
+                    alphaSlider.addEventListener('input', updateFromInputs);
+
+                    // Add highlighting on hover to text and color inputs
+                    textInput.addEventListener('mouseover', () => addHighlight(variable));
+                    textInput.addEventListener('mouseout', removeAllHighlights);
+                    colorInput.addEventListener('mouseover', () => addHighlight(variable));
+                    colorInput.addEventListener('mouseout', removeAllHighlights);
+
+                    controlWrapper.appendChild(label);
+                    controlWrapper.appendChild(textInput);
+                    controlWrapper.appendChild(colorInput);
+                    controlWrapper.appendChild(alphaSlider);
+
+                    pickerContainer.appendChild(controlWrapper);
                 });
                 generateCss();
             }
@@ -309,12 +490,17 @@
                 const themeId = themeNameInput.value.trim().toLowerCase().replace(/\s+/g, '-') || 'my-theme';
                 const themeDisplayName = themeDisplayNameInput.value.trim() || 'My Theme';
 
-                let output = `/* ${themeDisplayName.replace(/[^a-zA-Z0-9\s]/g, '')} Theme */\n`;
-                output += `[data-theme="${themeId}"] {\n`;
-                output += `  --theme-name: "${themeDisplayName}";\n`;
+                let output = `/* ${themeDisplayName.replace(/[^a-zA-Z0-9\s🌊☀️🐨]/g, '')} Theme Overrides */\n`;
+                if (themeId === 'dark') {
+                    output += `:root {\n`;
+                } else {
+                    output += `[data-theme="${themeId}"] {\n`;
+                }
+                output += `  --theme-name: "${themeDisplayName}";\n\n`;
+
                 themeVariables.forEach(variable => {
-                    const picker = document.getElementById(`picker-${variable}`);
-                    output += `  ${variable}: ${picker.value};\n`;
+                    const textInput = document.getElementById(`text-${variable}`);
+                    output += `  ${variable}: ${textInput.value};\n`;
                 });
 
                 output += `}`;
@@ -343,7 +529,14 @@
                     const newComputedStyle = getComputedStyle(document.documentElement);
                     themeVariables.forEach(variable => {
                         previewPanel.style.removeProperty(variable);
-                        document.getElementById(`picker-${variable}`).value = newComputedStyle.getPropertyValue(variable).trim();
+                        const newValue = newComputedStyle.getPropertyValue(variable).trim();
+                        const textInput = document.getElementById(`text-${variable}`);
+                        textInput.value = newValue;
+                        // Manually trigger the input event to update the other controls
+                        textInput.dispatchEvent(new Event('input', {
+                            bubbles: true,
+                            cancelable: true,
+                        }));
                     });
                     generateCss();
                 }, 100);

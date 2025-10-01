@@ -5,6 +5,7 @@ import { initAuth, getAuthState } from '../core/auth.js';
 
 let allUsers = {}, allTeams = {}, allTiles = {}, allSubmissions = [];
 let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
+let currentOpenSubmissionId = null; // NEW: To track the currently open modal
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
@@ -12,7 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#submissions-filters input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', renderSubmissionsTable);
     });
-    document.querySelector('#submission-modal .close-button').addEventListener('click', () => document.getElementById('submission-modal').style.display = 'none');
+    document.querySelector('#submission-modal .close-button').addEventListener('click', () => {
+        document.getElementById('submission-modal').style.display = 'none';
+        currentOpenSubmissionId = null; // NEW: Clear the tracking variable on close
+    });
     document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
 
     // Initialize authentication. The onAuthStateChanged callback will handle data initialization.
@@ -109,6 +113,13 @@ function initializeApp(authState) {
         unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
             console.log("Admin: Submissions updated in real-time.");
             allSubmissions = snapshot.docs.map(doc => ({...doc.data(), docId: doc.id}));
+            // NEW: If a modal is open, check for updates and re-render it.
+            if (currentOpenSubmissionId) {
+                const updatedSub = allSubmissions.find(s => s.docId === currentOpenSubmissionId);
+                if (updatedSub) {
+                    openSubmissionModal(updatedSub, true); // Pass the updated submission object directly
+                }
+            }
             renderSubmissionsTable();
             if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
         });
@@ -228,9 +239,15 @@ function formatCustomDateTime(date, useUTC = false) {
     return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
-function openSubmissionModal(submissionId) {
-    const sub = allSubmissions.find(s => s.docId === submissionId);
+function openSubmissionModal(submissionOrId, isUpdate = false) {
+    // If we're opening from a click, we get an ID. If from a live update, we get the object.
+    const sub = typeof submissionOrId === 'string'
+        ? allSubmissions.find(s => s.docId === submissionOrId)
+        : submissionOrId;
     if (!sub) return;
+
+    // NEW: Track the open submission
+    currentOpenSubmissionId = sub.docId;
 
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
@@ -322,7 +339,9 @@ function openSubmissionModal(submissionId) {
         historyDetails.style.display = 'none';
     }
 
-    document.getElementById('submission-modal').style.display = 'flex';
+    if (!isUpdate) {
+        document.getElementById('submission-modal').style.display = 'flex';
+    }
 }
 
 async function handleSubmissionUpdate(event) {
@@ -374,6 +393,7 @@ async function handleSubmissionUpdate(event) {
         }
         await fb.updateDoc(subRef, dataToUpdate);
         document.getElementById('submission-modal').style.display = 'none';
+        currentOpenSubmissionId = null; // NEW: Clear tracking on successful update
     } catch (error) {
         console.error("Failed to update submission:", error);
     } finally {
