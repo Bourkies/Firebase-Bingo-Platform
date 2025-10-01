@@ -20,7 +20,7 @@ template.innerHTML = `
             align-items: center;
             box-sizing: border-box;
             position: relative; /* For positioning the mobile menu */
-        }
+        } 
         .nav-links {
             display: none; /* Hidden by default on mobile */
         }
@@ -29,7 +29,7 @@ template.innerHTML = `
             align-items: center;
             gap: 0.5rem;
         }
-
+ 
         .nav-links-mobile {
             display: none; /* Hide mobile container by default */
         }
@@ -142,6 +142,18 @@ template.innerHTML = `
             #auth-container #theme-switcher {
                 display: none;
             }
+            /* Style for the change name button when it's in the mobile menu */
+            #mobile-actions-container #change-name-btn {
+                color: var(--primary-text);
+                text-decoration: none;
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                transition: background-color 0.2s;
+                background: none; /* Make background transparent to match links */
+            }
+            #mobile-actions-container #change-name-btn:hover {
+                background-color: var(--hover-bg-color);
+            }
         }
         /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
@@ -193,9 +205,9 @@ template.innerHTML = `
         </div>
         <div id="auth-container" class="nav-actions">
             <span id="user-info"></span>
+            <select id="theme-switcher"></select>
             <button id="change-name-btn" style="display: none;">Change Name</button>
             <button id="auth-button">Login</button>
-            <select id="theme-switcher"></select>
         </div>
     </div>
 
@@ -419,8 +431,8 @@ class AppNavbar extends HTMLElement {
             this.mobileActionsContainer.appendChild(this.themeSwitcher);
         } else { // Desktop view
             // Move elements back to the main auth container, before the auth button
-            this.authContainer.insertBefore(this.changeNameBtn, this.authButton);
             this.authContainer.insertBefore(this.themeSwitcher, this.authButton);
+            this.authContainer.insertBefore(this.changeNameBtn, this.authButton);
         }
     }
 
