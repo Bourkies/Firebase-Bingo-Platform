@@ -366,6 +366,7 @@ This is the target architecture we are working towards. It separates shared serv
     - [x]  **5.1.14.8** import_submissions.html
     - [x]  **5.1.14.19** import_tiles.html
     - [x]  **5.1.14.20** captain.html
+  - [ ]  **5.1.15** Nave bar formating
 - [ ] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.
