@@ -354,7 +354,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [x]  **5.1.11** Fix scoreboard on index page
   - [x]  **5.1.12** Fix legend on index page
   - [x]  **5.1.13** General revision of page tiles and other texts
-  - [ ]  **5.1.14** Add management to submission updates while in modals
+  - [x]  **5.1.14** Add management to submission updates while in modals
   - [x]  **5.1.14** Check theme implementation on each page
     - [x]  **5.1.14.1** admin.html
     - [x]  **5.1.14.2** index.html

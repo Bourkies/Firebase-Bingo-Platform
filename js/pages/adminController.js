@@ -117,7 +117,7 @@ function initializeApp(authState) {
             if (currentOpenSubmissionId) {
                 const updatedSub = allSubmissions.find(s => s.docId === currentOpenSubmissionId);
                 if (updatedSub) {
-                    openSubmissionModal(currentOpenSubmissionId, true); // Re-render without changing display
+                    openSubmissionModal(updatedSub, true); // Pass the updated submission object directly
                 }
             }
             renderSubmissionsTable();
@@ -239,12 +239,15 @@ function formatCustomDateTime(date, useUTC = false) {
     return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
-function openSubmissionModal(submissionId, isUpdate = false) {
-    const sub = allSubmissions.find(s => s.docId === submissionId);
+function openSubmissionModal(submissionOrId, isUpdate = false) {
+    // If we're opening from a click, we get an ID. If from a live update, we get the object.
+    const sub = typeof submissionOrId === 'string'
+        ? allSubmissions.find(s => s.docId === submissionOrId)
+        : submissionOrId;
     if (!sub) return;
 
     // NEW: Track the open submission
-    currentOpenSubmissionId = submissionId;
+    currentOpenSubmissionId = sub.docId;
 
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
