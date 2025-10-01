@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="../js/theme-loader.js"></script>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developer Hub</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <style>
+    body {
+      padding: 2rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 960px;
+      background-color: var(--surface-color);
+      padding: 2rem;
+      border-radius: 12px;
+    }
+    h1 {
+      color: var(--accent-color);
+      margin-top: 0;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .link-section {
+      margin-bottom: 2rem;
+    }
+    .link-section h2 {
+      color: var(--primary-text);
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+    }
+    .link-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    .link-list a {
+      display: block;
+      background-color: var(--bg-color);
+      padding: 1rem;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--primary-text);
+      font-weight: 500;
+      border: 1px solid var(--border-color);
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .link-list a:hover {
+      background-color: var(--hover-bg-color);
+      border-color: var(--accent-color);
+    }
+    .link-list a span {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--secondary-text);
+      margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="global-loader" class="global-loader"></div>
+  <app-navbar></app-navbar>
+
+  <div class="container">
+    <h1>Developer & Admin Hub</h1>
+
+    <div class="link-section">
+      <h2>Main Application Pages</h2>
+      <ul class="link-list">
+        <li><a href="../index.html">Bingo Board <span>(index.html)</span></a></li>
+        <li><a href="../overview.html">Event Overview <span>(overview.html)</span></a></li>
+      </ul>
+    </div>
+
+    <div class="link-section">
+      <h2>Admin & Management Pages</h2>
+      <ul class="link-list">
+        <li><a href="../admin.html">Admin Dashboard <span>(admin.html)</span></a></li>
+        <li><a href="../users.html">User Management <span>(users.html)</span></a></li>
+        <li><a href="../permissions.html">Permission Management <span>(permissions.html)</span></a></li>
+        <li><a href="../captain.html">Captain's Dashboard <span>(captain.html)</span></a></li>
+        <li><a href="../setup.html">Board Setup <span>(setup.html)</span></a></li>
+      </ul>
+    </div>
+
+    <div class="link-section">
+      <h2>Tools & Utilities</h2>
+      <ul class="link-list">
+        <li><a href="../import_tiles.html">Import/Export Tiles <span>(import_tiles.html)</span></a></li>
+        <li><a href="../import_submissions.html">Import/Export Submissions <span>(import_submissions.html)</span></a></li>
+        <li><a href="./troubleshoot.html">Troubleshooting <span>(troubleshoot.html)</span></a></li>
+      </ul>
+    </div>
+
+    <div class="link-section">
+      <h2>Development Pages</h2>
+      <ul class="link-list">
+        <li><a href="./theme.html">Theme Creator <span>(theme.html)</span></a></li>
+        <li><a href="./slider_test.html">Slider Test Page <span>(slider_test.html)</span></a></li>
+        <li><a href="./test_plan.html">Test Plan <span>(test_plan.html)</span></a></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <script type="module" src="../js/components/navbar.js"></script>
+</body>
+</html>

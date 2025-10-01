@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Bingo Platform - Test Plan</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background-color: #fff;
+        }
+        th, td {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: #fff;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #ecf0f1;
+        }
+        tr:hover {
+            background-color: #d4e6f1;
+        }
+        ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+        .status-col {
+            width: 100px;
+            text-align: center;
+        }
+        .status-col input {
+            margin: 0 5px;
+        }
+        .pass { background-color: #d4edda !important; }
+        .fail { background-color: #f8d7da !important; }
+    </style>
+</head>
+<body>
+
+    <h1>Firebase Bingo Platform - Test Plan</h1>
+    <p>This document outlines the test plan for the entire Firebase Bingo Platform project. It covers all features, user roles, and permission levels to ensure comprehensive quality assurance.</p>
+
+    <!-- Visitor (Logged Out) Tests -->
+    <h2>Visitor (Logged Out)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>AUTH-001</td>
+                <td>Authentication</td>
+                <td>Visitor can see the login button</td>
+                <td>N/A</td>
+                <td><ol><li>Open the application in an incognito/private window.</li><li>Look at the top-right navigation bar.</li></ol></td>
+                <td>The button shows "Login". The user info text is empty.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-001" value="pass"> Pass
+                    <input type="radio" name="AUTH-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-002</td>
+                <td>Authentication</td>
+                <td>Visitor is prompted to log in when clicking an interactive tile</td>
+                <td>At least one team and one unlocked tile exist.</td>
+                <td><ol><li>Open the application.</li><li>Select a team from the dropdown.</li><li>Click on an unlocked tile.</li></ol></td>
+                <td>A message appears prompting the user to log in or select a team. The submission modal does not open.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-002" value="pass"> Pass
+                    <input type="radio" name="AUTH-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-003</td>
+                <td>Authentication</td>
+                <td>User can log in with a Google account</td>
+                <td>N/A</td>
+                <td><ol><li>Click the "Login" button.</li><li>In the modal, click "Sign in with Google".</li><li>Complete the Google authentication flow.</li></ol></td>
+                <td>The page reloads. The button now says "Logout". User's name and team (if any) appear in the navbar. Admin/Setup links appear if the user has appropriate roles.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-003" value="pass"> Pass
+                    <input type="radio" name="AUTH-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-004</td>
+                <td>Authentication</td>
+                <td>User can log in anonymously</td>
+                <td>N/A</td>
+                <td><ol><li>Click the "Login" button.</li><li>In the modal, click "Sign in Anonymously".</li></ol></td>
+                <td>The page reloads. The button now says "Logout". A default anonymous name (e.g., "Anonymous-abc12") appears in the navbar.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-004" value="pass"> Pass
+                    <input type="radio" name="AUTH-004" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Player Tests -->
+    <h2>Player</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>AUTH-005</td>
+                <td>Authentication</td>
+                <td>Logged-in user can log out</td>
+                <td>User is logged in.</td>
+                <td><ol><li>Click the "Logout" button.</li></ol></td>
+                <td>The page reloads. The button now says "Login". User info is cleared from the navbar. Admin/Setup links disappear.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-005" value="pass"> Pass
+                    <input type="radio" name="AUTH-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-006</td>
+                <td>Authentication</td>
+                <td>New Google user is prompted to set a display name</td>
+                <td><code>promptForDisplayNameOnLogin</code> is true in config.</td>
+                <td><ol><li>Log in with a brand new Google account for the first time.</li></ol></td>
+                <td>After login, a "Welcome!" modal appears, prompting the user to set their display name.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-006" value="pass"> Pass
+                    <input type="radio" name="AUTH-006" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-007</td>
+                <td>Authentication</td>
+                <td>User can change their display name</td>
+                <td>User is logged in with a non-anonymous account.</td>
+                <td><ol><li>Click the "Change Name" button in the navbar.</li><li>Enter a new name in the modal.</li><li>Click "Save and Continue".</li></ol></td>
+                <td>The modal closes. The name in the navbar updates to the new name.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-007" value="pass"> Pass
+                    <input type="radio" name="AUTH-007" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-008</td>
+                <td>Authentication</td>
+                <td>Anonymous user cannot change their name</td>
+                <td>User is logged in anonymously.</td>
+                <td><ol><li>View the navbar.</li></ol></td>
+                <td>The "Change Name" button is not visible.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-008" value="pass"> Pass
+                    <input type="radio" name="AUTH-008" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-001</td>
+                <td>Player View</td>
+                <td>Board loads with correct background image and tiles</td>
+                <td><code>boardImageUrl</code> is set in config. Tiles exist in Firestore.</td>
+                <td><ol><li>Log in as a player.</li><li>Select a team.</li></ol></td>
+                <td>The board container shows the configured background image. Tile overlays are positioned correctly on the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-001" value="pass"> Pass
+                    <input type="radio" name="PLAYER-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-002</td>
+                <td>Player View</td>
+                <td>Tile statuses are displayed correctly for a team</td>
+                <td>Submissions exist for the selected team with various statuses (complete, verified, etc.).</td>
+                <td><ol><li>Log in as a player.</li><li>Select a team.</li><li>Observe the colors/styles of different tiles.</li></ol></td>
+                <td>Tiles correctly show styles for Locked, Unlocked, Partially Complete, Submitted, Verified, and Requires Action based on the team's progress.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-002" value="pass"> Pass
+                    <input type="radio" name="PLAYER-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-003</td>
+                <td>Player View</td>
+                <td>Player can open submission modal for an unlocked tile</td>
+                <td>User is logged in and assigned to a team. An unlocked tile exists for that team.</td>
+                <td><ol><li>Log in and ensure the correct team is selected.</li><li>Click on an unlocked tile.</li></ol></td>
+                <td>The submission modal opens, pre-filled with the tile's name and description.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-003" value="pass"> Pass
+                    <input type="radio" name="PLAYER-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-004</td>
+                <td>Player View</td>
+                <td>Player cannot open submission modal for a locked tile</td>
+                <td>User is logged in and assigned to a team. A locked tile exists.</td>
+                <td><ol><li>Log in and ensure the correct team is selected.</li><li>Click on a locked tile.</li></ol></td>
+                <td>Nothing happens. The modal does not open.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-004" value="pass"> Pass
+                    <input type="radio" name="PLAYER-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-005</td>
+                <td>Player View</td>
+                <td>Player can save progress on a submission</td>
+                <td>Modal is open for a tile.</td>
+                <td><ol><li>Open the submission modal.</li><li>Fill in some evidence or notes.</li><li>Ensure "Mark as complete" is UNCHECKED.</li><li>Click "Save Progress".</li></ol></td>
+                <td>The modal closes. The tile status changes to "Partially Complete". Re-opening the modal shows the saved data.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-005" value="pass"> Pass
+                    <input type="radio" name="PLAYER-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-006</td>
+                <td>Player View</td>
+                <td>Player can mark a submission as complete</td>
+                <td>Modal is open for a tile.</td>
+                <td><ol><li>Open the submission modal.</li><li>Fill in required evidence/player names.</li><li>Check the "Mark as complete" box.</li><li>Click "Save Progress".</li></ol></td>
+                <td>The modal closes. The tile status changes to "Submitted". Re-opening the modal shows the saved data and the checked box.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-006" value="pass"> Pass
+                    <input type="radio" name="PLAYER-006" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-007</td>
+                <td>Player View</td>
+                <td>Player can resubmit a tile that requires action</td>
+                <td>A submission for the player's team has been marked as "Requires Action" by an admin.</td>
+                <td><ol><li>Log in and select the team.</li><li>Click the tile marked "Requires Action".</li><li>Observe the admin feedback in the modal.</li><li>Make changes and click "Resubmit for Review".</li></ol></td>
+                <td>The modal closes. The tile status changes back to "Submitted". The "Requires Action" flag is cleared in the database.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-007" value="pass"> Pass
+                    <input type="radio" name="PLAYER-007" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-008</td>
+                <td>Player View</td>
+                <td>Team selector is disabled and locked to user's team on a private board</td>
+                <td><code>boardVisibility</code> is 'private'. User is assigned to a team.</td>
+                <td><ol><li>Log in as a player assigned to a team.</li><li>View the team selector dropdown.</li></ol></td>
+                <td>The dropdown is disabled and shows only the player's assigned team.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-008" value="pass"> Pass
+                    <input type="radio" name="PLAYER-008" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-010</td>
+                <td>Player View</td>
+                <td>User's team is pre-selected on a public board</td>
+                <td><code>boardVisibility</code> is 'public'. User is logged in and assigned to a team.</td>
+                <td><ol><li>Log in as a player assigned to a team.</li><li>Observe the team selector dropdown.</li></ol></td>
+                <td>The dropdown is enabled and automatically has the player's team selected. The board for their team is displayed.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-010" value="pass"> Pass
+                    <input type="radio" name="PLAYER-010" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PLAYER-009</td>
+                <td>Player View</td>
+                <td>Tile names and descriptions are hidden when censorship is active</td>
+                <td><code>censorTilesBeforeEvent</code> is true.</td>
+                <td><ol><li>Log in as a regular player (not admin/mod).</li><li>Hover over a tile to view its tooltip.</li></ol></td>
+                <td>The tooltip shows a generic name like "Censored" and a generic description, not the actual tile details.</td>
+                <td class="status-col">
+                    <input type="radio" name="PLAYER-009" value="pass"> Pass
+                    <input type="radio" name="PLAYER-009" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-002</td>
+                <td>Setup Page</td>
+                <td>Non-admin cannot access the setup page</td>
+                <td>User is not an Admin.</td>
+                <td><ol><li>Attempt to navigate directly to <code>setup.html</code>.</li></ol></td>
+                <td>The "Access Denied" message is shown.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-002" value="pass"> Pass
+                    <input type="radio" name="SETUP-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>CAPTAIN-002</td>
+                <td>Captain Page</td>
+                <td>Player cannot access the captain page</td>
+                <td>User is a regular player (not a captain).</td>
+                <td><ol><li>Attempt to navigate directly to <code>captain.html</code>.</li></ol></td>
+                <td>The "Access Denied" message is shown.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-002" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-002</td>
+                <td>Admin Pages</td>
+                <td>Player cannot access the admin page</td>
+                <td>User is a regular player.</td>
+                <td><ol><li>Attempt to navigate directly to <code>admin.html</code>.</li></ol></td>
+                <td>The "Access Denied" message is shown.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-002" value="pass"> Pass
+                    <input type="radio" name="ADMIN-002" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Team Captain Tests -->
+    <h2>Team Captain</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>CAPTAIN-001</td>
+                <td>Captain Page</td>
+                <td>Captain can access the captain page</td>
+                <td>User is logged in and has <code>isCaptain: true</code> for their team.</td>
+                <td><ol><li>Log in as a Team Captain.</li><li>Click the "Captain" link in the navbar or navigate to <code>captain.html</code>.</li></ol></td>
+                <td>The Captain's Dashboard page loads successfully.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-001" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>CAPTAIN-003</td>
+                <td>Captain View</td>
+                <td>Captain sees a list of their team members and unassigned players</td>
+                <td>On <code>captain.html</code>. At least one unassigned user exists.</td>
+                <td><ol><li>Load the captain page.</li><li>Observe the user table.</li></ol></td>
+                <td>The table shows all members of the captain's team and all users with no team assigned. Users from other teams are not visible.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-003" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>CAPTAIN-004</td>
+                <td>Captain View</td>
+                <td>Captain can assign an unassigned player to their team</td>
+                <td>On <code>captain.html</code>. An unassigned user is visible.</td>
+                <td><ol><li>Find an unassigned user in the table.</li><li>In their row, select the captain's team from the dropdown.</li></ol></td>
+                <td>The change is saved. The user is now part of the captain's team.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-004" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>CAPTAIN-005</td>
+                <td>Captain View</td>
+                <td>Captain can remove a player from their team</td>
+                <td>On <code>captain.html</code>. A player is on the captain's team.</td>
+                <td><ol><li>Find a team member in the table.</li><li>In their row, select "Unassigned" from the dropdown.</li></ol></td>
+                <td>The change is saved. The player is now unassigned.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-005" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-005" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Event Mod Tests -->
+    <h2>Event Mod</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>ADMIN-001</td>
+                <td>Admin Pages</td>
+                <td>Event Mod can access the admin page</td>
+                <td>User is logged in with <code>isEventMod: true</code>.</td>
+                <td><ol><li>Log in as an Event Mod.</li><li>Click the "Admin" link in the navbar or navigate to <code>admin.html</code>.</li></ol></td>
+                <td>The Admin Dashboard page loads successfully.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-001" value="pass"> Pass
+                    <input type="radio" name="ADMIN-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-004</td>
+                <td>Admin Pages</td>
+                <td>Event Mod cannot access the user permissions page</td>
+                <td>User is an Event Mod, not an Admin.</td>
+                <td><ol><li>Attempt to navigate directly to <code>permissions.html</code>.</li></ol></td>
+                <td>The "Access Denied" message is shown.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-004" value="pass"> Pass
+                    <input type="radio" name="ADMIN-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-005</td>
+                <td>Admin View</td>
+                <td>Admin can verify a submission</td>
+                <td>A submission with "Submitted" status exists.</td>
+                <td><ol><li>On <code>admin.html</code>, find the submission and click it to open the modal.</li><li>Check the "Admin Verified" box.</li><li>Click "Update Submission".</li></ol></td>
+                <td>The modal closes. The submission's status in the table changes to "Verified".</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-005" value="pass"> Pass
+                    <input type="radio" name="ADMIN-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-006</td>
+                <td>Admin View</td>
+                <td>Admin can mark a submission as 'Requires Action'</td>
+                <td>A submission exists.</td>
+                <td><ol><li>Open the submission modal.</li><li>Check the "Requires Action" box.</li><li>Enter feedback in the textarea that appears.</li><li>Click "Update Submission".</li></ol></td>
+                <td>The modal closes. The submission's status changes to "Requires Action". The feedback is saved.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-006" value="pass"> Pass
+                    <input type="radio" name="ADMIN-006" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-009</td>
+                <td>Admin View</td>
+                <td>Admin can view submission history</td>
+                <td>A submission has been updated multiple times.</td>
+                <td><ol><li>On <code>admin.html</code>, open a submission modal.</li><li>Expand the "Submission History" section.</li></ol></td>
+                <td>A log of all previous updates is visible, showing the user, timestamp, and changes made for each entry.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-009" value="pass"> Pass
+                    <input type="radio" name="ADMIN-009" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-007</td>
+                <td>User Management</td>
+                <td>Admin/Mod can assign a user to a team</td>
+                <td>On <code>users.html</code>.</td>
+                <td><ol><li>Find a user in the list.</li><li>Select a team from the dropdown in their row.</li></ol></td>
+                <td>The change is saved automatically. The user is now part of that team.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-007" value="pass"> Pass
+                    <input type="radio" name="ADMIN-007" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Admin Tests -->
+    <h2>Admin</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>SETUP-001</td>
+                <td>Setup Page</td>
+                <td>Admin can access the setup page</td>
+                <td>User is logged in with <code>isAdmin: true</code>.</td>
+                <td><ol><li>Log in as an Admin.</li><li>Click the "Setup" link in the navbar or navigate to <code>setup.html</code>.</li></ol></td>
+                <td>The Board Setup page loads successfully. The "Access Denied" message is not shown.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-001" value="pass"> Pass
+                    <input type="radio" name="SETUP-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-003</td>
+                <td>Setup Page</td>
+                <td>Admin can drag and resize a tile on the board</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Click "Unlock Tiles".</li><li>Drag a tile to a new position.</li><li>Resize a tile using its edges.</li></ol></td>
+                <td>The tile's position and size update visually. The changes are saved automatically and reflected in the details panel.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-003" value="pass"> Pass
+                    <input type="radio" name="SETUP-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-004</td>
+                <td>Setup Page</td>
+                <td>Admin can edit tile details in the form</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Select a tile from the board or dropdown.</li><li>Change its Name, Points, or Description in the form on the right.</li><li>The change is auto-saved.</li></ol></td>
+                <td>The data is updated in Firestore. If the tile is re-selected, the new data is present.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-004" value="pass"> Pass
+                    <input type="radio" name="SETUP-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-005</td>
+                <td>Setup Page</td>
+                <td>Admin can add a new tile</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Click the "Add New Tile" button.</li></ol></td>
+                <td>A new tile appears on the board and in the tile selector dropdown.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-005" value="pass"> Pass
+                    <input type="radio" name="SETUP-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-006</td>
+                <td>Setup Page</td>
+                <td>Admin can delete a tile</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Select a tile.</li><li>Click "Delete Selected Tile".</li><li>Confirm the action.</li></ol></td>
+                <td>The tile is removed from the board and the database.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-006" value="pass"> Pass
+                    <input type="radio" name="SETUP-006" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-007</td>
+                <td>Setup Page</td>
+                <td>Admin can manage teams (add, remove)</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Scroll to the "Event Teams" panel.</li><li>Click "+ Add New Team".</li><li>A new team row appears.</li><li>Click the "Remove" button on a team row.</li></ol></td>
+                <td>The team is added/removed from the UI and the database.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-007" value="pass"> Pass
+                    <input type="radio" name="SETUP-007" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>SETUP-008</td>
+                <td>Setup Page</td>
+                <td>Admin can edit global config and styles</td>
+                <td>On <code>setup.html</code>.</td>
+                <td><ol><li>Scroll to the "Global Config & Styles" panel.</li><li>Change a value, like the Page Title or a status color.</li><li>The change is auto-saved.</li></ol></td>
+                <td>The change is reflected live on the setup page (e.g., tile previews change color) and is saved to the database.</td>
+                <td class="status-col">
+                    <input type="radio" name="SETUP-008" value="pass"> Pass
+                    <input type="radio" name="SETUP-008" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-003</td>
+                <td>Admin Pages</td>
+                <td>Admin can access the user permissions page</td>
+                <td>User is logged in with <code>isAdmin: true</code>.</td>
+                <td><ol><li>On <code>admin.html</code>, click the "Manage Permissions" link or navigate to <code>permissions.html</code>.</li></ol></td>
+                <td>The User Permissions page loads successfully.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-003" value="pass"> Pass
+                    <input type="radio" name="ADMIN-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-008</td>
+                <td>User Management</td>
+                <td>Admin can grant/revoke Mod and Admin roles</td>
+                <td>On <code>permissions.html</code>.</td>
+                <td><ol><li>Find a user in the list.</li><li>Check/uncheck the "Is Mod" or "Is Admin" box.</li></ol></td>
+                <td>The change is saved automatically. The user's permissions are updated.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-008" value="pass"> Pass
+                    <input type="radio" name="ADMIN-008" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-010</td>
+                <td>User Management</td>
+                <td>Admin can assign/unassign a Team Captain</td>
+                <td>On <code>users.html</code>.</td>
+                <td><ol><li>Find a user who is on a team.</li><li>Check/uncheck the "Is Captain" box in their row.</li></ol></td>
+                <td>The change is saved automatically. The user's captain status is updated. The "Captain" link appears/disappears for that user on next login.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-010" value="pass"> Pass
+                    <input type="radio" name="ADMIN-010" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>ADMIN-011</td>
+                <td>User Management</td>
+                <td>Admin can lock/unlock a user's display name</td>
+                <td>On <code>users.html</code>.</td>
+                <td><ol><li>Find a user in the list.</li><li>Check the "Lock Name" box.</li><li>Log in as that user and view the navbar.</li><li>Uncheck the box and repeat.</li></ol></td>
+                <td>When locked, the "Change Name" button is not visible to the user. When unlocked, it is visible.</td>
+                <td class="status-col">
+                    <input type="radio" name="ADMIN-011" value="pass"> Pass
+                    <input type="radio" name="ADMIN-011" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>IMPORT-001</td>
+                <td>Import/Export</td>
+                <td>Admin can export all tiles to CSV</td>
+                <td>Tiles exist in the database.</td>
+                <td><ol><li>Navigate to <code>setup.html</code>.</li><li>Click the "Import/Export Tiles" link to go to <code>import_tiles.html</code>.</li><li>Click "Export to CSV".</li></ol></td>
+                <td>A CSV file named <code>bingo-tiles-export.csv</code> is downloaded, containing all tile data.</td>
+                <td class="status-col">
+                    <input type="radio" name="IMPORT-001" value="pass"> Pass
+                    <input type="radio" name="IMPORT-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>IMPORT-002</td>
+                <td>Import/Export</td>
+                <td>Admin can import new tiles from a CSV</td>
+                <td>On <code>import_tiles.html</code>.</td>
+                <td><ol><li>Create a CSV with new tiles, including a unique <code>id</code> for each.</li><li>Upload the file.</li><li>Map the CSV columns to the tile properties.</li><li>Select "Create new tiles and reject duplicates" mode.</li><li>Click "Import Tiles".</li></ol></td>
+                <td>The new tiles are created in the database. The results summary shows success.</td>
+                <td class="status-col">
+                    <input type="radio" name="IMPORT-002" value="pass"> Pass
+                    <input type="radio" name="IMPORT-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>IMPORT-003</td>
+                <td>Import/Export</td>
+                <td>Admin can overwrite existing tiles from a CSV</td>
+                <td>On <code>import_tiles.html</code>.</td>
+                <td><ol><li>Create a CSV where the <code>id</code> column matches existing tiles.</li><li>Upload the file and map columns.</li><li>Select "Create new tiles and overwrite duplicates" mode.</li><li>Click "Import Tiles".</li></ol></td>
+                <td>The data for the existing tiles is updated with the values from the CSV file.</td>
+                <td class="status-col">
+                    <input type="radio" name="IMPORT-003" value="pass"> Pass
+                    <input type="radio" name="IMPORT-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>FUNC-001</td>
+                <td>Scoring</td>
+                <td>Scoreboard calculates correctly with `scoreOnVerifiedOnly: false`</td>
+                <td>`scoreOnVerifiedOnly` is false. Submissions exist for multiple teams, some verified, some just 'complete'.</td>
+                <td><ol><li>Manually calculate the expected score for each team (any 'complete' submission counts).</li><li>Navigate to `index.html` (if scoreboard is enabled) and `overview.html`.</li><li>Compare the displayed scores to the manual calculation.</li></ol></td>
+                <td>The scoreboard shows the correct total score for each team, counting all submissions marked as complete, regardless of verification status.</td>
+                <td class="status-col">
+                    <input type="radio" name="FUNC-001" value="pass"> Pass
+                    <input type="radio" name="FUNC-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>FUNC-002</td>
+                <td>Scoring</td>
+                <td>Scoreboard calculates correctly with `scoreOnVerifiedOnly: true`</td>
+                <td>`scoreOnVerifiedOnly` is true. Submissions exist for multiple teams, some verified, some just 'complete'.</td>
+                <td><ol><li>Manually calculate the expected score for each team (only 'Admin Verified' submissions count).</li><li>Navigate to `index.html` (if scoreboard is enabled) and `overview.html`.</li><li>Compare the displayed scores to the manual calculation.</li></ol></td>
+                <td>The scoreboard shows the correct total score for each team, counting ONLY submissions that are marked as 'Admin Verified'.</td>
+                <td class="status-col">
+                    <input type="radio" name="FUNC-002" value="pass"> Pass
+                    <input type="radio" name="FUNC-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>FUNC-003</td>
+                <td>Overview Page</td>
+                <td>"Points Over Time" graph loads and displays data</td>
+                <td>`overviewPageEnabled` is true. Submissions with different timestamps exist for multiple teams.</td>
+                <td><ol><li>Navigate to `overview.html`.</li><li>Observe the "Points Over Time" chart.</li></ol></td>
+                <td>The chart loads without errors. It displays a line for each team that has at least one scored submission. The data points correspond to the cumulative score at different times.</td>
+                <td class="status-col">
+                    <input type="radio" name="FUNC-003" value="pass"> Pass
+                    <input type="radio" name="FUNC-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>FUNC-004</td>
+                <td>Overview Page</td>
+                <td>"Points Over Time" graph updates in real-time</td>
+                <td>`overviewPageEnabled` is true. `overview.html` is open.</td>
+                <td><ol><li>In a separate tab, log in as an Admin and open `admin.html`.</li><li>Verify a new submission for a team.</li><li>Switch back to the `overview.html` tab.</li></ol></td>
+                <td>The chart updates automatically to include the new data point for the team whose submission was just verified, without requiring a page refresh.</td>
+                <td class="status-col">
+                    <input type="radio" name="FUNC-004" value="pass"> Pass
+                    <input type="radio" name="FUNC-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>DIAG-001</td>
+                <td>Troubleshooting</td>
+                <td>All checks pass for a correctly configured project</td>
+                <td>Project is fully set up with valid config and security rules.</td>
+                <td><ol><li>Log in as an Admin.</li><li>Navigate to <code>troubleshoot.html</code>.</li></ol></td>
+                <td>All checks show a green/success status.</td>
+                <td class="status-col">
+                    <input type="radio" name="DIAG-001" value="pass"> Pass
+                    <input type="radio" name="DIAG-001" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        document.querySelectorAll('.status-col input[type="radio"]').forEach(radio => { 
+            radio.addEventListener('change', function() {
+                const row = this.closest('tr');
+                row.classList.remove('pass', 'fail');
+                if (this.checked) {
+                    row.classList.add(this.value);
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
