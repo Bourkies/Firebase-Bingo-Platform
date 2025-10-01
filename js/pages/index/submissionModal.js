@@ -6,7 +6,7 @@ let mainController;
 export function initializeSubmissionModal(controller) {
     console.log('[SubmissionModal] Initializing.');
     mainController = controller;
-    document.querySelector('#submission-modal .close-button').addEventListener('click', closeModal);
+    document.querySelector('#submission-modal .close-button').addEventListener('click', () => mainController.closeSubmissionModal());
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
     document.getElementById('add-evidence-btn').addEventListener('click', () => addEvidenceInput());
     document.getElementById('acknowledge-feedback-btn').addEventListener('click', handleAcknowledgeFeedback);
@@ -17,6 +17,30 @@ export function initializeSubmissionModal(controller) {
             renumberEvidenceItems();
         }
     });
+}
+
+/**
+ * NEW: Updates the content of an already open modal with fresh data from a listener.
+ * @param {object} tile - The tile object for context.
+ * @param {object} submissionData - The new submission data from Firestore.
+ */
+export function updateModalContent(tile, submissionData) {
+    console.log(`[SubmissionModal] Refreshing content for tile '${tile.id}'.`);
+    const modal = document.getElementById('submission-modal');
+    if (modal.style.display !== 'flex') return; // Don't update if not visible
+
+    // Determine the new status based on the updated data
+    let newStatus = 'Unlocked';
+    if (submissionData) {
+        if (submissionData.AdminVerified) newStatus = 'Verified';
+        else if (submissionData.RequiresAction) newStatus = 'Requires Action';
+        else if (submissionData.IsComplete) newStatus = 'Submitted';
+        else if (submissionData.Timestamp) newStatus = 'Partially Complete';
+    }
+
+    // Re-run the openModal logic, which will now use the updated submission data
+    // from the main controller's state, which was updated by the global listener.
+    openModal(tile, newStatus);
 }
 
 export function openModal(tile, status) {
@@ -103,6 +127,7 @@ export function openModal(tile, status) {
 
 export function closeModal() {
     console.log('[SubmissionModal] Closing modal.');
+    // The main controller will handle detaching the listener.
     document.getElementById('submission-modal').style.display = 'none';
 }
 
@@ -242,8 +267,8 @@ async function handleAcknowledgeFeedback() {
         history: [...(existingSubmission.history || []), historyEntry]
     };
     await submissionManager.saveSubmission(existingSubmission.docId, dataToUpdate);
-    showMessage('Feedback acknowledged. You can now edit and resubmit.', false);
-    closeModal();
+    showMessage('Feedback acknowledged. You can now edit and resubmit.', false);    
+    mainController.closeSubmissionModal(); // Use the controller interface to close
 }
 
 async function handleFormSubmit(event) {
@@ -347,7 +372,7 @@ async function handleFormSubmit(event) {
             await submissionManager.saveSubmission(null, dataToSave);
         }
         showMessage('Submission saved!', false);
-        closeModal();
+        mainController.closeSubmissionModal(); // Use the controller interface to close
     } catch (error) {
         showMessage('Submission failed: ' + error.message, true);
         console.error("Submission error:", error);
