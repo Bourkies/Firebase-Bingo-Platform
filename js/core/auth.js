@@ -112,7 +112,9 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
                 isEventMod: false,
                 isAnonymous: isAnonymous,
                 isNameLocked: false,
-                hasSetDisplayName: isAnonymous
+                hasSetDisplayName: isAnonymous,
+                // FIX: Use the email from the currentUser object, which is more reliable on creation.
+                email: currentUser.email 
             };
             
             try {
@@ -124,6 +126,21 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
             }
         }
         
+        // If the document exists, check if we need to backfill the email.
+        if (docSnap.exists()) {
+            const profileData = docSnap.data();
+            const isPasswordUser = currentUser.providerData.some(p => p.providerId === 'password');
+            // If it's a password user and the email field is missing from their profile
+            if (isPasswordUser && !profileData.email) {
+                console.log('[Auth] Backfilling missing email for existing username/password user.');
+                try {
+                    await fb.updateDoc(userDocRef, { email: currentUser.email });
+                    // The listener will fire again with the updated data, so we exit here to avoid processing stale data.
+                    return;
+                } catch (error) { console.error("Error backfilling user email:", error); }
+            }
+        }
+
         userProfile = docSnap.data();
         console.log('[Auth] User profile data:', { displayName: userProfile.displayName, team: userProfile.team, isAdmin: userProfile.isAdmin });
 
@@ -211,7 +228,8 @@ export function getAuthState(isTeamCaptain = false) {
         ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
         uid: authProfile.uid,
         displayName: firestoreProfile.displayName || authProfile.displayName, // Prioritize Firestore name
-        email: authProfile.email, // Email only comes from auth
+        // Prioritize Firestore email (for username/pass), fallback to auth email (for Google)
+        email: firestoreProfile.email || authProfile.email,
     } : null;
 
     return {

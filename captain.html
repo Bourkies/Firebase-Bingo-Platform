@@ -43,6 +43,7 @@
     .login-type-badge { padding: 0.2em 0.6em; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
     .login-type-google { background-color: #4285F4; color: white; }
     .login-type-anon { background-color: #757575; color: white; }
+    .login-type-username { background-color: #00897b; color: white; } /* Teal color for username */
 
     /* NEW: Responsive Table Styles */
     @media screen and (max-width: 960px) {
@@ -79,7 +80,7 @@
             <div style="overflow-x: auto;">
                 <table id="user-assignment-table">
                     <thead>
-                        <tr><th data-column="displayName">Display Name</th><th data-column="isAnonymous">Login Type</th><th data-column="uid">User ID</th><th data-column="team">Team</th></tr>
+                        <tr><th data-column="displayName">Display Name</th><th data-column="isAnonymous">Login Type</th><th data-column="loginName">Login Name</th><th data-column="uid">User ID</th><th data-column="team">Team</th></tr>
                     </thead>
                     <tbody>
                         <!-- User rows will be injected here by JS -->

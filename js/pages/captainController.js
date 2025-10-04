@@ -12,6 +12,10 @@ let authState = {};
 let captainTeamId = null; // ID of the team this captain leads
 let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
+
+// NEW: Define the custom domain for username/password accounts
+const USERNAME_DOMAIN = '@fir-bingo-app.com';
+
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 let unsubscribeUsers = null; // NEW: Separate tracker for the user listener
 
@@ -137,11 +141,23 @@ function renderUserAssignments() {
 
     const tbody = document.querySelector('#user-assignment-table tbody');
     tbody.innerHTML = filteredUsers.map(user => {
-        const loginType = user.isAnonymous ? 'Anonymous' : 'Google';
-        const loginTypeClass = user.isAnonymous ? 'login-type-anon' : 'login-type-google';
         const captainTeamName = allTeams[captainTeamId]?.name || 'Your Team';
         const isThisUserTheCaptain = user.uid === authState.user?.uid;
         const isUserOnAnotherTeam = user.team && user.team !== captainTeamId;
+
+        // NEW: Logic to determine login type and name
+        let loginType = 'Google';
+        let loginTypeClass = 'login-type-google';
+        let loginName = 'N/A';
+
+        if (user.isAnonymous) {
+            loginType = 'Anonymous';
+            loginTypeClass = 'login-type-anon';
+        } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
+            loginType = 'Username';
+            loginTypeClass = 'login-type-username'; // We'll need to add a style for this
+            loginName = user.email.replace(USERNAME_DOMAIN, '');
+        }
 
         let teamCellContent;
         if (isThisUserTheCaptain) {
@@ -161,6 +177,7 @@ function renderUserAssignments() {
             <tr>
                 <td data-label="Display Name">${user.displayName || 'N/A'}</td>
                 <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
+                <td data-label="Login Name">${loginName}</td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
                 <td data-label="Team">${teamCellContent}</td>
             </tr>`;

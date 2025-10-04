@@ -12,6 +12,9 @@ let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 
+// NEW: Define the custom domain for username/password accounts
+const USERNAME_DOMAIN = '@fir-bingo-app.com';
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     // Dynamically add search, note, and styles
@@ -96,8 +99,17 @@ function renderUserManagement() {
         const canEditAdmin = canEditRoles && user.uid !== authState.user.uid;
         const isModLockedByAdmin = user.isAdmin; // NEW: An admin is always a mod.
         const adminTooltip = !canEditAdmin ? 'title="Cannot remove your own admin status."' : '';
-        const loginType = user.isAnonymous ? 'Anonymous' : 'Google';
-        const loginTypeClass = user.isAnonymous ? 'login-type-anon' : 'login-type-google';
+
+        // NEW: Logic to determine login type
+        let loginType = 'Google';
+        let loginTypeClass = 'login-type-google';
+        if (user.isAnonymous) {
+            loginType = 'Anonymous';
+            loginTypeClass = 'login-type-anon';
+        } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
+            loginType = 'Username';
+            loginTypeClass = 'login-type-username';
+        }
 
         return `
             <tr>
@@ -172,6 +184,7 @@ function createAdminControlsHTML() {
             .login-type-badge { padding: 0.2em 0.6em; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
             .login-type-google { background-color: #4285F4; color: white; }
             .login-type-anon { background-color: #757575; color: white; }
+            .login-type-username { background-color: #00897b; color: white; }
         </style>
         <div class="search-bar">
             <label for="search-filter">Search:</label>
