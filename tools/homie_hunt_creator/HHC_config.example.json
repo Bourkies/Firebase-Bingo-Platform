@@ -1,0 +1,50 @@
+{
+  "config": {
+    "boardWidth": 1200,
+    "projectTitle": "Grindmaster Homie Hunt",
+    "boardTitle": "Gridmaster bingo",
+    "sectionColumns": 3,
+    "sectionWidth": 400,
+    "tileColumns": 5,
+    "tileWidth": 100,
+    "tilePadding": 10,
+    "sectionPadding": 20,
+    "sectionTitleFont": "arial.ttf",
+    "boardTitleFont": "arial.ttf",
+    "boardTitleFontSize": 64,
+    "sectionBgOpacity": 0.15,
+    "sectionTitleFontSize": 48,
+    "themeColors": {
+      "background": "#1a1a1a",
+      "primaryText": "#e0e0e0",
+      "sectionBorder": "#333333",
+      "sectionTitle": "#00bcd4",
+      "tileTitle": "#ffffff"
+    },
+    "tileTitleFont": "arial.ttf",
+    "tileTitleFontSize": 24,
+    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php"
+  },
+  "sections": [
+    {
+      "title": "Kree'arra",
+      "wiki": "Kree'arra",
+      "tiles": [
+        {
+          "title": "Armadyl Chestplate",
+          "description": "Obtain an Armadyl Chestplate as a drop.",
+          "tileID": "K1",
+          "wiki": "Armadyl chestplate",
+          "points": [100, 50, 25, 10, 5]
+        },
+        {
+          "title": "Armadyl Chainskirt",
+          "description": "Obtain an Armadyl Chainskirt as a drop.",
+          "tileID": "K2",
+          "wiki": "Armadyl chainskirt",
+          "points": [100, 50, 25, 10, 5]
+        }
+      ]
+    }
+  ]
+}

@@ -21,40 +21,6 @@ The tool is driven by a single `config.json` file. This file contains global set
 
 The JSON object has two main keys: `config` for global settings and `sections` for the board content.
 
-```json
-{
-  "config": {
-    "boardWidth": 1200,
-    "projectTitle": "My Bingo Event",
-    "boardTitle": "Event Title Here",
-    "sectionColumns": 3,
-    "sectionWidth": 400,
-    "tileColumns": 5,
-    "tileWidth": 100,
-    "tilePadding": 10,
-    "sectionPadding": 20,
-    "sectionTitleFont": "path/to/font.ttf",
-    "boardTitleFont": "path/to/font.ttf",
-    "boardTitleFontSize": 64,
-    "sectionBgOpacity": 0.15,
-    "sectionTitleFontSize": 48,
-    "themeColors": {
-      "background": "#1a1a1a",
-      "primaryText": "#e0e0e0",
-      "sectionBorder": "#333333",
-      "sectionTitle": "#00bcd4",
-      "tileTitle": "#ffffff"
-    },
-    "tileTitleFont": "path/to/font.ttf",
-    "tileTitleFontSize": 24,
-    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php"
-  },
-  "sections": [
-    // ... Section objects go here
-  ]
-}
-```
-
 ### 3.2. Section Object Structure
 
 Each object in the `sections` array represents a distinct area on the board (e.g., a boss).
@@ -62,16 +28,6 @@ Each object in the `sections` array represents a distinct area on the board (e.g
 *   `title`: The display name for the section.
 *   `wiki`: The name of the wiki page to query for the section's background image.
 *   `tiles`: An array of tile definitions for this section.
-
-```json
-{
-  "title": "Kree'arra",
-  "wiki": "Kree'arra",
-  "tiles": [
-    // ... Tile objects go here
-  ]
-}
-```
 
 ### 3.3. Tile Object Structure
 
@@ -83,70 +39,9 @@ Each object in a section's `tiles` array defines a type of tile. The tool will g
 *   `wiki`: The name of the wiki page to query for the tile's image.
 *   `points`: An array of numbers. The **length** of this array determines how many instances of this tile are created. Each instance will be assigned the corresponding point value from the array.
 
-```json
-{
-  "title": "Armadyl Chestplate",
-  "description": "Obtain an Armadyl Chestplate as a drop.",
-  "tileID": "K1",
-  "wiki": "Armadyl chestplate",
-  "points": [100, 50, 25, 10, 5]
-}
-```
-
 ### 3.4. Complete `config.json` Example
 
-```json
-{
-  "config": {
-    "boardWidth": 1200,
-    "projectTitle": "Grindmaster Homie Hunt",
-    "boardTitle": "Gridmaster bingo",
-    "sectionColumns": 3,
-    "sectionWidth": 400,
-    "tileColumns": 5,
-    "tileWidth": 100,
-    "tilePadding": 10,
-    "sectionPadding": 20,
-    "sectionTitleFont": "arial.ttf",
-    "boardTitleFont": "arial.ttf",
-    "boardTitleFontSize": 64,
-    "sectionBgOpacity": 0.15,
-    "sectionTitleFontSize": 48,
-    "themeColors": {
-      "background": "#1a1a1a",
-      "primaryText": "#e0e0e0",
-      "sectionBorder": "#333333",
-      "sectionTitle": "#00bcd4",
-      "tileTitle": "#ffffff"
-    },
-    "tileTitleFont": "arial.ttf",
-    "tileTitleFontSize": 24,
-    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php"
-  },
-  "sections": [
-    {
-      "title": "Kree'arra",
-      "wiki": "Kree'arra",
-      "tiles": [
-        {
-          "title": "Armadyl Chestplate",
-          "description": "Obtain an Armadyl Chestplate as a drop.",
-          "tileID": "K1",
-          "wiki": "Armadyl chestplate",
-          "points": [100, 50, 25, 10, 5]
-        },
-        {
-          "title": "Armadyl Chainskirt",
-          "description": "Obtain an Armadyl Chainskirt as a drop.",
-          "tileID": "K2",
-          "wiki": "Armadyl chainskirt",
-          "points": [100, 50, 25, 10, 5]
-        }
-      ]
-    }
-  ]
-}
-```
+A complete example can be found in the `HHC_config.example.json` file. You can copy this file to `config.json` and modify it to create your own event.
 
 ## 4. Output Files
 
@@ -160,6 +55,7 @@ Each object in a section's `tiles` array defines a type of tile. The tool will g
 ├── homie_hunt_creator.py   # The main script
 ├── homie_hunt_creator.md   # This project plan
 ├── requirements.txt        # Python dependencies (e.g., Pillow, requests)
+├── HHC_config.example.json # An example configuration file
 ├── config.json             # The user-created input file
 └── .cache/                 # (Git Ignored) For storing downloaded images
 └── output/                 # (Git Ignored) For generated boards
