@@ -2,10 +2,9 @@
 import { createFormFields } from '../../components/FormBuilder.js';
 import { createTileElement } from '../../components/TileRenderer.js';
 import * as configManager from '../../core/data/configManager.js';
-import * as teamManager from '../../core/data/teamManager.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 
-let allUsers = [], allTeams = {}, config = {}, allStyles = {};
+let config = {}, allStyles = {};
 
 const configSchema = {
     // Global Config Fields
@@ -57,17 +56,6 @@ async function saveConfig(key, value) {
     }
 }
 
-async function updateTeam(teamId, field, value) {
-    try {
-        await teamManager.updateTeam(teamId, { [field]: value });
-        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
-        showMessage(`Saved Team ${teamId} ${field}: ${displayValue}`, false);
-    } catch (err) {
-        showMessage(`Error saving team ${teamId}: ${err.message}`, true);
-        renderTeamsList();
-    }
-}
-
 async function saveStyle(status, key, value) {
     try {
         await configManager.updateStyle(status, { [key]: value });
@@ -81,25 +69,18 @@ async function saveStyle(status, key, value) {
 }
 
 export function initializeGlobalConfig(mainController) {
-    const toggleTeamsBtn = document.getElementById('toggle-teams-btn');
     const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
 
     console.log("[GlobalConfigEditor] Initializing...");
-    toggleTeamsBtn?.addEventListener('click', toggleTeams);
     toggleGlobalStylesBtn?.addEventListener('click', toggleGlobalStyles);
     // REFACTOR: Use 'change' event instead of 'input' for more deliberate saves.
     document.getElementById('global-style-form')?.addEventListener('change', (e) => handleGlobalConfigChange(e, mainController));
-    document.getElementById('add-team-btn')?.addEventListener('click', addNewTeam);
-
-    toggleTeams();
     toggleGlobalStyles();
 }
 
-export function updateGlobalConfigData(newConfig, newStyles, newUsers, newTeams) {
+export function updateGlobalConfigData(newConfig, newStyles) {
     config = newConfig;
     allStyles = newStyles;
-    allUsers = newUsers;
-    allTeams = newTeams;
 }
 
 export function renderGlobalConfig(mainController) {
@@ -214,102 +195,4 @@ function toggleGlobalStyles() {
     const isHidden = form.style.display === 'none';
     form.style.display = isHidden ? '' : 'none';
     document.getElementById('toggle-global-styles-btn').textContent = isHidden ? '-' : '+';
-}
-
-export function renderTeamsList(users) {
-    console.log("[GlobalConfigEditor] renderTeamsList called.");
-    if (users) allUsers = users; // Only update if new users are passed in
-    const teamsContainer = document.getElementById('teams-container');
-    let activeElement = document.activeElement;
-    let activeTeamId = null, activeFieldClass = null, activeValue = null, selectionStart = null, selectionEnd = null;
-
-    if (activeElement && teamsContainer.contains(activeElement)) {
-        const teamItem = activeElement.closest('.team-item');
-        if (teamItem && teamItem.dataset.teamId) {
-            activeTeamId = teamItem.dataset.teamId;
-            activeValue = activeElement.value;
-            selectionStart = activeElement.selectionStart;
-            selectionEnd = activeElement.selectionEnd;
-            if (activeElement.classList.contains('team-name')) activeFieldClass = 'team-name';
-            else if (activeElement.classList.contains('team-captain')) activeFieldClass = 'team-captain';
-        }
-    }
-
-    teamsContainer.innerHTML = '';
-    if (!allTeams || Object.keys(allTeams).length === 0) return; // Guard against allTeams not being ready
-
-    const sortedTeamIds = Object.keys(allTeams).sort();
-    sortedTeamIds.forEach(teamId => {
-        const team = allTeams[teamId];
-        addTeamRow(teamId, team.name || '', team.captainId || '');
-    });
-
-    if (activeTeamId && activeFieldClass) {
-        const newTeamItem = teamsContainer.querySelector(`.team-item[data-team-id="${activeTeamId}"]`);
-        if (newTeamItem) {
-            const newActiveElement = newTeamItem.querySelector(`.${activeFieldClass}`);
-            if (newActiveElement) {
-                newActiveElement.value = activeValue;
-                newActiveElement.focus();
-                try { newActiveElement.setSelectionRange(selectionStart, selectionEnd); } catch (e) { /* no-op */ }
-            }
-        }
-    }
-}
-
-function addTeamRow(teamId, name = '', captainId = '') {
-    const container = document.getElementById('teams-container');
-    const item = document.createElement('div');
-    item.className = 'team-item';
-    item.dataset.teamId = teamId;
-
-    const idDisplay = Object.assign(document.createElement('span'), { className: 'team-id-display', textContent: teamId, title: 'Team ID (fixed)' });
-    const nameInput = Object.assign(document.createElement('input'), { type: 'text', className: 'team-field team-name', placeholder: 'Team Name', value: name });
-    const captainSelect = document.createElement('select');
-    captainSelect.className = 'team-field team-captain';
-    captainSelect.innerHTML = `<option value="">-- No Captain --</option>`;
-    allUsers.forEach(user => {
-        captainSelect.innerHTML += `<option value="${user.uid}" ${user.uid === captainId ? 'selected' : ''}>${user.displayName || user.email}</option>`;
-    });
-    const removeBtn = Object.assign(document.createElement('button'), { type: 'button', className: 'remove-team-btn', textContent: 'Remove', style: 'margin-top: 0;' });
-
-    item.append(idDisplay, nameInput, captainSelect, removeBtn);
-    container.appendChild(item);
-
-    nameInput.onchange = (e) => updateTeam(teamId, 'name', e.target.value);
-    captainSelect.onchange = (e) => updateTeam(teamId, 'captainId', e.target.value || null);
-    removeBtn.onclick = () => {
-        if (confirm(`Are you sure you want to delete team "${name || teamId}"?`)) {
-            deleteTeam(teamId);
-        }
-    };
-}
-
-async function addNewTeam() {
-    if (!allTeams) allTeams = {};
-    const existingNumbers = Object.keys(allTeams).map(id => parseInt(id.replace('team', ''), 10)).filter(n => !isNaN(n));
-    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
-    const newId = `team${String(maxNumber + 1).padStart(2, '0')}`;
-
-    try {
-        await teamManager.createTeam(newId, { name: 'New Team', captainId: null, docId: newId });
-        showMessage(`Team ${newId} created.`, false);
-    } catch (err) {
-        showMessage(`Error creating team: ${err.message}`, true);
-    }
-}
-
-async function deleteTeam(teamId) {
-    try {
-        await teamManager.deleteTeam(teamId);
-    } catch (err) {
-        showMessage(`Error deleting team: ${err.message}`, true);
-    }
-}
-
-function toggleTeams() {
-    const form = document.getElementById('teams-form');
-    const isHidden = form.style.display === 'none';
-    form.style.display = isHidden ? '' : 'none';
-    document.getElementById('toggle-teams-btn').textContent = isHidden ? '-' : '+';
 }

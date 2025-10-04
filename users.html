@@ -43,6 +43,91 @@
     .login-type-badge { padding: 0.2em 0.6em; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
     .login-type-google { background-color: #4285F4; color: white; }
     .login-type-anon { background-color: #757575; color: white; }
+    .login-type-username { background-color: #00897b; color: white; } /* Teal color for username */
+
+    /* NEW: Consistent button styling */
+    button {
+        background-color: var(--accent-color); color: var(--accent-text-color); border: none;
+        padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px;
+        transition: background-color 0.2s;
+    }
+    button:hover:not(:disabled) { background-color: var(--accent-color-darker); }
+    button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; opacity: 0.7; }
+    .destructive-btn { background-color: var(--error-color); }
+
+    /* NEW: Styles for new layout */
+    details { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 1.5rem; }
+    summary { font-size: 1.2rem; font-weight: bold; padding: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    summary::after { content: '▼'; font-size: 0.8em; }
+    details[open] > summary::after { content: '▲'; }
+    .details-content { padding: 0 1rem 1rem 1rem; }
+    .team-card { margin-bottom: 1rem; }
+    .team-card summary { background-color: var(--hover-bg-color); border-radius: 6px; display: flex; align-items: center; }
+    /* NEW: Styles for truncating the team name in the summary */
+    .team-name-summary {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-grow: 1; /* Allow it to take up space but not push the arrow */
+        min-width: 0; /* Important for flexbox truncation */
+    }
+
+    .team-header { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+    .team-header select { flex-grow: 1; } /* Let select grow */
+    .team-header label { white-space: nowrap; } /* Prevent label from wrapping */
+
+    /* NEW: Styles for form field layout */
+    .form-field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 1rem; }
+    .form-field label { font-weight: bold; color: var(--secondary-text); font-size: 0.9rem; }
+
+    /* NEW: Styles for team action buttons */
+    .team-actions { display: flex; justify-content: flex-end; margin-top: 1rem; margin-bottom: 1rem; }
+
+    .team-members-list { list-style: none; padding: 0; margin: 0 0 1rem 0; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; }
+    .team-id-display-inline {
+        font-family: var(--font-mono);
+        color: var(--secondary-text);
+        background-color: var(--bg-color);
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        margin-right: 0.75rem;
+        border: 1px solid var(--border-color);
+    }
+    /* NEW: Styles for the auto-expanding textarea */
+    .team-name-input {
+        width: 100%; background-color: var(--bg-color); color: var(--primary-text);
+        border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px;
+        box-sizing: border-box; resize: none; overflow: hidden;
+        font-family: inherit; font-size: inherit;
+        min-height: 38px; /* Match height of other inputs */
+        line-height: 1.4;
+    }
+
+    .team-member-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+    .team-member-item:last-child { border-bottom: none; }
+    .remove-member-btn, .add-member-btn { background-color: var(--error-color); color: white; border: none; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .add-member-btn { background-color: var(--success-color); }
+    .add-member-section { margin-top: 1rem; }
+    .add-member-search-results { max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; margin-top: 0.5rem; }
+    .add-member-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+    .add-member-item:last-child { border-bottom: none; }
+    /* NEW: Style for the default list of unassigned users */
+    .unassigned-users-list { list-style: none; padding: 0; margin: 0.5rem 0 0 0; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; max-height: 200px; overflow-y: auto; }
+
+
+    /* NEW: Modal styles for confirmation */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background-color: var(--surface-color); padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+    .modal-content h2 { margin-top: 0; color: var(--error-color); }
+    .modal-content .close-button { position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; cursor: pointer; color: var(--secondary-text); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+    #delete-team-confirm-input {
+        width: 100%; background-color: var(--bg-color); color: var(--primary-text);
+        border: 1px solid var(--border-color); padding: 0.5rem; border-radius: 4px;
+        box-sizing: border-box;
+    }
+
 
     /* NEW: Responsive Table Styles */
     @media screen and (max-width: 960px) {
@@ -68,23 +153,48 @@
         <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
     </div>
     <div id="users-view" class="container">
-        <h1>User Team & Captain Assignments</h1>
-        <div class="admin-controls">
-            <div class="search-bar">
-                <label for="search-filter">Search:</label>
-                <input type="text" id="search-filter" placeholder="Filter by name, ID, or team...">
+        <h1>User & Team Management</h1>
+
+        <details id="user-management-details">
+            <summary>User Display Name Management</summary>
+            <div class="details-content">
+                <div class="admin-controls">
+                    <div class="search-bar">
+                        <label for="search-filter">Search Users:</label>
+                        <input type="text" id="search-filter" placeholder="Filter by name, ID, or login type...">
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="user-assignment-table">
+                        <thead>
+                            <tr><th data-column="displayName">Display Name</th><th data-column="loginName">Login Name</th><th data-column="isAnonymous">Login Type</th><th data-column="team">Team</th><th data-column="uid">User ID</th><th data-column="isNameLocked">Lock Name</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        <div class="card">
-            <div style="overflow-x: auto;">
-                <table id="user-assignment-table">
-                    <thead>
-                        <tr><th data-column="displayName">Display Name</th><th data-column="isAnonymous">Login Type</th><th data-column="uid">User ID</th><th data-column="isNameLocked">Lock Name</th><th data-column="team">Team</th><th data-column="isCaptain">Is Captain</th></tr>
-                    </thead>
-                    <tbody>
-                        <!-- User rows will be injected here by JS -->
-                    </tbody>
-                </table>
+        </details>
+
+        <details id="team-management-details">
+            <summary>Team Management</summary>
+            <div class="details-content">
+                <div id="teams-management-container"></div>
+            </div>
+        </details>
+    </div>
+
+    <!-- NEW: Delete Team Confirmation Modal -->
+    <div id="delete-team-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Confirm Deletion</h2>
+            <p>This is a destructive action. To confirm you want to delete the team <strong id="delete-team-modal-name"></strong> and unassign all its members, please type <strong style="color: var(--error-color);">DELETE</strong> into the box below.</p>
+            <div class="form-field">
+                <input type="text" id="delete-team-confirm-input" autocomplete="off" data-expected-name="">
+            </div>
+            <div class="modal-actions">
+                <button id="delete-team-cancel-btn" class="secondary-btn">Cancel</button>
+                <button id="delete-team-confirm-btn" class="destructive-btn" disabled>Delete Team</button>
             </div>
         </div>
     </div>

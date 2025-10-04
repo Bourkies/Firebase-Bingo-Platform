@@ -5,12 +5,17 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
+import * as teamManager from '../core/data/teamManager.js';
 
 let allUsers = [];
 let authState = {};
+let allTeams = {};
 let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
+
+// NEW: Define the custom domain for username/password accounts
+const USERNAME_DOMAIN = '@fir-bingo-app.com';
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
@@ -47,12 +52,26 @@ function initializeApp() {
         return;
     }
 
+    let initialDataLoaded = { users: false, teams: false };
+    const checkAllLoaded = () => {
+        if (Object.values(initialDataLoaded).every(Boolean)) {
+            hideGlobalLoader();
+        }
+    };
+
     unsubs.push(userManager.listenToUsers(newUsers => {
         console.log("Permissions: Users updated in real-time.");
         allUsers = newUsers;
         renderUserManagement();
-        hideGlobalLoader(); // Users are the only data needed for this page.
+        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
     }, authState));
+
+    unsubs.push(teamManager.listenToTeams(newTeams => {
+        console.log("Permissions: Teams updated in real-time.");
+        allTeams = newTeams;
+        renderUserManagement();
+        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+    }));
 
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
 }
@@ -77,14 +96,23 @@ function renderUserManagement() {
     // Filter users based on search term
     const filteredUsers = allUsers.filter(user => {
         const name = (user.displayName || '').toLowerCase();
-        const loginType = user.isAnonymous ? 'anonymous' : 'google';
-        return name.includes(searchTerm) || loginType.includes(searchTerm);
+        const loginType = user.isAnonymous ? 'anonymous' : (user.email?.endsWith(USERNAME_DOMAIN) ? 'username' : 'google');
+        const loginName = user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '').toLowerCase() : '';
+        const teamName = (allTeams[user.team]?.name || 'unassigned').toLowerCase();
+        return name.includes(searchTerm) || loginType.includes(searchTerm) || loginName.includes(searchTerm) || teamName.includes(searchTerm);
     });
 
     // Sort users
     filteredUsers.sort((a, b) => {
-        const valA = a[currentSort.column] ?? '';
-        const valB = b[currentSort.column] ?? '';
+        let valA, valB;
+        if (currentSort.column === 'team') {
+            valA = allTeams[a.team]?.name || 'Unassigned';
+            valB = allTeams[b.team]?.name || 'Unassigned';
+        } else {
+            valA = a[currentSort.column] ?? '';
+            valB = b[currentSort.column] ?? '';
+        }
+
         const comparison = String(valA).localeCompare(String(valB), undefined, { numeric: true });
         return currentSort.direction === 'asc' ? comparison : -comparison;
     });
@@ -96,15 +124,30 @@ function renderUserManagement() {
         const canEditAdmin = canEditRoles && user.uid !== authState.user.uid;
         const isModLockedByAdmin = user.isAdmin; // NEW: An admin is always a mod.
         const adminTooltip = !canEditAdmin ? 'title="Cannot remove your own admin status."' : '';
-        const loginType = user.isAnonymous ? 'Anonymous' : 'Google';
-        const loginTypeClass = user.isAnonymous ? 'login-type-anon' : 'login-type-google';
+
+        // NEW: Logic to determine login type
+        let loginType = 'Google';
+        let loginName = 'N/A';
+        let loginTypeClass = 'login-type-google';
+        if (user.isAnonymous) {
+            loginType = 'Anonymous';
+            loginTypeClass = 'login-type-anon';
+        } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
+            loginType = 'Username';
+            loginTypeClass = 'login-type-username';
+            loginName = user.email.replace(USERNAME_DOMAIN, '');
+        }
+
+        const teamName = user.team ? (allTeams[user.team]?.name || 'Unknown Team') : 'Unassigned';
 
         return `
             <tr>
-                <td>${user.displayName || ''}</td>
-                <td><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
-                <td><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
-                <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
+                <td data-label="Display Name">${user.displayName || ''}</td>
+                <td data-label="Login Name">${loginName}</td>
+                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
+                <td data-label="Team">${teamName}</td>
+                <td data-label="Is Mod"><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
+                <td data-label="Is Admin" ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
             </tr>`;
     }).join('');
 
@@ -172,6 +215,7 @@ function createAdminControlsHTML() {
             .login-type-badge { padding: 0.2em 0.6em; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
             .login-type-google { background-color: #4285F4; color: white; }
             .login-type-anon { background-color: #757575; color: white; }
+            .login-type-username { background-color: #00897b; color: white; }
         </style>
         <div class="search-bar">
             <label for="search-filter">Search:</label>

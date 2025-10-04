@@ -115,9 +115,9 @@ service cloud.firestore {
           // You cannot make yourself an admin or mod.
           request.resource.data.isAdmin == resource.data.isAdmin &&
           request.resource.data.isEventMod == resource.data.isEventMod &&
-          // You can only change your displayName (if not locked) and hasSetDisplayName flag.
+          // You can only change your displayName (if not locked), hasSetDisplayName flag, and backfill your email.
           (resource.data.get('isNameLocked', false) == false || request.resource.data.displayName == resource.data.displayName) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hasSetDisplayName'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hasSetDisplayName', 'email'])
         );
     }
   }

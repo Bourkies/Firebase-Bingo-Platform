@@ -28,7 +28,7 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
             const isScored = scoreOnVerifiedOnly ? sub.AdminVerified === true : sub.IsComplete === true;
 
             if (isScored) {
-                score += parseInt(tile.Points) || 0;
+                score += parseFloat(tile.Points) || 0;
                 completedTiles++;
             }
         });

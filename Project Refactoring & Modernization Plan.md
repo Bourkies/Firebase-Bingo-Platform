@@ -364,9 +364,17 @@ This is the target architecture we are working towards. It separates shared serv
     - [x]  **5.1.14.6** users.html
     - [x]  **5.1.14.7** import_config.html
     - [x]  **5.1.14.8** import_submissions.html
-    - [x]  **5.1.14.19** import_tiles.html
-    - [x]  **5.1.14.20** captain.html
-  - [x]  **5.1.15** Nave bar formating
+    - [x]  **5.1.14.9** import_tiles.html
+    - [x]  **5.1.14.10** captain.html
+  - [x]  **5.1.15** Nav bar formating
+  - [ ]  **5.1.16** improved scoring and score board
+    - [x]  **5.1.16.1** Scoring to work with positive, negitive and decimal points
+    - [ ]  **5.1.16.1** bingo bonuses, setup a way to group tile togther that results in bonus score
+  - [x]  **5.1.17** improve usermanagement pages (users, permisions, captian)
 - [x] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
+  - [ ] **5.3.1:** Complete a full QA pass using `TEST_PLAN.md`.
+  - [ ] **5.3.2:** Fix Bugs found in testing
+    - [ ] **.5.3.2.1:** Bug 1
+  - [ ] **5.3.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.

@@ -59,6 +59,40 @@ export async function signInAnonymously() {
     }
 }
 
+export async function signInWithEmail(email, password) {
+    try {
+        await fb.signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the rest.
+        return true; // Indicate success
+    } catch (error) {
+        console.error("Email/Password Sign-In Error:", error);
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            alert('Sign-in failed: Invalid email or password.');
+        } else {
+            alert(`Sign-in failed: ${error.message}`);
+        }
+        return false; // Indicate failure
+    }
+}
+
+export async function createUserWithEmail(email, password) {
+    try {
+        await fb.createUserWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the rest.
+        return true; // Indicate success
+    } catch (error) {
+        console.error("Email/Password Account Creation Error:", error);
+        if (error.code === 'auth/email-already-in-use') {
+            alert('Sign-up failed: An account with this email already exists. Please try signing in instead.');
+        } else if (error.code === 'auth/weak-password') {
+            alert('Sign-up failed: The password is too weak. It must be at least 6 characters long.');
+        } else {
+            alert(`Could not create account: ${error.message}`);
+        }
+        return false; // Indicate failure
+    }
+}
+
 function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', uid);
     console.log(`[Auth] Setting up profile listener for user.`);
@@ -78,7 +112,9 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
                 isEventMod: false,
                 isAnonymous: isAnonymous,
                 isNameLocked: false,
-                hasSetDisplayName: isAnonymous
+                hasSetDisplayName: isAnonymous,
+                // FIX: Use the email from the currentUser object, which is more reliable on creation.
+                email: currentUser.email 
             };
             
             try {
@@ -90,6 +126,21 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
             }
         }
         
+        // If the document exists, check if we need to backfill the email.
+        if (docSnap.exists()) {
+            const profileData = docSnap.data();
+            const isPasswordUser = currentUser.providerData.some(p => p.providerId === 'password');
+            // If it's a password user and the email field is missing from their profile
+            if (isPasswordUser && !profileData.email) {
+                console.log('[Auth] Backfilling missing email for existing username/password user.');
+                try {
+                    await fb.updateDoc(userDocRef, { email: currentUser.email });
+                    // The listener will fire again with the updated data, so we exit here to avoid processing stale data.
+                    return;
+                } catch (error) { console.error("Error backfilling user email:", error); }
+            }
+        }
+
         userProfile = docSnap.data();
         console.log('[Auth] User profile data:', { displayName: userProfile.displayName, team: userProfile.team, isAdmin: userProfile.isAdmin });
 
@@ -177,7 +228,8 @@ export function getAuthState(isTeamCaptain = false) {
         ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
         uid: authProfile.uid,
         displayName: firestoreProfile.displayName || authProfile.displayName, // Prioritize Firestore name
-        email: authProfile.email, // Email only comes from auth
+        // Prioritize Firestore email (for username/pass), fallback to auth email (for Google)
+        email: firestoreProfile.email || authProfile.email,
     } : null;
 
     return {

@@ -4,8 +4,6 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 // Import the new data managers
 import * as configManager from '../core/data/configManager.js';
 import * as tileManager from '../core/data/tileManager.js';
-import * as teamManager from '../core/data/teamManager.js';
-import * as userManager from '../core/data/userManager.js';
 import { initAuth } from '../core/auth.js';
 import { createTileElement } from '../components/TileRenderer.js';
 
@@ -13,9 +11,9 @@ import { createTileElement } from '../components/TileRenderer.js';
 import { initializeTileEditor, updateTileEditorData, populateTileSelector, updateEditorPanelContent, createEditorForm } from './setup/tileEditor.js';
 import { initializePrereqEditor, updatePrereqEditorData, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
 import { initializeOverrideEditor, updateOverridesJsonFromCurrentTile as updateOverridesCallback, populateOverridesUI } from './setup/overrideEditor.js';
-import { initializeGlobalConfig, updateGlobalConfigData, renderGlobalConfig, renderTeamsList } from './setup/globalConfigEditor.js';
+import { initializeGlobalConfig, updateGlobalConfigData, renderGlobalConfig } from './setup/globalConfigEditor.js';
 
-let tilesData = [], allUsers = [], allTeams = {};
+let tilesData = [];
 let config = {};
 let allStyles = {};
 export let lastSelectedTileIndex = null; // Export for sub-modules
@@ -90,7 +88,7 @@ function initializeApp(authState) {
     unsubscribeFromAll();
     let unsubs = [];
 
-    let initialDataLoaded = { config: false, tiles: false, users: false, teams: false };
+    let initialDataLoaded = { config: false, tiles: false };
     const checkAllLoaded = () => {
         if (Object.values(initialDataLoaded).every(Boolean)) {
             console.log("[SetupController] All initial data loaded.");
@@ -115,7 +113,7 @@ function initializeApp(authState) {
         allStyles = newConfig.styles || {};
         document.title = (config.pageTitle || 'Bingo') + ' | Live Editor';
         
-        updateGlobalConfigData(config, allStyles, allUsers, allTeams);
+        updateGlobalConfigData(config, allStyles);
 
         if (!initialDataLoaded.config) {
             unsubs.push(tileManager.listenToTiles(newTiles => { // FIX: Changed log to match format
@@ -163,23 +161,6 @@ function initializeApp(authState) {
             renderTiles(); // This will call renderPrereqLines internally
         }
     })); // The error callback is no longer needed here
-
-    // FIX: The authState object was being passed as the callback. Swapped argument order.
-    unsubs.push(userManager.listenToUsers(newUsers => { // FIX: Changed log to match format
-        console.log("[SetupController] Users updated in real-time.");
-        allUsers = newUsers;
-        updateGlobalConfigData(config, allStyles, allUsers, allTeams);
-        if (initialDataLoaded.teams) renderTeamsList(allUsers);
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, authState));
-
-    unsubs.push(teamManager.listenToTeams(newTeams => { // FIX: Changed log to match format
-        console.log("[SetupController] Teams updated in real-time.");
-        allTeams = newTeams;
-        updateGlobalConfigData(config, allStyles, allUsers, allTeams);
-        renderTeamsList(allUsers);
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }));
 
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
 

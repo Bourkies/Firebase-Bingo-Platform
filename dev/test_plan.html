@@ -101,6 +101,30 @@
                 </td>
             </tr>
             <tr>
+                <td>AUTH-009</td>
+                <td>Authentication</td>
+                <td>User can sign up with a username and password</td>
+                <td>N/A</td>
+                <td><ol><li>Click the "Login" button.</li><li>Click the "Sign Up" link.</li><li>Enter a unique username and a password (min. 6 chars).</li><li>Click "Create Account".</li></ol></td>
+                <td>The page reloads. The button now says "Logout". The chosen username appears in the navbar.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-009" value="pass"> Pass
+                    <input type="radio" name="AUTH-009" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>AUTH-010</td>
+                <td>Authentication</td>
+                <td>User can log in with a username and password</td>
+                <td>A username/password account exists.</td>
+                <td><ol><li>Click the "Login" button.</li><li>Enter the username and password.</li><li>Click "Sign In".</li></ol></td>
+                <td>The page reloads. The button now says "Logout". The user's display name appears in the navbar.</td>
+                <td class="status-col">
+                    <input type="radio" name="AUTH-010" value="pass"> Pass
+                    <input type="radio" name="AUTH-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
                 <td>AUTH-003</td>
                 <td>Authentication</td>
                 <td>User can log in with a Google account</td>
@@ -379,10 +403,10 @@
             <tr>
                 <td>CAPTAIN-003</td>
                 <td>Captain View</td>
-                <td>Captain sees a list of their team members and unassigned players</td>
-                <td>On <code>captain.html</code>. At least one unassigned user exists.</td>
-                <td><ol><li>Load the captain page.</li><li>Observe the user table.</li></ol></td>
-                <td>The table shows all members of the captain's team and all users with no team assigned. Users from other teams are not visible.</td>
+                <td>Captain sees a management card for their team</td>
+                <td>On <code>captain.html</code>.</td>
+                <td><ol><li>Load the captain page.</li><li>Observe the content.</li></ol></td>
+                <td>A single card is displayed for the captain's team. It shows the team name (read-only), a list of current members, and a list of unassigned users.</td>
                 <td class="status-col">
                     <input type="radio" name="CAPTAIN-003" value="pass"> Pass
                     <input type="radio" name="CAPTAIN-003" value="fail"> Fail
@@ -392,9 +416,9 @@
                 <td>CAPTAIN-004</td>
                 <td>Captain View</td>
                 <td>Captain can assign an unassigned player to their team</td>
-                <td>On <code>captain.html</code>. An unassigned user is visible.</td>
-                <td><ol><li>Find an unassigned user in the table.</li><li>In their row, select the captain's team from the dropdown.</li></ol></td>
-                <td>The change is saved. The user is now part of the captain's team.</td>
+                <td>On <code>captain.html</code>. An unassigned user is visible in the "Add Members" list.</td>
+                <td><ol><li>Find an unassigned user in the list.</li><li>Click the "Add" button next to their name.</li></ol></td>
+                <td>The user is removed from the "Add Members" list and appears in the "Current Members" list. The change is saved.</td>
                 <td class="status-col">
                     <input type="radio" name="CAPTAIN-004" value="pass"> Pass
                     <input type="radio" name="CAPTAIN-004" value="fail"> Fail
@@ -404,11 +428,23 @@
                 <td>CAPTAIN-005</td>
                 <td>Captain View</td>
                 <td>Captain can remove a player from their team</td>
-                <td>On <code>captain.html</code>. A player is on the captain's team.</td>
-                <td><ol><li>Find a team member in the table.</li><li>In their row, select "Unassigned" from the dropdown.</li></ol></td>
-                <td>The change is saved. The player is now unassigned.</td>
+                <td>On <code>captain.html</code>. A player (not the captain) is on the team.</td>
+                <td><ol><li>Find a team member in the "Current Members" list.</li><li>Click the "Remove" button next to their name.</li></ol></td>
+                <td>The user is removed from the "Current Members" list and appears in the "Add Members" list. The change is saved.</td>
                 <td class="status-col">
                     <input type="radio" name="CAPTAIN-005" value="pass"> Pass
+                    <input type="radio" name="CAPTAIN-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>CAPTAIN-006</td>
+                <td>Captain View</td>
+                <td>Captain cannot remove themselves from the team</td>
+                <td>On <code>captain.html</code>.</td>
+                <td><ol><li>Find your own name in the "Current Members" list.</li><li>Observe the "Remove" button.</li></ol></td>
+                <td>The "Remove" button next to the captain's own name is disabled.</td>
+                <td class="status-col">
+                    <input type="radio" name="CAPTAIN-006" value="pass"> Pass
                     <input type="radio" name="CAPTAIN-005" value="fail"> Fail
                 </td>
             </tr>
@@ -493,13 +529,49 @@
             <tr>
                 <td>ADMIN-007</td>
                 <td>User Management</td>
-                <td>Admin/Mod can assign a user to a team</td>
-                <td>On <code>users.html</code>.</td>
-                <td><ol><li>Find a user in the list.</li><li>Select a team from the dropdown in their row.</li></ol></td>
-                <td>The change is saved automatically. The user is now part of that team.</td>
+                <td>Admin/Mod can add/remove users from a team</td>
+                <td>On <code>users.html</code>, in the "Team Management" section.</td>
+                <td><ol><li>Expand a team card.</li><li>Find an unassigned user in the "Add Members" list and click "Add".</li><li>Find a current member and click "Remove".</li></ol></td>
+                <td>The user moves between the "Add Members" and "Current Members" lists correctly. The changes are saved.</td>
                 <td class="status-col">
                     <input type="radio" name="ADMIN-007" value="pass"> Pass
                     <input type="radio" name="ADMIN-007" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PERM-001</td>
+                <td>Permissions Page</td>
+                <td>Permissions table is responsive on mobile</td>
+                <td>On <code>permissions.html</code>.</td>
+                <td><ol><li>Load the page on a desktop browser.</li><li>Resize the browser window to be narrow (e.g., less than 960px wide).</li></ol></td>
+                <td>The table layout transforms into a card-based layout, with each row becoming a distinct card with labeled fields.</td>
+                <td class="status-col">
+                    <input type="radio" name="PERM-001" value="pass"> Pass
+                    <input type="radio" name="PERM-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>PERM-002</td>
+                <td>Permissions Page</td>
+                <td>Permissions table shows user's team</td>
+                <td>On <code>permissions.html</code>.</td>
+                <td><ol><li>Load the page and observe the user table.</li></ol></td>
+                <td>A "Team" column is present and correctly displays the name of the team each user is assigned to, or "Unassigned".</td>
+                <td class="status-col">
+                    <input type="radio" name="PERM-002" value="pass"> Pass
+                    <input type="radio" name="PERM-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>USERS-001</td>
+                <td>User Management</td>
+                <td>User table shows user's team</td>
+                <td>On <code>users.html</code>.</td>
+                <td><ol><li>Expand the "User Display Name Management" section.</li><li>Observe the user table.</li></ol></td>
+                <td>A "Team" column is present and correctly displays the name of the team each user is assigned to.</td>
+                <td class="status-col">
+                    <input type="radio" name="USERS-001" value="pass"> Pass
+                    <input type="radio" name="USERS-001" value="fail"> Fail
                 </td>
             </tr>
         </tbody>
@@ -583,10 +655,10 @@
             <tr>
                 <td>SETUP-007</td>
                 <td>Setup Page</td>
-                <td>Admin can manage teams (add, remove)</td>
-                <td>On <code>setup.html</code>.</td>
-                <td><ol><li>Scroll to the "Event Teams" panel.</li><li>Click "+ Add New Team".</li><li>A new team row appears.</li><li>Click the "Remove" button on a team row.</li></ol></td>
-                <td>The team is added/removed from the UI and the database.</td>
+                <td>Admin can manage teams on the User Management page</td>
+                <td>On <code>users.html</code>.</td>
+                <td><ol><li>Expand the "Team Management" section.</li><li>Click "+ Add New Team".</li><li>A new team card appears.</li><li>Expand the new team card and click "Delete Team".</li><li>Confirm by typing "DELETE".</li></ol></td>
+                <td>The team is added and then removed from the UI and the database. When deleting, all members are correctly unassigned.</td>
                 <td class="status-col">
                     <input type="radio" name="SETUP-007" value="pass"> Pass
                     <input type="radio" name="SETUP-007" value="fail"> Fail
@@ -631,10 +703,10 @@
             <tr>
                 <td>ADMIN-010</td>
                 <td>User Management</td>
-                <td>Admin can assign/unassign a Team Captain</td>
+                <td>Admin can assign a non-anonymous team member as Captain</td>
                 <td>On <code>users.html</code>.</td>
-                <td><ol><li>Find a user who is on a team.</li><li>Check/uncheck the "Is Captain" box in their row.</li></ol></td>
-                <td>The change is saved automatically. The user's captain status is updated. The "Captain" link appears/disappears for that user on next login.</td>
+                <td><ol><li>Expand a team card.</li><li>Open the "Team Captain" dropdown.</li><li>Select a team member.</li></ol></td>
+                <td>The dropdown only contains members of that team who are not anonymous. The change is saved. The "Captain" link appears for that user on next login.</td>
                 <td class="status-col">
                     <input type="radio" name="ADMIN-010" value="pass"> Pass
                     <input type="radio" name="ADMIN-010" value="fail"> Fail
