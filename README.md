@@ -21,6 +21,7 @@ The repository has been refactored into a modular structure that separates conce
 
 *   **`/` (Root)**: Contains all the `.html` pages, Firebase rules, and project documentation.
 *   **`.github/workflows/`**: Contains example templates for automated deployment via GitHub Actions.
+*   **`tools/`**: Contains local development utilities, such as Python scripts for asset generation. This folder is not deployed to Firebase Hosting.
 *   **`js/core/`**: Central, shared logic.
     *   `auth.js`: Manages user authentication.
     *   `utils.js`: Shared helper functions (e.g., `showMessage`).
