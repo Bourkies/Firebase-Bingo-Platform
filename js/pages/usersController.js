@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#user-assignment-table th').forEach(th => {
         th.addEventListener('click', handleSort);
     });
+    document.getElementById('add-team-btn').addEventListener('click', addNewTeam);
     initAuth(onAuthStateChanged);
 });
 
@@ -60,13 +61,15 @@ function initializeApp() {
 
     unsubs.push(userManager.listenToUsers(newUsers => { // The authState object is now optional
         allUsers = newUsers;
-        renderUserAssignments();
+        renderUserTable();
+        renderTeamManagement();
         if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
     }, authState));
 
     unsubs.push(teamManager.listenToTeams(newTeams => {
         allTeams = newTeams;
-        renderUserAssignments();
+        renderUserTable();
+        renderTeamManagement();
         if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
     }));
 
@@ -75,7 +78,7 @@ function initializeApp() {
 
 function handleSearch(event) {
     searchTerm = event.target.value.toLowerCase();
-    renderUserAssignments();
+    renderUserTable();
 }
 
 function handleSort(event) {
@@ -86,37 +89,27 @@ function handleSort(event) {
         currentSort.column = column;
         currentSort.direction = 'asc';
     }
-    renderUserAssignments();
+    renderUserTable();
 }
 
-function renderUserAssignments() {
+function renderUserTable() {
     // Filter users
     const filteredUsers = allUsers.filter(user => {
         const name = (user.displayName || '').toLowerCase();
-        const uid = (user.uid || '').toLowerCase();
-        const teamName = (allTeams[user.team]?.name || '').toLowerCase();
-        return name.includes(searchTerm) || uid.includes(searchTerm) || teamName.includes(searchTerm);
+        const loginName = (user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '') : '').toLowerCase();
+        return name.includes(searchTerm) || loginName.includes(searchTerm);
     });
 
     // Sort users
     filteredUsers.sort((a, b) => {
-        let valA, valB;
-        if (currentSort.column === 'isCaptain') {
-            valA = a.team && allTeams[a.team]?.captainId === a.uid;
-            valB = b.team && allTeams[b.team]?.captainId === b.uid;
-        } else {
-            valA = a[currentSort.column] ?? '';
-            valB = b[currentSort.column] ?? '';
-        }
+        const valA = a[currentSort.column] ?? '';
+        const valB = b[currentSort.column] ?? '';
         const comparison = String(valA).localeCompare(String(valB), undefined, { numeric: true });
         return currentSort.direction === 'asc' ? comparison : -comparison;
     });
 
     const tbody = document.querySelector('#user-assignment-table tbody');
     tbody.innerHTML = filteredUsers.map(user => {
-        const teamOptions = Object.entries(allTeams).map(([id, data]) => `<option value="${id}" ${user.team === id ? 'selected' : ''}>${data.name}</option>`).join('');
-        const isCaptain = user.team && allTeams[user.team]?.captainId === user.uid;
-        const canBeCaptain = !!user.team && !user.isAnonymous; // Anonymous users cannot be captains
         const isNameLocked = user.isNameLocked === true;
 
         // NEW: Logic to determine login type and name
@@ -140,13 +133,6 @@ function renderUserAssignments() {
                 <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
                 <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
-                <td data-label="Team">
-                    <select class="user-field" data-uid="${user.uid}" data-field="team">
-                        <option value="">--None--</option>
-                        ${teamOptions}
-                    </select>
-                </td>
-                <td data-label="Is Captain"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isCaptain" ${isCaptain ? 'checked' : ''} ${!canBeCaptain ? 'disabled' : ''}></td>
             </tr>`;
     }).join('');
 
@@ -165,6 +151,116 @@ function renderUserAssignments() {
     });
 }
 
+function renderTeamManagement() {
+    const container = document.getElementById('teams-management-container');
+    container.innerHTML = '';
+
+    Object.keys(allTeams).sort().forEach(teamId => {
+        const team = allTeams[teamId];
+        const teamCard = document.createElement('details');
+        teamCard.className = 'team-card';
+        teamCard.open = true;
+
+        const teamMembers = allUsers.filter(u => u.team === teamId);
+        const unassignedUsers = allUsers.filter(u => !u.team && !u.isAnonymous);
+
+        const captainOptions = allUsers
+            .filter(u => !u.isAnonymous)
+            .map(u => `<option value="${u.uid}" ${team.captainId === u.uid ? 'selected' : ''}>${u.displayName}</option>`)
+            .join('');
+
+        teamCard.innerHTML = `
+            <summary><span class="team-id-display-inline">[${teamId}]</span> ${team.name || 'Unnamed Team'}</summary>
+            <div class="details-content">
+                <div class="team-header">
+                    <input type="text" class="team-name-input" data-team-id="${teamId}" value="${team.name || ''}" placeholder="Team Name">
+                    <select class="team-captain-select" data-team-id="${teamId}">
+                        <option value="">-- No Captain --</option>
+                        ${captainOptions}
+                    </select>
+                    <button class="delete-team-btn destructive-btn" data-team-id="${teamId}" data-team-name="${team.name || ''}">Delete Team</button>
+                </div>
+                <h4>Current Members (${teamMembers.length})</h4>
+                <ul class="team-members-list">
+                    ${teamMembers.length > 0 ? teamMembers.map(m => `
+                        <li class="team-member-item">
+                            <span>${m.displayName}</span>
+                            <button class="remove-member-btn" data-uid="${m.uid}" data-team-id="${teamId}">Remove</button>
+                        </li>`).join('') : '<li>No members assigned.</li>'
+                    }
+                </ul>
+                <div class="add-member-section">
+                    <h4>Add Members</h4>
+                    <input type="text" class="add-member-search" data-team-id="${teamId}" placeholder="Search for unassigned users...">
+                    <div class="add-member-search-results">
+                        ${unassignedUsers.length > 0 ? '' : 'No unassigned users available.'}
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(teamCard);
+    });
+
+    // Add event listeners using delegation
+    container.onchange = (e) => {
+        if (e.target.classList.contains('team-name-input')) {
+            teamManager.updateTeam(e.target.dataset.teamId, { name: e.target.value });
+        } else if (e.target.classList.contains('team-captain-select')) {
+            teamManager.updateTeam(e.target.dataset.teamId, { captainId: e.target.value || null });
+        }
+    };
+
+    container.onclick = (e) => {
+        if (e.target.classList.contains('delete-team-btn')) {
+            if (confirm(`Are you sure you want to delete team "${e.target.dataset.teamName}"? This cannot be undone.`)) {
+                teamManager.deleteTeam(e.target.dataset.teamId);
+            }
+        } else if (e.target.classList.contains('remove-member-btn')) {
+            userManager.updateUser(e.target.dataset.uid, { team: null });
+        } else if (e.target.classList.contains('add-member-btn')) {
+            userManager.updateUser(e.target.dataset.uid, { team: e.target.dataset.teamId });
+        }
+    };
+
+    container.oninput = (e) => {
+        if (e.target.classList.contains('add-member-search')) {
+            const teamId = e.target.dataset.teamId;
+            const searchTerm = e.target.value.toLowerCase();
+            const resultsContainer = e.target.nextElementSibling;
+            const unassignedUsers = allUsers.filter(u => !u.team && !u.isAnonymous);
+
+            if (searchTerm.length < 2) {
+                resultsContainer.innerHTML = '...';
+                return;
+            }
+
+            const results = unassignedUsers.filter(u => u.displayName.toLowerCase().includes(searchTerm));
+            resultsContainer.innerHTML = results.length > 0 ? results.map(u => `
+                <div class="add-member-item">
+                    <span>${u.displayName}</span>
+                    <button class="add-member-btn" data-uid="${u.uid}" data-team-id="${teamId}">Add</button>
+                </div>
+            `).join('') : 'No matching users found.';
+        }
+    };
+}
+
+async function addNewTeam() {
+    const existingNumbers = Object.keys(allTeams).map(id => parseInt(id.replace('team', ''), 10)).filter(n => !isNaN(n));
+    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+    const newId = `team${String(maxNumber + 1).padStart(2, '0')}`;
+
+    try {
+        showGlobalLoader();
+        await teamManager.createTeam(newId, { name: 'New Team', captainId: null, docId: newId });
+        showMessage(`Team ${newId} created.`, false);
+    } catch (err) {
+        showMessage(`Error creating team: ${err.message}`, true);
+    } finally {
+        hideGlobalLoader();
+    }
+}
+
 async function processUpdate(target) {
     const uid = target.dataset.uid;
     const field = target.dataset.field;
@@ -177,33 +273,6 @@ async function processUpdate(target) {
             await userManager.updateUser(uid, { [field]: value });
             const fieldLabel = field === 'displayName' ? 'Display Name' : 'Name Lock';
             showMessage(`Updated ${user.displayName}'s ${fieldLabel} to "${value}".`, false);
-        } else if (field === 'team') {
-            const oldTeamId = allUsers.find(u => u.uid === uid)?.team;
-            const newTeamId = value || null;
-            const user = allUsers.find(u => u.uid === uid);
-            const newTeamName = newTeamId ? allTeams[newTeamId]?.name : 'None';
-            await userManager.updateUser(uid, { team: newTeamId });
-            // If user was captain of old team, remove them as captain
-            if (oldTeamId && oldTeamId !== newTeamId && allTeams[oldTeamId]?.captainId === uid) {
-                await teamManager.updateTeam(oldTeamId, { captainId: null });
-            }
-            showMessage(`Moved ${user.displayName} to team "${newTeamName}".`, false);
-        } else if (field === 'isCaptain') {
-            const user = allUsers.find(u => u.uid === uid);
-            const teamId = user?.team;
-            if (!teamId) return; // Should not happen as checkbox is disabled
-
-            if (value) { // isChecked
-                // Set this user as the new captain for the team
-                await teamManager.updateTeam(teamId, { captainId: uid });
-                showMessage(`${user.displayName} is now captain of ${allTeams[teamId]?.name}.`, false);
-            } else {
-                // Only un-set captain if this user *is* the current captain
-                if (allTeams[teamId]?.captainId === uid) {
-                    await teamManager.updateTeam(teamId, { captainId: null });
-                    showMessage(`${user.displayName} is no longer captain of ${allTeams[teamId]?.name}.`, false);
-                }
-            }
         }
     } catch (error) {
         console.error(`Failed to update user ${uid}:`, error);

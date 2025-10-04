@@ -45,6 +45,37 @@
     .login-type-anon { background-color: #757575; color: white; }
     .login-type-username { background-color: #00897b; color: white; } /* Teal color for username */
 
+    /* NEW: Consistent button styling */
+    button {
+        background-color: var(--accent-color); color: var(--accent-text-color); border: none;
+        padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px;
+        transition: background-color 0.2s;
+    }
+    button:hover:not(:disabled) { background-color: var(--accent-color-darker); }
+    button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; opacity: 0.7; }
+    .destructive-btn { background-color: var(--error-color); }
+
+    /* NEW: Styles for new layout */
+    details { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 1.5rem; }
+    summary { font-size: 1.2rem; font-weight: bold; padding: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    summary::after { content: '▼'; font-size: 0.8em; }
+    details[open] > summary::after { content: '▲'; }
+    .details-content { padding: 0 1rem 1rem 1rem; }
+    .team-card { margin-bottom: 1rem; }
+    .team-card summary { background-color: var(--hover-bg-color); border-radius: 6px; }
+    .team-header { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+    .team-header input, .team-header select { flex-grow: 1; } /* Let them grow equally */
+    .team-members-list { list-style: none; padding: 0; margin: 0 0 1rem 0; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; }
+    .team-id-display-inline { font-family: var(--font-mono); color: var(--secondary-text); margin-right: 0.75rem; font-size: 1rem; }
+    .team-member-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+    .team-member-item:last-child { border-bottom: none; }
+    .remove-member-btn, .add-member-btn { background-color: var(--error-color); color: white; border: none; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .add-member-btn { background-color: var(--success-color); }
+    .add-member-section { margin-top: 1rem; }
+    .add-member-search-results { max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; margin-top: 0.5rem; }
+    .add-member-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+    .add-member-item:last-child { border-bottom: none; }
+
     /* NEW: Responsive Table Styles */
     @media screen and (max-width: 960px) {
         #user-assignment-table thead { display: none; }
@@ -69,25 +100,35 @@
         <p>You must be an Admin or Event Mod to view this page. Please log in with an authorized account.</p>
     </div>
     <div id="users-view" class="container">
-        <h1>User Team & Captain Assignments</h1>
-        <div class="admin-controls">
-            <div class="search-bar">
-                <label for="search-filter">Search:</label>
-                <input type="text" id="search-filter" placeholder="Filter by name, ID, or team...">
+        <h1>User & Team Management</h1>
+
+        <details open>
+            <summary>User Display Name Management</summary>
+            <div class="details-content">
+                <div class="admin-controls">
+                    <div class="search-bar">
+                        <label for="search-filter">Search Users:</label>
+                        <input type="text" id="search-filter" placeholder="Filter by name, ID, or login type...">
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="user-assignment-table">
+                        <thead>
+                            <tr><th data-column="displayName">Display Name</th><th data-column="loginName">Login Name</th><th data-column="isAnonymous">Login Type</th><th data-column="uid">User ID</th><th data-column="isNameLocked">Lock Name</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        <div class="card">
-            <div style="overflow-x: auto;">
-                <table id="user-assignment-table">
-                    <thead>
-                        <tr><th data-column="displayName">Display Name</th><th data-column="loginName">Login Name</th><th data-column="isAnonymous">Login Type</th><th data-column="uid">User ID</th><th data-column="isNameLocked">Lock Name</th><th data-column="team">Team</th><th data-column="isCaptain">Is Captain</th></tr>
-                    </thead>
-                    <tbody>
-                        <!-- User rows will be injected here by JS -->
-                    </tbody>
-                </table>
+        </details>
+
+        <details open>
+            <summary>Team Management</summary>
+            <div class="details-content">
+                <button id="add-team-btn" style="margin-bottom: 1rem;">+ Add New Team</button>
+                <div id="teams-management-container"></div>
             </div>
-        </div>
+        </details>
     </div>
   </div>
 
