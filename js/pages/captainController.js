@@ -176,8 +176,8 @@ function renderUserAssignments() {
         return `
             <tr>
                 <td data-label="Display Name">${user.displayName || 'N/A'}</td>
-                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td data-label="Login Name">${loginName}</td>
+                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
                 <td data-label="Team">${teamCellContent}</td>
             </tr>`;

@@ -80,8 +80,9 @@ function renderUserManagement() {
     // Filter users based on search term
     const filteredUsers = allUsers.filter(user => {
         const name = (user.displayName || '').toLowerCase();
-        const loginType = user.isAnonymous ? 'anonymous' : 'google';
-        return name.includes(searchTerm) || loginType.includes(searchTerm);
+        const loginType = user.isAnonymous ? 'anonymous' : (user.email?.endsWith(USERNAME_DOMAIN) ? 'username' : 'google');
+        const loginName = user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '').toLowerCase() : '';
+        return name.includes(searchTerm) || loginType.includes(searchTerm) || loginName.includes(searchTerm);
     });
 
     // Sort users
@@ -102,6 +103,7 @@ function renderUserManagement() {
 
         // NEW: Logic to determine login type
         let loginType = 'Google';
+        let loginName = 'N/A';
         let loginTypeClass = 'login-type-google';
         if (user.isAnonymous) {
             loginType = 'Anonymous';
@@ -109,11 +111,13 @@ function renderUserManagement() {
         } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
             loginType = 'Username';
             loginTypeClass = 'login-type-username';
+            loginName = user.email.replace(USERNAME_DOMAIN, '');
         }
 
         return `
             <tr>
                 <td>${user.displayName || ''}</td>
+                <td>${loginName}</td>
                 <td><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
                 <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
