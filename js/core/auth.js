@@ -59,6 +59,40 @@ export async function signInAnonymously() {
     }
 }
 
+export async function signInWithEmail(email, password) {
+    try {
+        await fb.signInWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the rest.
+        return true; // Indicate success
+    } catch (error) {
+        console.error("Email/Password Sign-In Error:", error);
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            alert('Sign-in failed: Invalid email or password.');
+        } else {
+            alert(`Sign-in failed: ${error.message}`);
+        }
+        return false; // Indicate failure
+    }
+}
+
+export async function createUserWithEmail(email, password) {
+    try {
+        await fb.createUserWithEmailAndPassword(auth, email, password);
+        // onAuthStateChanged will handle the rest.
+        return true; // Indicate success
+    } catch (error) {
+        console.error("Email/Password Account Creation Error:", error);
+        if (error.code === 'auth/email-already-in-use') {
+            alert('Sign-up failed: An account with this email already exists. Please try signing in instead.');
+        } else if (error.code === 'auth/weak-password') {
+            alert('Sign-up failed: The password is too weak. It must be at least 6 characters long.');
+        } else {
+            alert(`Could not create account: ${error.message}`);
+        }
+        return false; // Indicate failure
+    }
+}
+
 function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', uid);
     console.log(`[Auth] Setting up profile listener for user.`);

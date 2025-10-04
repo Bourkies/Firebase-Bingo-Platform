@@ -189,6 +189,13 @@ function initializeApp() {
 // Listener for users collection, must be called after auth state is known
 function setupUsersListener() {
     if (unsubscribeUsers) unsubscribeUsers();
+
+    // NEW: Only listen to users if logged in. This prevents permission errors for guests.
+    if (!authState.isLoggedIn) {
+        allUsers = []; // Clear user data on logout
+        return;
+    }
+
     unsubscribeUsers = userManager.listenToUsers((newUsers) => { // FIX: Changed log to match format
         console.log(`[IndexController] Users updated. Received ${newUsers.length} users.`);
         allUsers = newUsers;

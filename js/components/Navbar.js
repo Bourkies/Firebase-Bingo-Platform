@@ -1,4 +1,4 @@
-import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously } from '../core/auth.js';
+import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
 
 // NEW: Centralized variable for the responsive breakpoint.
@@ -169,6 +169,19 @@ template.innerHTML = /*html*/`
         .modal-content button[type="submit"] { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
         .modal-content button[type="submit"]:disabled { background-color: #555; cursor: not-allowed; }
         .close-button { color: var(--secondary-text); position: absolute; top: 1rem; right: 1.5rem; font-size: 28px; font-weight: bold; cursor: pointer; }
+        
+        /* NEW: Styles for Email/Password form */
+        .email-login-form { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
+        .email-login-form input { background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 4px; box-sizing: border-box; }
+        .email-login-buttons { display: flex; gap: 0.75rem; margin-top: 0.5rem; }
+        .email-login-buttons button { flex-grow: 1; background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 0.75rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        .email-login-buttons button.secondary { background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); }
+        .email-login-buttons button.secondary:hover { background-color: var(--hover-bg-color); }
+
+        .form-divider { text-align: center; color: var(--secondary-text); margin: 1.5rem 0; font-size: 0.9rem; }
+        .modal-switch { text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--secondary-text); }
+
+
         /* Login Modal Specific Styles */
         #login-modal .modal-content { max-width: 400px; text-align: center; }
         .login-options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
@@ -233,6 +246,17 @@ template.innerHTML = /*html*/`
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <h2>Sign In</h2>
+            <form id="email-login-form" class="email-login-form">
+                <input type="text" id="login-username" placeholder="Username" required autocomplete="username">
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button type="submit" id="email-signin-btn">Sign In</button>
+            </form>
+
+            <div class="form-divider">
+                <span>OR</span>
+            </div>
+
+
             <p>Choose an option to sign in and participate.</p>
             <div class="login-options">
                 <button id="login-google">
@@ -251,6 +275,22 @@ template.innerHTML = /*html*/`
                     <li>You cannot be assigned as a team captain, mod, or admin.</li>
                 </ul>
             </div>
+            <p class="modal-switch">Don't have an account? <a href="#" id="show-signup-modal-link">Sign Up</a></p>
+        </div>
+    </div>
+
+    <!-- Sign Up Modal -->
+    <div id="signup-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Create Account</h2>
+            <p>Create an account to save your progress and join a team.</p>
+            <form id="email-signup-form" class="email-login-form">
+                <input type="text" id="signup-username" placeholder="Username" required autocomplete="username">
+                <input type="password" id="signup-password" placeholder="Password (min. 6 characters)" required>
+                <button type="submit" id="email-signup-btn">Create Account</button>
+            </form>
+            <p class="modal-switch">Already have an account? <a href="#" id="show-login-modal-link">Sign In</a></p>
         </div>
     </div>
 `;
@@ -284,6 +324,14 @@ class AppNavbar extends HTMLElement {
         this.closeLoginModalBtn = this.shadowRoot.querySelector('#login-modal .close-button');
         this.loginGoogleBtn = this.shadowRoot.querySelector('#login-google');
         this.loginAnonBtn = this.shadowRoot.querySelector('#login-anon');
+        this.emailLoginForm = this.shadowRoot.querySelector('#email-login-form'); // The sign-in form
+
+        // Sign Up Modal elements
+        this.signupModal = this.shadowRoot.querySelector('#signup-modal');
+        this.closeSignupModalBtn = this.shadowRoot.querySelector('#signup-modal .close-button');
+        this.emailSignupForm = this.shadowRoot.querySelector('#email-signup-form');
+        this.showSignupModalLink = this.shadowRoot.querySelector('#show-signup-modal-link');
+        this.showLoginModalLink = this.shadowRoot.querySelector('#show-login-modal-link');
 
         this.allTeams = {};
         this.config = {};
@@ -297,6 +345,10 @@ class AppNavbar extends HTMLElement {
 
     hideLoginModal() {
         this.loginModal.style.display = 'none';
+    }
+
+    hideSignupModal() {
+        this.signupModal.style.display = 'none';
     }
 
     connectedCallback() {
@@ -315,6 +367,17 @@ class AppNavbar extends HTMLElement {
         this.closeLoginModalBtn.addEventListener('click', () => this.hideLoginModal());
         this.loginGoogleBtn.addEventListener('click', () => { signInWithGoogle(); this.hideLoginModal(); });
         this.loginAnonBtn.addEventListener('click', () => { signInAnonymously(); this.hideLoginModal(); });
+        this.emailLoginForm.addEventListener('submit', (e) => this.handleEmailLogin(e, 'signin'));
+
+        // New listeners for sign-up modal and switching between modals
+        this.closeSignupModalBtn.addEventListener('click', () => this.hideSignupModal());
+        this.emailSignupForm.addEventListener('submit', (e) => this.handleEmailLogin(e, 'signup'));
+        this.showSignupModalLink.addEventListener('click', (e) => {
+            e.preventDefault(); this.hideLoginModal(); this.signupModal.style.display = 'flex';
+        });
+        this.showLoginModalLink.addEventListener('click', (e) => {
+            e.preventDefault(); this.hideSignupModal(); this.showLoginModal();
+        });
 
         this.hamburgerBtn.addEventListener('click', () => {
             this.navLinksMobile.classList.toggle('active');
@@ -529,6 +592,38 @@ class AppNavbar extends HTMLElement {
             alert('Failed to update display name: ' + error.message);
         } finally {
             submitBtn.disabled = false;
+        }
+    }
+
+    async handleEmailLogin(event, action) {
+        event.preventDefault();
+        let username, password, success = false;
+
+        if (action === 'signin') {
+            username = this.shadowRoot.getElementById('login-username').value;
+            password = this.shadowRoot.getElementById('login-password').value;
+        } else if (action === 'signup') {
+            username = this.shadowRoot.getElementById('signup-username').value;
+            password = this.shadowRoot.getElementById('signup-password').value;
+        }
+
+        if (!username || !password) {
+            alert('Please enter both username and password.');
+            return;
+        }
+
+        // Construct the email from the username
+        const email = `${username.trim()}@fir-bingo-app.com`;
+
+        if (action === 'signin') {
+            success = await signInWithEmail(email, password);
+        } else if (action === 'signup') {
+            success = await createUserWithEmail(email, password);
+        }
+
+        if (success) {
+            this.hideLoginModal();
+            this.hideSignupModal();
         }
     }
 }
