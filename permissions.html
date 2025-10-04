@@ -51,7 +51,21 @@
     #user-management-table td, #user-management-table th { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
     #user-management-table th { font-weight: bold; white-space: nowrap; }
     #user-management-table input { width: 100%; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); padding: 0.25rem; border-radius: 4px; box-sizing: border-box; }
+    #user-management-table input[type="checkbox"] { width: auto; } /* Let checkboxes size themselves */
     #user-management-table input:disabled { background-color: var(--disabled-bg-color); color: var(--secondary-text); cursor: not-allowed; opacity: 0.7; }
+
+    /* NEW: Responsive Table Styles */
+    @media screen and (max-width: 960px) {
+        #user-management-table thead { display: none; }
+        #user-management-table tbody, #user-management-table tr, #user-management-table td { display: block; width: 100%; box-sizing: border-box; }
+        #user-management-table tr { margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.5rem; }
+        #user-management-table td {
+            display: flex; justify-content: space-between; align-items: center;
+            text-align: right; padding: 0.5rem; border-bottom: 1px dashed var(--border-color); white-space: normal;
+        }
+        #user-management-table td:last-child { border-bottom: none; }
+        #user-management-table td::before { content: attr(data-label); font-weight: bold; text-align: left; color: var(--secondary-text); padding-right: 1rem; }
+    }
   </style>
 </head>
 <body>
@@ -74,6 +88,7 @@
                             <th data-column="displayName">Display Name</th>
                             <th data-column="loginName">Login Name</th>
                             <th data-column="isAnonymous">Login Type</th>
+                            <th data-column="team">Team</th>
                             <th data-column="isEventMod">Is Mod</th>
                             <th data-column="isAdmin">Is Admin</th>
                         </tr>

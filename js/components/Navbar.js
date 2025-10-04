@@ -479,27 +479,25 @@ class AppNavbar extends HTMLElement {
 
     renderNavLinks() {
         // Get the base filename of the current page, defaulting to 'index' for the root.
-        let currentPageFile = window.location.pathname.split('/').pop().replace('.html', '');
-        if (currentPageFile === '') {
-            currentPageFile = 'index';
-        }
+        const currentPagePath = window.location.pathname;
 
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
+        // NEW: Use root-relative paths to ensure links work from any directory depth.
         const links = [
-            { href: './index.html', text: 'Board', show: true },
-            { href: './overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
-            { href: './captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
-            { href: './admin.html', text: 'Admin', show: this.authState.isEventMod || this.authState.isAdmin },
-            { href: './setup.html', text: 'Setup', show: this.authState.isAdmin }
+            { href: '/index.html', text: 'Board', show: true },
+            { href: '/overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
+            { href: '/captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
+            { href: '/admin.html', text: 'Admin', show: this.authState.isEventMod || this.authState.isAdmin },
+            { href: '/setup.html', text: 'Setup', show: this.authState.isAdmin }
         ];
 
         const linksHtml = links
             .filter(link => link.show)
             .map(link => {
-                // Get the base filename of the link's href.
-                const linkFile = link.href.split('/').pop().replace('.html', '');
-                const isActive = linkFile === currentPageFile;
+                // NEW: Check if the current page's path ends with the link's href.
+                // This correctly handles both root paths (e.g., '/') and specific file paths.
+                const isActive = currentPagePath.endsWith(link.href) || (currentPagePath === '/' && link.href === '/index.html');
                 return `<a href="${link.href}" class="${isActive ? 'active' : ''}">${link.text}</a>`;
             })
             .join('');

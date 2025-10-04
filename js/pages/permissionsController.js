@@ -5,9 +5,11 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 
 // Import the new data managers
 import * as userManager from '../core/data/userManager.js';
+import * as teamManager from '../core/data/teamManager.js';
 
 let allUsers = [];
 let authState = {};
+let allTeams = {};
 let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
 let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
@@ -50,12 +52,26 @@ function initializeApp() {
         return;
     }
 
+    let initialDataLoaded = { users: false, teams: false };
+    const checkAllLoaded = () => {
+        if (Object.values(initialDataLoaded).every(Boolean)) {
+            hideGlobalLoader();
+        }
+    };
+
     unsubs.push(userManager.listenToUsers(newUsers => {
         console.log("Permissions: Users updated in real-time.");
         allUsers = newUsers;
         renderUserManagement();
-        hideGlobalLoader(); // Users are the only data needed for this page.
+        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
     }, authState));
+
+    unsubs.push(teamManager.listenToTeams(newTeams => {
+        console.log("Permissions: Teams updated in real-time.");
+        allTeams = newTeams;
+        renderUserManagement();
+        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
+    }));
 
     unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
 }
@@ -82,13 +98,21 @@ function renderUserManagement() {
         const name = (user.displayName || '').toLowerCase();
         const loginType = user.isAnonymous ? 'anonymous' : (user.email?.endsWith(USERNAME_DOMAIN) ? 'username' : 'google');
         const loginName = user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '').toLowerCase() : '';
-        return name.includes(searchTerm) || loginType.includes(searchTerm) || loginName.includes(searchTerm);
+        const teamName = (allTeams[user.team]?.name || 'unassigned').toLowerCase();
+        return name.includes(searchTerm) || loginType.includes(searchTerm) || loginName.includes(searchTerm) || teamName.includes(searchTerm);
     });
 
     // Sort users
     filteredUsers.sort((a, b) => {
-        const valA = a[currentSort.column] ?? '';
-        const valB = b[currentSort.column] ?? '';
+        let valA, valB;
+        if (currentSort.column === 'team') {
+            valA = allTeams[a.team]?.name || 'Unassigned';
+            valB = allTeams[b.team]?.name || 'Unassigned';
+        } else {
+            valA = a[currentSort.column] ?? '';
+            valB = b[currentSort.column] ?? '';
+        }
+
         const comparison = String(valA).localeCompare(String(valB), undefined, { numeric: true });
         return currentSort.direction === 'asc' ? comparison : -comparison;
     });
@@ -114,13 +138,16 @@ function renderUserManagement() {
             loginName = user.email.replace(USERNAME_DOMAIN, '');
         }
 
+        const teamName = user.team ? (allTeams[user.team]?.name || 'Unknown Team') : 'Unassigned';
+
         return `
             <tr>
-                <td>${user.displayName || ''}</td>
-                <td>${loginName}</td>
-                <td><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
-                <td><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
-                <td ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
+                <td data-label="Display Name">${user.displayName || ''}</td>
+                <td data-label="Login Name">${loginName}</td>
+                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
+                <td data-label="Team">${teamName}</td>
+                <td data-label="Is Mod"><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
+                <td data-label="Is Admin" ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
             </tr>`;
     }).join('');
 

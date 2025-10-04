@@ -6,7 +6,7 @@ An interactive, real-time platform for bingo competitions built with Firebase. T
 
 *   **Real-Time Updates**: All data is synchronized in real-time using Firestore, ensuring players and admins always see the latest information.
 *   **Modular & Maintainable**: The codebase is broken down into core services, reusable UI components, and page-specific controllers, making it easy to manage and extend.
-*   **Secure Authentication**: Manages user access with Firebase Authentication (Google & Anonymous), protecting sensitive admin and setup pages.
+*   **Secure Authentication**: Manages user access with Firebase Authentication (Username/Password, Google & Anonymous), protecting sensitive admin and setup pages.
 *   **Role-Based Permissions**: A flexible four-tier permission system (Admin, Event Mod, Captain, Player) controls who can perform which actions.
 *   **Visual Board Editor**: A graphical interface (`setup.html`) for admins to visually arrange tiles, manage users, and configure all event settings directly in the browser.
 *   **Mass Data Import/Export**: Dedicated pages to bulk import/export tiles, config, and submissions via CSV.
@@ -54,6 +54,7 @@ The repository has been refactored into a modular structure that separates conce
         *   Click "Save". You can leave all other settings (like Authorized Domains) as they are.
         *   (Optional) From the "Sign-in method" tab, also enable the **Anonymous** provider. No extra configuration is needed for it.
     *   **Firestore Database**:
+        *   From the "Sign-in method" tab, also enable the **Email/Password** provider. No extra configuration is needed for it.
         *   Go to `Build > Firestore Database` and click "Create database".
         *   Choose **Start in production mode**.
         *   Select a Cloud Firestore location. A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
