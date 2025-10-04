@@ -6,7 +6,7 @@ import csv
 import shutil
 import requests
 from PIL import Image, ImageDraw, ImageFont
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, quote
 
 CACHE_DIR = ".cache" # Cache for downloaded images
 OUTPUT_DIR = "output" # Base directory for all generated boards
@@ -253,34 +253,33 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
             # Draw section background image
             if section['background_path']:
                 try:
-                    # Open image and ensure it's in RGB mode for blending
-                    base_img = Image.open(section['background_path']).convert('RGB')
+                    # Open image and immediately convert to RGBA to preserve transparency info
+                    base_img = Image.open(section['background_path']).convert('RGBA')
 
-                    # --- NEW: "Contain" and center scaling logic ---
+                    # --- FINAL: "Contain" and center scaling logic, allowing upscaling ---
                     target_w, target_h = section_width, int(max_row_height)
                     
-                    # Calculate the ratio and decide which dimension to scale by
+                    # Calculate the ratio and decide which dimension to scale by to fit inside the target
                     ratio_w = target_w / base_img.width
                     ratio_h = target_h / base_img.height
-                    
-                    if ratio_w < ratio_h: # Scale by width
-                        new_w = target_w
-                        new_h = int(base_img.height * ratio_w)
-                    else: # Scale by height
-                        new_h = target_h
-                        new_w = int(base_img.width * ratio_h)
+                    scale_ratio = min(ratio_w, ratio_h)
+
+                    new_w = int(base_img.width * scale_ratio)
+                    new_h = int(base_img.height * scale_ratio)
                         
+                    # Resize with a high-quality filter. This handles both upscaling and downscaling.
                     bg_img = base_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                     
-                    # Create a solid color image of the board's background to blend with for the watermark effect
-                    solid_bg = Image.new('RGB', bg_img.size, color=config['themeColors']['background'])
-                    opacity = 1.0 - config.get('sectionBgOpacity', 0.15) # 0.15 opacity means 0.85 blend towards solid
-                    blended_img = Image.blend(bg_img, solid_bg, alpha=opacity)
+                    # Create a new alpha channel with the desired opacity
+                    opacity = int(255 * config.get('sectionBgOpacity', 0.15))
+                    alpha = bg_img.getchannel('A')
+                    new_alpha = alpha.point(lambda p: int(p * (opacity / 255)))
+                    bg_img.putalpha(new_alpha)
                     
                     # Calculate paste position to center the image
-                    paste_x = section_x + (target_w - new_w) // 2
-                    paste_y = int(section_y) + (target_h - new_h) // 2
-                    board.paste(blended_img, (paste_x, paste_y))
+                    paste_x = section_x + (target_w - bg_img.width) // 2
+                    paste_y = int(section_y) + (target_h - bg_img.height) // 2
+                    board.paste(bg_img, (paste_x, paste_y), bg_img) # Use the image's own alpha channel as the mask
                 except Exception as e:
                     logging.error(f"Could not process background image {section['background_path']}: {e}")
 
