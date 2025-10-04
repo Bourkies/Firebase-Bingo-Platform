@@ -237,6 +237,8 @@ function renderTeamManagement() {
         }
 
         const captainOptions = potentialCaptains
+            // NEW: Filter out anonymous users, but keep the current captain if they happen to be anonymous.
+            .filter(u => !u.isAnonymous || u.uid === team.captainId)
             .map(u => `<option value="${u.uid}" ${team.captainId === u.uid ? 'selected' : ''}>${u.displayName}</option>`)
             .join('');
 
