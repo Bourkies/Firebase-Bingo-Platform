@@ -79,24 +79,35 @@
         .validation-error { color: var(--error-color); font-weight: bold; }
         /* Preview Styles */
         #preview-viewport {
-            border: 2px solid var(--border-color); background-color: var(--bg-color);
-            padding: 10px; overflow: hidden; max-height: 80vh;
-            display: flex; justify-content: center; align-items: center;
+            /* REVISED: Make the viewport a scrollable container */
+            border: 2px solid var(--border-color);
+            background-color: var(--bg-color);
+            overflow: auto; /* Allow scrolling for large/zoomed boards */
+            max-height: 80vh;
+            padding: 10px;
         }
+        /* NEW: A wrapper to hold the scaled board, allowing the viewport to scroll around it */
+        #preview-wrapper { position: relative; }
         #preview-board {
-            position: relative; transform-origin: top left;
+            /* REVISED: Use flexbox for robust vertical layout */
+            display: flex;
+            flex-direction: column;
+            transform-origin: top left;
+            background-color: var(--bg-color); /* Match the theme */
         }
-        #preview-sections-container { display: grid; gap: 10px; }
+        #preview-sections-container { display: grid; }
         .preview-title { text-align: center; font-size: 1.5em; font-weight: bold; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-color); }
-        .preview-section { border: 1px solid var(--secondary-text); padding: 10px; cursor: grab; }
+        .preview-section {
+            /* FIX: Use outline instead of border. Outline is not scaled by transform, ensuring it's always visible. */
+            outline: 1px solid var(--secondary-text, #a0a0a0); outline-offset: -1px;
+            padding: 10px;
+            cursor: grab;
+        }
         .preview-section-title { font-weight: bold; color: var(--accent-color); }
         .preview-tile-group { margin-top: 10px; border-left: 2px solid var(--accent-color); padding-left: 8px; cursor: grab; }
         .preview-tile-group-title { font-style: italic; color: var(--secondary-text); }
-        .preview-tile-container { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-        .preview-tile {
-            width: 40px; height: 40px; background-color: #444; border: 1px solid #666;
-            display: flex; justify-content: center; align-items: center; font-size: 10px;
-        }
+        .preview-tile-container { display: grid; }
+        .preview-tile { width: 40px; height: 40px; background-color: #444; border: 1px solid #666; display: flex; justify-content: center; align-items: center; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -141,10 +152,24 @@
 
         <div class="preview-column">
             <div class="panel">
-                <h2>Live Preview</h2>
+                <div class="section-header" style="padding-bottom: 0;">
+                    <h2>Live Preview</h2>
+                    <div class="form-field" style="margin-bottom: 0;">
+                        <label for="preview-scale-select" style="margin-bottom: 0;">Scale</label>
+                        <select id="preview-scale-select">
+                            <option value="auto">Auto</option>
+                            <option value="1">100%</option>
+                            <option value="0.5">50%</option>
+                            <option value="0.25">25%</option>
+                            <option value="0.1">10%</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="preview-viewport">
-                    <div id="preview-board"></div>
-                    <!-- Preview will be generated here -->
+                    <div id="preview-wrapper">
+                        <div id="preview-board"></div>
+                        <!-- Preview will be generated here -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -155,7 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let editorState = {
         config: {},
         sections: [],
-        uiState: {} // To store minimized states
+        uiState: {
+            previewScale: 'auto' // Default scale
+        } // To store minimized states
     };
 
     const configGroups = {
@@ -210,7 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let draggedItem = null;
 
     function makeDraggable(containerSelector, itemSelector, onDropCallback) {
-        const container = document.querySelector(containerSelector);
+        // Use querySelectorAll to handle cases where multiple containers match (like tile groups)
+        // but we only need one event listener on a parent.
+        // The main logic here is to attach listeners to a static parent.
+        const container = document.querySelector(containerSelector); // The parent container
         if (!container) return;
         container.addEventListener('dragstart', e => {
             if (e.target.closest(itemSelector)) {
@@ -233,9 +263,19 @@ document.addEventListener('DOMContentLoaded', () => {
         container.addEventListener('dragover', e => {
             e.preventDefault();
             const target = e.target.closest(itemSelector);
+            const isPreview = container.id.includes('preview');
+
             if (target && target !== draggedItem && target.parentElement === draggedItem.parentElement) {
                 const rect = target.getBoundingClientRect();
-                const next = (e.clientY - rect.top) / rect.height > 0.5;
+                let clientY = e.clientY;
+
+                // FIX: If we are in the preview, we need to adjust the mouse coordinates
+                // to account for the CSS scaling on the board.
+                if (isPreview) {
+                    const scale = parseFloat(editorState.uiState.previewScale) || 1;
+                    clientY = (e.clientY - rect.top) / scale + rect.top;
+                }
+                const next = (clientY - rect.top) / rect.height > 0.5;
                 if (next) {
                     target.parentNode.insertBefore(draggedItem, target.nextSibling);
                 } else {
@@ -259,13 +299,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('add-section-btn').addEventListener('click', addSection);
         document.getElementById('global-config-form').addEventListener('change', handleGlobalConfigChange);
         document.getElementById('global-config-form').addEventListener('click', handleFieldsetToggle);
+        document.querySelector('.panel.collapsible .toggle-btn[data-target="global-config-form"]').addEventListener('click', toggleMinimize);
         document.getElementById('theme-colors-form').addEventListener('change', handleGlobalConfigChange);
+        document.querySelector('.panel.collapsible .toggle-btn[data-target="theme-colors-form"]').addEventListener('click', toggleMinimize);
+        document.getElementById('preview-scale-select').addEventListener('change', handlePreviewScaleChange);
 
         renderAll();
         makeDraggable('#sections-container', '.section-item', updateStateFromDOM);
-        makeDraggable('#preview-sections-container', '.preview-section', updateStateFromPreview);
-        document.querySelectorAll('.tile-group-container').forEach(c => makeDraggable(`#${c.id}`, '.tile-group-item', updateStateFromDOM));
-        document.querySelectorAll('.preview-section-content').forEach(c => makeDraggable(`#${c.id}`, '.preview-tile-group', updateStateFromPreview));
 
     }
 
@@ -349,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const contentDiv = fieldset.querySelector('.fieldset-content');
 
             // Update calculated width before rendering
-            const sW = editorState.config.sectionWidth || 0, sC = editorState.config.sectionColumns || 0, sP = editorState.config.sectionPadding || 0;
+            const sW = Number(editorState.config.sectionWidth) || 0, sC = Number(editorState.config.sectionColumns) || 0, sP = Number(editorState.config.sectionPadding) || 0;
             editorState.config.calculatedBoardWidth = `${(sW * sC) + (sP * (sC + 1))}px`;
 
             keys.forEach(key => {
@@ -440,6 +480,11 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', toggleMinimize));
         container.querySelectorAll('input, textarea').forEach(input => input.addEventListener('change', updateStateFromDOM));
 
+        // Re-initialize draggables for the editor
+        makeDraggable('#sections-container', '.section-item', updateStateFromDOM);
+        document.querySelectorAll('.tile-group-container').forEach(c => makeDraggable(`#${c.id}`, '.tile-group-item', updateStateFromDOM));
+
+
         // Make tile groups draggable within their section
         document.querySelectorAll('.tile-group-container').forEach(tgc => {
             makeDraggable(`#${tgc.id}`, '.tile-group-item', updateStateFromDOM);
@@ -499,29 +544,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPreview() {
         console.log('%c[Render] Rendering live preview...', 'color: orange');
         const viewport = document.getElementById('preview-viewport');
-        const container = document.getElementById('preview-board'); // This is the scalable element
+        const wrapper = document.getElementById('preview-wrapper');
+        const container = document.getElementById('preview-board');
         container.innerHTML = '';
 
-        const config = editorState.config;
-        const padding = config.sectionPadding || 10;
-        const sectionWidth = config.sectionWidth || 400;
-        const sectionColumns = config.sectionColumns || 1;
+        const config = editorState.config || {};
+        const padding = Number(config.sectionPadding) || 10;
+        const sectionWidth = Number(config.sectionWidth) || 400;
+        const sectionColumns = Number(config.sectionColumns) || 1;
 
         // --- Calculate total board dimensions for aspect ratio ---
         console.log(`[Preview Calc] Base values: sectionWidth=${sectionWidth}, sectionColumns=${sectionColumns}, padding=${padding}`);
 
         // FIX: boardWidth was not defined. It should be calculated from sectionWidth and columns.
         const boardWidth = (sectionWidth * sectionColumns) + (padding * (sectionColumns + 1));
-        let titleBoxHeight = config.boardTitle ? (config.boardTitleFontSize || 64) + (padding * 2) : 0;
-        let totalBoardHeight = padding + titleBoxHeight + padding;
+        let titleBoxHeight = config.boardTitle ? (Number(config.boardTitleFontSize) || 64) + (padding * 2) : 0;
+        let totalBoardHeight = padding + titleBoxHeight; // The final padding is added in the loop below
 
-        const sectionHeights = editorState.sections.map(section => {
-            let height = padding + (config.sectionTitleFontSize || 24) + padding;
+        const sectionHeights = editorState.sections.map((section) => {
+            let height = padding + (Number(config.sectionTitleFontSize) || 0) + padding;
             for (const group of section.tiles) {
-                height += (config.tileTitleFontSize || 16) + (config.tilePadding || 5);
-                const numTiles = group.points ? group.points.length : 0;
-                const numRows = Math.ceil(numTiles / (config.tileColumns || 5));
-                height += numRows * ((config.tileWidth || 64) + (config.tilePadding || 5));
+                height += (Number(config.tileTitleFontSize) || 0) + (Number(config.tilePadding) || 0);
+                const numTiles = Array.isArray(group.points) ? group.points.length : 0;
+                const tileColumns = Number(config.tileColumns) || 5;
+                if (numTiles > 0 && tileColumns > 0) {
+                    const numRows = Math.ceil(numTiles / tileColumns);
+                    // The height of each row is tileWidth, and the gap is tilePadding.
+                    height += (numRows * (Number(config.tileWidth) || 0)) + (Math.max(0, numRows - 1) * (Number(config.tilePadding) || 0));
+                }
             }
             height += padding;
             return height;
@@ -529,42 +579,68 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[Preview Calc] Calculated section heights:', sectionHeights);
 
         const numSectionRows = editorState.sections.length > 0 ? Math.ceil(editorState.sections.length / sectionColumns) : 0;
+        // FIX: The total height is the sum of the *tallest* section in each row, not all sections.
         for (let i = 0; i < numSectionRows; i++) {
             const rowStartIndex = i * sectionColumns;
             const rowEndIndex = rowStartIndex + sectionColumns;
             const rowHeights = sectionHeights.slice(rowStartIndex, rowEndIndex);
-            const maxRowHeight = rowHeights.length > 0 ? Math.max(0, ...rowHeights) : 0;
+            // Ensure we don't get -Infinity from an empty array
+            const maxRowHeight = rowHeights.length > 0 ? Math.max(...rowHeights) : 0;
             totalBoardHeight += maxRowHeight + padding;
         }
 
         console.log(`[Preview Calc] Final dimensions: boardWidth=${boardWidth}, totalBoardHeight=${totalBoardHeight}`);
-        // --- Scale the board to fit the viewport ---
+        // FIX: viewportRect was not defined. Define it here before it's used.
+        const viewportRect = viewport.getBoundingClientRect();
+        let finalScale;
+        if (editorState.uiState.previewScale === 'auto') {
+            // Prevent division by zero if boardWidth or totalBoardHeight is 0
+            const rawScaleX = boardWidth > 0 ? (viewportRect.width - 20) / boardWidth : 1; // Subtract padding
+            const rawScaleY = totalBoardHeight > 0 ? (viewportRect.height - 20) / totalBoardHeight : 1;
+            finalScale = Math.min(rawScaleX, rawScaleY);
+            // Enforce a minimum scale to prevent the preview from becoming invisible
+            const MIN_SCALE = 0.05; 
+            finalScale = Math.max(finalScale, MIN_SCALE);
+            console.log(`[Preview Calc] Viewport: ${viewportRect.width}x${viewportRect.height}. Auto scale: ${finalScale}`);
+        } else {
+            finalScale = parseFloat(editorState.uiState.previewScale);
+            console.log(`[Preview Calc] Manual scale selected: ${finalScale}`);
+        }
+
+        // --- Apply styles ---
         container.style.width = `${boardWidth}px`;
         container.style.height = `${totalBoardHeight}px`;
-        const viewportRect = viewport.getBoundingClientRect();
-        // Prevent division by zero if boardWidth or totalBoardHeight is 0
-        const scaleX = boardWidth > 0 ? viewportRect.width / boardWidth : 1;
-        const scaleY = totalBoardHeight > 0 ? viewportRect.height / totalBoardHeight : 1;
-        const scale = Math.min(scaleX, scaleY);
-        container.style.transform = `scale(${scale})`;
-        console.log(`[Preview Calc] Viewport: ${viewportRect.width}x${viewportRect.height}. Final scale: ${scale}`);
+        container.style.transform = `scale(${finalScale})`;
+        // Set the wrapper's size to the scaled dimensions so the viewport can scroll correctly
+        wrapper.style.width = `${boardWidth * finalScale}px`;
+        wrapper.style.height = `${totalBoardHeight * finalScale}px`;
 
-        if (isNaN(scale) || !isFinite(scale)) {
-            console.error('[Preview Error] Calculated scale is invalid. Aborting preview render.', {scale, boardWidth, totalBoardHeight});
+        if (isNaN(finalScale) || !isFinite(finalScale)) {
+            console.error('[Preview Error] Calculated scale is invalid. Aborting preview render.', {finalScale, boardWidth, totalBoardHeight});
             return;
         }
 
+
+        // --- Render Elements ---
+        console.log(`%c[Preview Render] Board Style: width=${container.style.width}, height=${container.style.height}, transform=${container.style.transform}`, 'color: cyan');
 
         if (config.boardTitle) {
             const titleEl = document.createElement('div');
             titleEl.className = 'preview-title';
             titleEl.textContent = config.boardTitle;
+            titleEl.style.fontSize = `${config.boardTitleFontSize || 64}px`;
             container.appendChild(titleEl);
+            console.log(`%c[Preview Render] Title: text="${config.boardTitle}", fontSize=${titleEl.style.fontSize}`, 'color: cyan');
         }
 
         const sectionContainer = document.createElement('div');
         sectionContainer.id = 'preview-sections-container';
         sectionContainer.style.gridTemplateColumns = `repeat(${config.sectionColumns || 1}, 1fr)`;
+        // NEW: Set gap and padding to match the python script's logic
+        sectionContainer.style.gap = `${padding}px`;
+        sectionContainer.style.padding = `${padding}px`;
+        // NEW: Make the section container fill the remaining vertical space
+        sectionContainer.style.flexGrow = '1';
 
         editorState.sections.forEach((section, sectionIndex) => {
             const sectionEl = document.createElement('div');
@@ -575,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const titleEl = document.createElement('div');
             titleEl.className = 'preview-section-title';
             titleEl.textContent = section.title || 'Untitled Section';
+            titleEl.style.fontSize = `${config.sectionTitleFontSize || 24}px`;
             sectionEl.appendChild(titleEl);
 
             const sectionContentEl = document.createElement('div');
@@ -592,16 +669,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const groupTitleEl = document.createElement('div');
                 groupTitleEl.className = 'preview-tile-group-title';
                 groupTitleEl.textContent = tileGroup.title || 'Untitled Tile Group';
+                groupTitleEl.style.fontSize = `${config.tileTitleFontSize || 16}px`;
                 groupEl.appendChild(groupTitleEl);
 
                 const tileContainer = document.createElement('div');
                 tileContainer.className = 'preview-tile-container';
-                tileContainer.style.display = 'grid'; tileContainer.style.gridTemplateColumns = `repeat(${config.tileColumns || 5}, 1fr)`;
+                tileContainer.style.gridTemplateColumns = `repeat(${config.tileColumns || 5}, 1fr)`;
+                tileContainer.style.gap = `${config.tilePadding || 5}px`;
+                tileContainer.style.paddingTop = `${config.tilePadding || 5}px`;
+
 
                 const numTiles = tileGroup.points ? tileGroup.points.length : 0;
                 for (let i = 0; i < numTiles; i++) {
                     const tileEl = document.createElement('div');
                     tileEl.className = 'preview-tile';
+                    tileEl.style.width = `${config.tileWidth || 64}px`;
+                    tileEl.style.height = `${config.tileWidth || 64}px`;
                     tileEl.textContent = i + 1;
                     tileContainer.appendChild(tileEl);
                 }
@@ -609,14 +692,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 sectionContentEl.appendChild(groupEl);
             });
 
+            console.log(`%c[Preview Render] Section ${sectionIndex}: title="${section.title}", ${section.tiles.length} tile groups`, 'color: cyan');
             sectionContainer.appendChild(sectionEl);
         });
 
         container.appendChild(sectionContainer);
 
         // Re-initialize draggables for the preview
+        // This needs to be done *after* the elements are in the DOM.
         makeDraggable('#preview-sections-container', '.preview-section', updateStateFromPreview);
         document.querySelectorAll('.preview-section-content').forEach(c => makeDraggable(`#${c.id}`, '.preview-tile-group', updateStateFromPreview));
+
     }
 
     // --- Event Handlers ---
@@ -633,7 +719,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.config || !data.sections) {
                     throw new Error("Invalid config format. Must contain 'config' and 'sections' keys.");
                 }
-                editorState = data;
+                // FIX: Don't overwrite the whole state. Preserve uiState.
+                editorState.config = data.config || {};
+                editorState.sections = data.sections || [];
+                // Ensure uiState exists if loading a file into a fresh session somehow
+                if (!editorState.uiState) editorState.uiState = { previewScale: 'auto' };
                 console.log('[State] Loaded new state from file:', JSON.parse(JSON.stringify(editorState)));
                 document.getElementById('file-name').textContent = file.name;
                 renderAll();
@@ -687,6 +777,12 @@ document.addEventListener('DOMContentLoaded', () => {
         validateAll();
     }
 
+    function handlePreviewScaleChange(event) {
+        console.log('[Event] handlePreviewScaleChange triggered.');
+        editorState.uiState.previewScale = event.target.value;
+        renderPreview();
+    }
+
     function handleFieldsetToggle(event) {
         const legend = event.target.closest('legend');
         if (legend) {
@@ -711,16 +807,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleMinimize(event) {
         console.log('[Event] toggleMinimize triggered.');
         const btn = event.target;
-        const item = btn.closest('.section-item, .tile-group-item');
+        const targetId = btn.dataset.target;
+        const item = btn.closest('.section-item, .tile-group-item, .panel.collapsible');
         if (!item) return;
 
-        item.classList.toggle('minimized');
-        btn.textContent = item.classList.contains('minimized') ? '►' : '▼';
-        // No need to re-render, just save the state for the next full render
-        
-        const targetId = btn.dataset.target;
+        // This logic is for section/tile-group items
+        if (!targetId) {
+            item.classList.toggle('minimized');
+            btn.textContent = item.classList.contains('minimized') ? '►' : '▼';
+        }
+
         if (targetId) {
             const targetPanel = document.getElementById(targetId);
+            if (!targetPanel) return; // This logic is for the main collapsible panels
             targetPanel.style.display = targetPanel.style.display === 'none' ? '' : 'none';
         }
 
