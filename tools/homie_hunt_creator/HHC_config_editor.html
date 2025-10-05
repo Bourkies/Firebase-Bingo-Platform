@@ -9,6 +9,9 @@
             --bg-color: #121212; --surface-color: #1e1e1e; --primary-text: #e0e0e0; --secondary-text: #a0a0a0;
             --border-color: #333; --accent-color: #3498db; --accent-color-darker: #2980b9; --accent-text-color: #ffffff;
             --error-color: #e74c3c; --success-color: #2ecc71; --warn-color: #f39c12; --disabled-bg-color: #555;
+            /* NEW: Distinct colors for sections and tile groups */
+            --section-bg-color: #20332b; /* Dark Green */
+            --tile-group-bg-color: #2f2a3b; /* Dark Purple */
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -42,6 +45,12 @@
         .form-field-compound input[type="color"] {
             padding: 0; height: 38px; width: 38px; flex-shrink: 0; border: none; background: none;
         }
+        /* NEW: Horizontal layout for form fields to save vertical space */
+        .form-field-horizontal { flex-direction: row; align-items: center; gap: 10px; }
+        .form-field-horizontal label { margin-bottom: 0; flex-basis: 120px; flex-shrink: 0; text-align: right; }
+        .form-field-horizontal input, .form-field-horizontal textarea { flex-grow: 1; }
+        .form-field-horizontal small { display: none; } /* Hide descriptions in horizontal mode to save space */
+
         .legend-toggle {
             margin-right: 8px; font-weight: bold; display: inline-block;
             width: 1em; user-select: none;
@@ -50,7 +59,7 @@
         .file-controls { display: flex; gap: 15px; align-items: center; }
         #sections-container { display: flex; flex-direction: column; gap: 15px; }
         .section-item {
-            background-color: #2a2a2a; padding: 15px; border-radius: 6px; border: 1px solid #444;
+            background-color: var(--section-bg-color); padding: 15px; border-radius: 6px; border: 1px solid #444;
             transition: background-color 0.2s;
         }
         .section-item.minimized .section-content,
@@ -62,13 +71,19 @@
         }
         .section-item:grabbing { cursor: grabbing; background-color: #3a3a3a; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .section-header h3 { margin: 0; border: none; }
-        .section-header-title { display: flex; align-items: center; gap: 10px; }
+        .section-header h3, .section-header h5 { margin: 0; border: none; }
+        .section-header-title { display: flex; align-items: center; gap: 10px; flex-grow: 1; }
+        /* NEW: Make the entire header clickable */
+        .collapsible-header { cursor: pointer; padding: 5px; border-radius: 4px; transition: background-color 0.2s; display: flex; align-items: center; gap: 10px; flex-grow: 1; }
+        .collapsible-header:hover { background-color: #333; }
+        /* NEW: Style for the expand/collapse indicator */
+        .toggle-indicator { margin-left: auto; font-size: 1em; color: var(--secondary-text); padding: 0 10px; }
+
         .toggle-btn { background: none; border: none; color: var(--secondary-text); font-size: 1.2em; cursor: pointer; padding: 0 5px; }
         .toggle-btn:hover { color: var(--primary-text); }
         .tile-group-container { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; min-height: 20px; }
         .tile-group-item {
-            background-color: var(--surface-color); padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent-color);
+            background-color: var(--tile-group-bg-color); padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent-color);
         }
         .tile-group-item:grabbing, .preview-section:grabbing, .preview-tile-group:grabbing {
             cursor: grabbing; background-color: #333; opacity: 0.7;
@@ -138,12 +153,12 @@
 
             <div class="panel">
                 <div class="section-header">
-                    <h2>Sections</h2>
-                    <button id="add-section-btn">Add New Section</button>
+                    <h2>Sections</h2>                    
                 </div>
                 <div id="sections-container">
                     <!-- Sections will be generated here -->
                 </div>
+                <button id="add-section-btn" style="margin-top: 15px;">Add New Section</button>
             </div>
         </div>
 
@@ -397,29 +412,29 @@ document.addEventListener('DOMContentLoaded', () => {
         sectionEl.dataset.id = section.id; // NEW: Key for reordering
         sectionEl.innerHTML = `
                 <div class="section-header section-header-title">
-                    <span class="drag-handle">⠿</span>
-                    <button class="toggle-btn">${section.isMinimized ? '►' : '▼'}</button>
-                    <h3>Section: ${section.title || 'Untitled'}</h3>
+                    <div class="collapsible-header" title="Click to expand/collapse">
+                        <span class="drag-handle">⠿</span>
+                        <h3>Section: ${section.title || 'Untitled'}</h3>
+                        <span class="toggle-indicator">${section.isMinimized ? '►' : '▼'}</span>
+                    </div>
+                    <button class="danger remove-section-btn" title="Remove this section">Remove</button>
                 </div>
                 <div class="section-content">
-                    <div class="config-grid">
-                        <div class="form-field">
-                            <label>Section Title</label>
+                    <div class="config-grid" style="gap: 5px 15px; grid-template-columns: 1fr;">
+                        <div class="form-field form-field-horizontal">
+                            <label for="st-input-${section.id}">Title</label>
                             <input type="text" class="section-title-input" value="${section.title || ''}">
                         </div>
-                        <div class="form-field">
-                            <label>Wiki Page (for background)</label>
+                        <div class="form-field form-field-horizontal">
+                            <label for="sw-input-${section.id}">Wiki Page</label>
                             <input type="text" class="section-wiki-input" value="${section.wiki || ''}">
                         </div>
                     </div>
-                    <h4>Tile Groups</h4>
-                    <div class="tile-group-container" id="tgc-editor-${index}">
-                        <!-- Tile groups go here -->
+                    <h4 style="margin-top: 15px; margin-bottom: 5px;">Tile Groups</h4>
+                    <div class="tile-group-container" id="tgc-editor-${index}"></div>
+                    <div style="margin-top: 10px;">
+                        <button class="add-tile-group-btn">Add Tile Group</button>
                     </div>
-                    <button class="add-tile-group-btn">Add Tile Group</button>
-                </div>
-                <div class="section-header" style="margin-top: 15px;">
-                    <button class="danger remove-section-btn">Remove Section</button>
                 </div>
             `;
 
@@ -456,33 +471,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tileGroupEl.innerHTML = `
             <div class="section-header section-header-title">
-                <span class="drag-handle">⠿</span>
-                <button class="toggle-btn">${tileGroup.isMinimized ? '►' : '▼'}</button>
-                <h5>${tileGroup.title || 'Untitled'}</h5>
-                <button class="danger remove-tile-group-btn" style="margin-left: auto;">X</button>
+                <div class="collapsible-header" title="Click to expand/collapse">
+                    <span class="drag-handle">⠿</span>
+                    <h5>${tileGroup.title || 'Untitled'}</h5>
+                    <span class="toggle-indicator">${tileGroup.isMinimized ? '►' : '▼'}</span>
+                </div>
+                <button class="danger remove-tile-group-btn" title="Remove this tile group">X</button>
             </div>
             <div class="tile-group-content">
-                <div class="config-grid">
-                    <div class="form-field">
-                        <label>Tile Title</label>
+                <div class="config-grid" style="gap: 5px 15px;">
+                    <div class="form-field form-field-horizontal">
+                        <label>Title</label>
                         <input type="text" class="tile-title-input" value="${tileGroup.title || ''}">
                     </div>
-                    <div class="form-field">
-                        <label>Wiki Page (for image)</label>
+                    <div class="form-field form-field-horizontal">
+                        <label>Wiki Page</label>
                         <input type="text" class="tile-wiki-input" value="${tileGroup.wiki || ''}">
                     </div>
-                    <div class="form-field">
-                        <label>Tile ID (Base)</label>
+                    <div class="form-field form-field-horizontal">
+                        <label>Tile ID</label>
                         <input type="text" class="tile-id-input" value="${tileGroup.tileID || ''}">
-                        <small>Required unless 'Auto-generate' is on.</small>
                     </div>
-                    <div class="form-field">
-                        <label>Points (comma-separated)</label>
+                    <div class="form-field form-field-horizontal">
+                        <label>Points</label>
                         <input type="text" class="tile-points-input" value="${pointsString}">
-                        <small>The number of values determines how many tiles are created.</small>
                     </div>
                 </div>
-                <div class="form-field">
+                <!-- Description is better with a stacked layout -->
+                <div class="form-field" style="margin-top: 10px;">
                     <label>Description</label>
                     <textarea class="tile-description-input">${tileGroup.description || ''}</textarea>
                 </div>
@@ -668,9 +684,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // NEW: Reset and assign unique IDs to loaded data for keyed rendering
                 editorState.nextId = 0;
+                // NEW: Set all sections and tiles to be minimized on load.
                 data.sections.forEach(s => {
+                    s.isMinimized = true; // Minimize section
                     s.id = editorState.nextId++;
-                    s.tiles.forEach(t => t.id = editorState.nextId++);
+                    s.tiles.forEach(t => {
+                        t.isMinimized = true; // Minimize tile group
+                        t.id = editorState.nextId++;
+                    });
                 });
                 // FIX: Don't overwrite the whole state. Preserve uiState.
                 editorState.config = data.config || {};
@@ -760,7 +781,8 @@ document.addEventListener('DOMContentLoaded', () => {
             title: 'New Section',
             wiki: '',
             tiles: [],
-            id: editorState.nextId++ // NEW: Assign unique ID
+            id: editorState.nextId++, // NEW: Assign unique ID
+            isMinimized: true // NEW: Start minimized by default
         };
         editorState.sections.push(newSection);
         renderSections();
@@ -783,7 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.textContent = isMinimized ? '▼' : '►';
         } else { // This logic is for section/tile-group items
             item.classList.toggle('minimized');
-            btn.textContent = item.classList.contains('minimized') ? '►' : '▼';
+            // NEW: Update the new indicator instead of the old button
+            const indicator = item.querySelector('.toggle-indicator');
+            if (indicator) {
+                indicator.textContent = item.classList.contains('minimized') ? '►' : '▼';
+            }
         }
         preserveUIState();
     }
@@ -907,11 +933,11 @@ document.addEventListener('DOMContentLoaded', () => {
             addTileGroup(event);
         } else if (target.classList.contains('remove-tile-group-btn')) {
             removeTileGroup(event);
-        } else if (target.classList.contains('toggle-btn')) {
-            // Check if it's a section/tile-group toggle and not a panel toggle
-            const item = target.closest('.section-item, .tile-group-item');
-            if (item) {
-                toggleMinimize(event);
+        } else {
+            // NEW: Handle clicks on the new collapsible header
+            const header = target.closest('.collapsible-header');
+            if (header) {
+                toggleItemMinimize(header);
             }
         }
     }
@@ -955,6 +981,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         editorState.sections = newSections;
         console.log('[State] New state after full DOM read:', JSON.parse(JSON.stringify(editorState.sections)));
+    }
+
+    function toggleItemMinimize(headerElement) {
+        const item = headerElement.closest('.section-item, .tile-group-item');
+        if (!item) return;
+
+        item.classList.toggle('minimized');
+        const isMinimized = item.classList.contains('minimized');
+        headerElement.querySelector('.toggle-indicator').textContent = isMinimized ? '►' : '▼';
+
+        preserveUIState();
     }
 
     function validateAll() {
