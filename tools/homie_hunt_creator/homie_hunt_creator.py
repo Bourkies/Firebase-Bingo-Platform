@@ -346,9 +346,24 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
                     # Paste tile image
                     if group['image_path']:
                         try:
-                            tile_img = Image.open(group['image_path']).convert("RGBA")
-                            tile_img = tile_img.resize((config['tileWidth'], config['tileWidth']), Image.Resampling.LANCZOS)
-                            board.paste(tile_img, (x, y), tile_img) # Use RGBA mask for transparency
+                            base_tile_img = Image.open(group['image_path']).convert("RGBA")
+                            
+                            # --- Scale image to fit within tile bounds while preserving aspect ratio ---
+                            target_size = config['tileWidth']
+                            
+                            # Calculate the ratio to scale the image down to fit
+                            ratio = min(target_size / base_tile_img.width, target_size / base_tile_img.height)
+                            
+                            # New dimensions
+                            new_w = int(base_tile_img.width * ratio)
+                            new_h = int(base_tile_img.height * ratio)
+                            
+                            tile_img = base_tile_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                            
+                            # Calculate centered paste position
+                            paste_x = x + (target_size - new_w) // 2
+                            paste_y = y + (target_size - new_h) // 2
+                            board.paste(tile_img, (paste_x, paste_y), tile_img) # Use RGBA mask for transparency
                         except Exception as e:
                             logging.error(f"Could not open or paste image {group['image_path']}: {e}")
                             draw.rectangle([x, y, x + config['tileWidth'], y + config['tileWidth']], fill="#555", outline="#888")
