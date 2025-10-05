@@ -52,7 +52,9 @@ export function openModal(tile, status) {
     document.getElementById('admin-feedback-display').style.display = 'none';
 
     document.getElementById('modal-tile-id').value = tile.id;
-    document.getElementById('modal-tile-name').textContent = `${tile.id}: ${tile.Name || 'Censored'}`;
+    const tileName = tile.Name || 'Censored';
+    const tilePoints = tile.Points ? `<span style="color: var(--secondary-text); font-size: 0.8em;">${tile.Points} pts</span>` : '';
+    document.getElementById('modal-tile-name').innerHTML = `<span>${tile.id}: ${tileName}</span> ${tilePoints}`;
     const teamName = (allTeams && allTeams[currentTeam]) ? allTeams[currentTeam].name : currentTeam;
     document.getElementById('modal-team-name').textContent = `Team: ${teamName}`;
     document.getElementById('modal-tile-desc').textContent = tile.Description || 'This tile is hidden until the event begins.';

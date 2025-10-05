@@ -1,0 +1,56 @@
+{
+  "config": {
+    "projectTitle": "My Awesome Homie Hunt",
+    "boardTitle": "Awesome Homie Hunt Board",
+    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php",
+    "autoLinkTileInstances": true,
+    "sectionColumns": 2,
+    "sectionWidth": 450,
+    "sectionPadding": 15,
+    "sectionBgOpacity": 0.1,
+    "tileColumns": 5,
+    "tileWidth": 75,
+    "tilePadding": 5,
+    "boardTitleFont": "C:/Windows/Fonts/arialbd.ttf",
+    "boardTitleFontSize": 48,
+    "sectionTitleFont": "C:/Windows/Fonts/arial.ttf",
+    "sectionTitleFontSize": 24,
+    "tileTitleFont": "C:/Windows/Fonts/arial.ttf",
+    "tileTitleFontSize": 18,
+    "themeColors": {
+      "background": "#1a1a1a",
+      "primaryText": "#ffffff",
+      "sectionBorder": "#444444",
+      "sectionTitle": "#ffc107",
+      "tileBackgroundColor": [
+        40,
+        40,
+        40,
+        150
+      ],
+      "tileTitle": "#cccccc"
+    }
+  },
+  "sections": [
+    {
+      "title": "Kree'arra",
+      "wiki": "Kree'arra",
+      "tiles": [
+        {
+          "title": "Armadyl Chestplate",
+          "description": "Obtain an Armadyl Chestplate as a drop.",
+          "tileID": "K1",
+          "wiki": "Armadyl chestplate",
+          "points": [100, 50, 25, 10, 5]
+        },
+        {
+          "title": "Armadyl Chainskirt",
+          "description": "Obtain an Armadyl Chainskirt as a drop.",
+          "tileID": "K2",
+          "wiki": "Armadyl chainskirt",
+          "points": [100, 50, 25, 10, 5]
+        }
+      ]
+    }
+  ]
+}
