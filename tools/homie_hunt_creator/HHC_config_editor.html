@@ -182,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editorState = {
         config: {},
         sections: [],
+        nextId: 0, // NEW: For unique keying of elements
         uiState: {
             previewScale: 'auto' // Default scale
         } // To store minimized states
@@ -251,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theme-colors-form').addEventListener('change', handleGlobalConfigChange);
         document.querySelector('.panel.collapsible .toggle-btn[data-target="theme-colors-form"]').addEventListener('click', toggleMinimize);
         document.getElementById('preview-scale-select').addEventListener('change', handlePreviewScaleChange);
+        document.getElementById('theme-colors-form').addEventListener('click', handleFieldsetToggle);
 
         renderAll();
 
@@ -268,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAll() {
         console.log('%c[Render] Starting full re-render of all components.', 'color: lightblue');
-        renderGlobalConfig();
+        renderGlobalConfig(); // This one is fine to re-render fully
         renderThemeColorsConfig();
         renderSections();
         renderPreview();
@@ -377,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             form.appendChild(fieldset);
         }
-        form.addEventListener('click', handleFieldsetToggle);
     }
 
     function renderSections() {
@@ -385,15 +386,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('sections-container');
         container.innerHTML = '';
         editorState.sections.forEach((section, index) => {
-            const sectionEl = document.createElement('div');
-            sectionEl.className = 'section-item';
-            sectionEl.dataset.index = index;
-
-            if (section.isMinimized) {
-                sectionEl.classList.add('minimized');
+            // NEW: Assign a unique ID if it doesn't have one.
+            if (section.id === undefined) {
+                section.id = editorState.nextId++;
             }
+            const sectionEl = createSectionElement(section, index);
+            container.appendChild(sectionEl);
+        });
+    }
 
-            sectionEl.innerHTML = `
+    function createSectionElement(section, index) {
+        const sectionEl = document.createElement('div');
+        sectionEl.className = 'section-item';
+        sectionEl.dataset.index = index;
+        sectionEl.dataset.id = section.id; // NEW: Key for reordering
+        sectionEl.innerHTML = `
                 <div class="section-header section-header-title">
                     <span class="drag-handle" draggable="true">⠿</span>
                     <button class="toggle-btn">${section.isMinimized ? '►' : '▼'}</button>
@@ -421,19 +428,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            const tileGroupContainer = sectionEl.querySelector('.tile-group-container');
-            section.tiles.forEach((tileGroup, tileIndex) => {
-                const tileGroupEl = createTileGroupElement(tileGroup, index, tileIndex, `tgc-editor-${index}`);
-                tileGroupContainer.appendChild(tileGroupEl);
-            });
-
-            container.appendChild(sectionEl);
+        if (section.isMinimized) {
+            sectionEl.classList.add('minimized');
+        }
+        const tileGroupContainer = sectionEl.querySelector('.tile-group-container');
+        section.tiles.forEach((tileGroup, tileIndex) => {
+            // NEW: Assign a unique ID if it doesn't have one.
+            if (tileGroup.id === undefined) {
+                tileGroup.id = editorState.nextId++;
+            }
+            const tileGroupEl = createTileGroupElement(tileGroup, index, tileIndex);
+            tileGroupContainer.appendChild(tileGroupEl);
         });
-
+        return sectionEl;
     }
 
-
-    function createTileGroupElement(tileGroup, sectionIndex, tileIndex, parentId) {
+    function createTileGroupElement(tileGroup, sectionIndex, tileIndex) {
         const tileGroupEl = document.createElement('div');
         tileGroupEl.className = 'tile-group-item';
         tileGroupEl.dataset.sectionIndex = sectionIndex;
@@ -443,6 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tileGroupEl.classList.add('minimized');
         }
 
+        tileGroupEl.dataset.id = tileGroup.id; // NEW: Key for reordering
         const pointsString = Array.isArray(tileGroup.points) ? tileGroup.points.join(', ') : '';
 
         tileGroupEl.innerHTML = `
@@ -658,6 +669,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.config || !data.sections) {
                     throw new Error("Invalid config format. Must contain 'config' and 'sections' keys.");
                 }
+                // NEW: Reset and assign unique IDs to loaded data for keyed rendering
+                editorState.nextId = 0;
+                data.sections.forEach(s => {
+                    s.id = editorState.nextId++;
+                    s.tiles.forEach(t => t.id = editorState.nextId++);
+                });
                 // FIX: Don't overwrite the whole state. Preserve uiState.
                 editorState.config = data.config || {};
                 editorState.sections = data.sections || [];
@@ -675,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleFileDownload() {
         console.log('[Event] handleFileDownload triggered.');
-        updateStateFromDOM(); // Ensure state is current before downloading
+        readStateFromDOM(); // Ensure state is current before downloading
         const jsonString = JSON.stringify(editorState, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -742,12 +759,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addSection() {
         console.log('[Event] addSection triggered.');
-        preserveUIState();
-        editorState.sections.push({
+        const newSection = {
             title: 'New Section',
             wiki: '',
-            tiles: []
-        });
+            tiles: [],
+            id: editorState.nextId++ // NEW: Assign unique ID
+        };
+        editorState.sections.push(newSection);
         renderSections();
         renderPreview();
     }
@@ -755,22 +773,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleMinimize(event) {
         console.log('[Event] toggleMinimize triggered.');
         const btn = event.target;
-        const targetId = btn.dataset.target;
+        const panelTargetId = btn.dataset.target;
         const item = btn.closest('.section-item, .tile-group-item, .panel.collapsible');
         if (!item) return;
 
-        // This logic is for section/tile-group items
-        if (!targetId) {
+        // This logic is for the main collapsible panels (Global Config, Theme)
+        if (panelTargetId) {
+            const targetPanel = document.getElementById(panelTargetId);
+            if (!targetPanel) return;
+            const isMinimized = targetPanel.style.display === 'none';
+            targetPanel.style.display = isMinimized ? '' : 'none';
+            btn.textContent = isMinimized ? '▼' : '►';
+        } else { // This logic is for section/tile-group items
             item.classList.toggle('minimized');
             btn.textContent = item.classList.contains('minimized') ? '►' : '▼';
         }
-
-        if (targetId) {
-            const targetPanel = document.getElementById(targetId);
-            if (!targetPanel) return; // This logic is for the main collapsible panels
-            targetPanel.style.display = targetPanel.style.display === 'none' ? '' : 'none';
-        }
-
         preserveUIState();
     }
 
@@ -794,22 +811,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('Are you sure you want to remove this section and all its tile groups?')) return;
         const sectionEl = event.target.closest('.section-item');
         const index = parseInt(sectionEl.dataset.index, 10);
+        preserveUIState(); // Read UI state before modifying the array
         editorState.sections.splice(index, 1);
         renderSections();
         renderPreview();
     }
 
     function addTileGroup(event) {
-        console.log('[Event] addTileGroup triggered.');
-        preserveUIState();
+        console.log('[Event] addTileGroup triggered.');        
         const sectionEl = event.target.closest('.section-item');
         const index = parseInt(sectionEl.dataset.index, 10);
+        preserveUIState(); // Read UI state before modifying the array
         editorState.sections[index].tiles.push({
             title: 'New Tile Group',
             description: '',
             tileID: '',
             wiki: '',
-            points: [10, 20, 30]
+            points: [10, 20, 30],
+            id: editorState.nextId++ // NEW: Assign unique ID
         });
         renderSections();
         renderPreview();
@@ -817,10 +836,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function removeTileGroup(event) {
         console.log('[Event] removeTileGroup triggered.');
-        preserveUIState();
         const tileGroupEl = event.target.closest('.tile-group-item');
         const sectionIndex = parseInt(tileGroupEl.dataset.sectionIndex, 10);
         const tileIndex = parseInt(tileGroupEl.dataset.tileIndex, 10);
+        preserveUIState(); // Read UI state before modifying the array
         editorState.sections[sectionIndex].tiles.splice(tileIndex, 1);
         renderSections();
         renderPreview();
@@ -838,16 +857,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
-    }
-
-    function updateStateFromDOM(shouldRerenderEditor = true) {
-        console.log('[State] Updating state from editor DOM (full read)...');
-        readStateFromDOM();
-        if (shouldRerenderEditor) {
-            renderAll(); // Re-render everything after a drag-drop
-        } else {
-            renderPreview(); // Only re-render the preview on a simple value change
-        }
     }
 
     function handleSectionInputChange(event) {
@@ -964,11 +973,38 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleDrop(e) {
         if (!isDragging || !draggedItem) return;
         e.preventDefault();
+        console.log('[Event] handleDrop triggered.');
 
+        // NEW: Centralized state update logic after a drop.
+        // The DOM has already been re-ordered by handleDragOver.
+        // Now, we read the new order from the DOM and update our state array to match.
+        
+        const isSectionDrop = draggedItem.matches('.section-item, .preview-section');
+        const isTileGroupDrop = draggedItem.matches('.tile-group-item, .preview-tile-group');
+
+        preserveUIState(); // Capture minimized states before reordering
+
+        if (isSectionDrop) {
+            const newSectionOrder = Array.from(document.querySelectorAll('#sections-container .section-item'))
+                .map(el => editorState.sections.find(s => s.id == el.dataset.id));
+            editorState.sections = newSectionOrder;
+        } else if (isTileGroupDrop) {
+            // This is more complex as we need to find which section it belongs to.
+            const parentSectionEl = draggedItem.closest('.section-item');
+            const sectionIndex = parseInt(parentSectionEl.dataset.index, 10);
+            const section = editorState.sections[sectionIndex];
+
+            const newTileOrder = Array.from(parentSectionEl.querySelectorAll('.tile-group-item'))
+                .map(el => section.tiles.find(t => t.id == el.dataset.id));
+            section.tiles = newTileOrder;
+        }
+
+        // After updating state, re-render everything to ensure consistency.
+        // This is much faster now because renderSections will just re-order elements.
         if (draggedItem.matches('.section-item, .tile-group-item')) {
-            updateStateFromDOM(true); // A drop in the editor happened
+            renderAll();
         } else if (draggedItem.matches('.preview-section, .preview-tile-group')) {
-            updateStateFromPreview(true); // A drop in the preview happened
+            updateStateFromPreview(true);
         }
     }
 
@@ -992,19 +1028,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStateFromPreview(shouldRerenderEditor = false) {
         console.log('[State] Updating state from preview DOM (drag/drop)...');
         preserveUIState();
-        const newSections = [];
+
+        // Read the new section order from the preview
         const sectionOrder = Array.from(document.querySelectorAll('#preview-sections-container > .preview-section'))
-            .map(el => parseInt(el.dataset.sectionIndex, 10));
+            .map(el => editorState.sections.find(s => s.id == el.dataset.id)); // Find by unique ID
 
-        sectionOrder.forEach(originalSectionIndex => {
-            const originalSection = editorState.sections[originalSectionIndex];
-            const newSection = { ...originalSection, tiles: [] };
+        // For each section in the new order, read its tile group order
+        const newSections = sectionOrder.map(section => {
+            const newSection = { ...section, tiles: [] };
+            const previewSectionEl = document.querySelector(`.preview-section[data-id='${section.id}']`);
+            
+            const tileGroupOrder = Array.from(previewSectionEl.querySelectorAll('.preview-tile-group'))
+                .map(el => section.tiles.find(t => t.id == el.dataset.id)); // Find by unique ID
 
-            const tileGroupOrder = Array.from(document.querySelectorAll(`#psc-preview-${originalSectionIndex} > .preview-tile-group`))
-                .map(el => parseInt(el.dataset.tileGroupIndex, 10));
-
-            tileGroupOrder.forEach(originalTileGroupIndex => {
-                newSection.tiles.push(originalSection.tiles[originalTileGroupIndex]);
+            tileGroupOrder.forEach(tileGroup => {
+                if (tileGroup) { // Ensure the tile group was found
+                    newSection.tiles.push(tileGroup);
+                }
             });
 
             newSections.push(newSection);
@@ -1027,11 +1067,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function readStateFromDOM() {
         const newSections = [];
+        // This function is now only for reading values, not order. Order is handled by drop handlers.
         document.querySelectorAll('#sections-container .section-item').forEach(sectionEl => {
+            const sectionId = parseInt(sectionEl.dataset.id, 10);
+            const originalSection = editorState.sections.find(s => s.id === sectionId);
             const newSection = {
+                ...originalSection, // Preserve ID and other properties
                 title: sectionEl.querySelector('.section-title-input').value,
                 wiki: sectionEl.querySelector('.section-wiki-input')?.value || '',
-                tiles: []
             };
 
             newSection.isMinimized = sectionEl.classList.contains('minimized');
@@ -1044,7 +1087,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     .map(p => parseFloat(p))
                     .filter(p => !isNaN(p));
 
+                const tileGroupId = parseInt(tileGroupEl.dataset.id, 10);
+                const originalTileGroup = originalSection.tiles.find(t => t.id === tileGroupId);
                 const newTileGroup = {
+                    ...originalTileGroup, // Preserve ID
                     title: tileGroupEl.querySelector('.tile-title-input').value,
                     description: tileGroupEl.querySelector('.tile-description-input').value,
                     tileID: tileGroupEl.querySelector('.tile-id-input').value,
