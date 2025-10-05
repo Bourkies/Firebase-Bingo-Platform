@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homie Hunt Creator - Config Editor</title>
+    <style>
+        :root {
+            --bg-color: #121212; --surface-color: #1e1e1e; --primary-text: #e0e0e0; --secondary-text: #a0a0a0;
+            --border-color: #333; --accent-color: #3498db; --accent-color-darker: #2980b9; --accent-text-color: #ffffff;
+            --error-color: #e74c3c; --success-color: #2ecc71; --warn-color: #f39c12; --disabled-bg-color: #555;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color); color: var(--primary-text); line-height: 1.6; margin: 0; padding: 20px;
+        }
+        h1, h2, h3 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .container { display: flex; gap: 20px; align-items: flex-start; }
+        .editor-column { flex: 2; display: flex; flex-direction: column; gap: 20px; }
+        .preview-column { flex: 1; position: sticky; top: 20px; }
+        .panel { background-color: var(--surface-color); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .panel.collapsible { }
+        .panel.collapsible.minimized .config-grid {
+            display: none;
+        }
+        .fieldset-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; padding-top: 10px; }
+        .config-fieldset { grid-column: 1 / -1; border: 1px solid #444; border-radius: 4px; padding: 10px 15px; margin-top: 10px; }
+        .config-fieldset legend { color: var(--accent-color); cursor: pointer; }
+        .config-fieldset.minimized .fieldset-content { display: none; }
+        button, .button-like-label {
+            background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 10px 15px;
+            border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color 0.2s; text-decoration: none; display: inline-block;
+        }
+        button:hover, .button-like-label:hover { background-color: var(--accent-color-darker); }
+        button.danger { background-color: var(--error-color); }
+        button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
+        input, textarea, select {
+            width: 100%; padding: 8px; box-sizing: border-box; background-color: var(--bg-color);
+            color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 4px;
+        }
+        .form-field { display: flex; flex-direction: column; margin-bottom: 15px; }
+        .form-field label { margin-bottom: 5px; font-size: 14px; color: var(--secondary-text); }
+        .form-field small { font-size: 12px; color: var(--secondary-text); margin-top: 4px; }
+        .form-field-compound { display: flex; align-items: center; gap: 10px; }
+        .form-field-compound input[type="text"] { flex-grow: 1; }
+        .form-field-compound input[type="color"] {
+            padding: 0; height: 38px; width: 38px; flex-shrink: 0; border: none; background: none;
+        }
+        input[type="text"][list] { }
+        .legend-toggle {
+            margin-right: 8px; font-weight: bold; display: inline-block;
+            width: 1em; user-select: none;
+        }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .file-controls { display: flex; gap: 15px; align-items: center; }
+        #sections-container { display: flex; flex-direction: column; gap: 15px; }
+        .section-item {
+            background-color: #2a2a2a; padding: 15px; border-radius: 6px; border: 1px solid #444;
+            cursor: grab; transition: background-color 0.2s;
+        }
+        .section-item.minimized .section-content,
+        .tile-group-item.minimized .tile-group-content {
+            display: none;
+        }
+        .section-item:grabbing { cursor: grabbing; background-color: #3a3a3a; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .section-header h3 { margin: 0; border: none; }
+        .section-header-title { display: flex; align-items: center; gap: 10px; }
+        .toggle-btn { background: none; border: none; color: var(--secondary-text); font-size: 1.2em; cursor: pointer; padding: 0 5px; }
+        .toggle-btn:hover { color: var(--primary-text); }
+        .tile-group-container { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; min-height: 20px; }
+        .tile-group-item {
+            background-color: var(--surface-color); padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent-color);
+            cursor: grab;
+        }
+        .tile-group-item:grabbing, .preview-section:grabbing, .preview-tile-group:grabbing {
+            cursor: grabbing; background-color: #333; opacity: 0.7;
+        }
+        .validation-error { color: var(--error-color); font-weight: bold; }
+        /* Preview Styles */
+        #preview-viewport {
+            border: 2px solid var(--border-color); background-color: var(--bg-color);
+            padding: 10px; overflow: hidden; max-height: 80vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #preview-board {
+            position: relative; transform-origin: top left;
+        }
+        #preview-sections-container { display: grid; gap: 10px; }
+        .preview-title { text-align: center; font-size: 1.5em; font-weight: bold; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-color); }
+        .preview-section { border: 1px solid var(--secondary-text); padding: 10px; cursor: grab; }
+        .preview-section-title { font-weight: bold; color: var(--accent-color); }
+        .preview-tile-group { margin-top: 10px; border-left: 2px solid var(--accent-color); padding-left: 8px; cursor: grab; }
+        .preview-tile-group-title { font-style: italic; color: var(--secondary-text); }
+        .preview-tile-container { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .preview-tile {
+            width: 40px; height: 40px; background-color: #444; border: 1px solid #666;
+            display: flex; justify-content: center; align-items: center; font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Homie Hunt Creator - Config Editor</h1>
+
+    <div class="container">
+        <div class="editor-column">
+            <div class="panel file-controls">
+                <label for="import-json-btn" class="button-like-label">Load Config JSON</label>
+                <input type="file" id="import-json-btn" accept=".json" style="display: none;">
+                <button id="download-json-btn">Download Config JSON</button>
+                <span id="file-name">No file loaded.</span>
+            </div>
+
+            <div class="panel collapsible">
+                <div class="section-header">
+                    <h2>Global Configuration</h2>
+                    <button class="toggle-btn" data-target="global-config-form">▼</button>
+                </div>
+                <div id="global-config-form" class="config-grid">
+                    <!-- Global config fields will be generated here -->
+                </div>
+            </div>
+            <div class="panel collapsible">
+                <div class="section-header"><h2>Theme Colors</h2><button class="toggle-btn" data-target="theme-colors-form">▼</button></div>
+                <div id="theme-colors-form" class="config-grid">
+                    <!-- Global config fields will be generated here -->
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="section-header">
+                    <h2>Sections</h2>
+                    <button id="add-section-btn">Add New Section</button>
+                </div>
+                <div id="sections-container">
+                    <!-- Sections will be generated here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-column">
+            <div class="panel">
+                <h2>Live Preview</h2>
+                <div id="preview-viewport">
+                    <div id="preview-board"></div>
+                    <!-- Preview will be generated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let editorState = {
+        config: {},
+        sections: [],
+        uiState: {} // To store minimized states
+    };
+
+    const configGroups = {
+        'General': ['projectTitle', 'boardTitle', 'wikiApiUrl'],
+        'Behavior': ['autoLinkTileInstances', 'autoGenerateTileIDs'],
+        'Layout': ['sectionColumns', 'sectionWidth', 'sectionPadding', 'calculatedBoardWidth', 'sectionBgOpacity', 'tileColumns', 'tileWidth', 'tilePadding'],
+        'Fonts': ['boardTitleFont', 'boardTitleFontSize', 'sectionTitleFont', 'sectionTitleFontSize', 'tileTitleFont', 'tileTitleFontSize']
+    };
+
+    const themeColorGroups = {
+        'General': ['background', 'primaryText'],
+        'Board Title': ['boardTitleBackgroundColor', 'boardTitleBorderColor'],
+        'Sections & Tiles': ['sectionBorder', 'sectionTitle', 'tileTitle', 'tileBackgroundColor']
+    };
+
+
+    const globalConfigSchema = {
+        projectTitle: { label: 'Project Title', type: 'text', description: 'Name of the event, used for the output directory name.' },
+        boardTitle: { label: 'Board Title', type: 'text', description: 'Main title text drawn at the top of the board image.' },
+        wikiApiUrl: { label: 'Wiki API URL', type: 'text', description: 'The URL to the MediaWiki API endpoint.' },
+        autoLinkTileInstances: { label: 'Auto-link Tile Instances', type: 'boolean', description: 'If true, automatically creates prerequisites to chain tile instances together.' },
+        autoGenerateTileIDs: { label: 'Auto-generate Tile IDs', type: 'boolean', description: 'If true, the script will generate a base tileID for each tile definition.' },
+        sectionColumns: { label: 'Section Columns', type: 'number', description: 'The number of section columns to arrange on the board.' },
+        sectionWidth: { label: 'Section Width (px)', type: 'number', description: 'The width of each section in pixels.' },
+        sectionPadding: { label: 'Section Padding (px)', type: 'number', description: 'The padding in pixels inside and around sections.' },
+        calculatedBoardWidth: { label: 'Calculated Board Width', type: 'text', description: 'Read-only: The final calculated width of the board image.', readonly: true },
+        sectionBgOpacity: { label: 'Section BG Opacity', type: 'number', step: 0.01, description: 'Opacity of section background images (0.0 to 1.0).' },
+        tileColumns: { label: 'Tile Columns', type: 'number', description: 'The number of tile columns within each tile group.' },
+        tileWidth: { label: 'Tile Width (px)', type: 'number', description: 'The width and height of each square tile in pixels.' },
+        tilePadding: { label: 'Tile Padding (px)', type: 'number', description: 'The padding in pixels between tiles.' },
+        boardTitleFont: { label: 'Board Title Font', type: 'font', description: 'Path to .ttf font file for the main board title (e.g., arial.ttf).' },
+        boardTitleFontSize: { label: 'Board Title Font Size', type: 'number', description: 'Font size for the main board title.' },
+        sectionTitleFont: { label: 'Section Title Font', type: 'font', description: 'Path to .ttf font file for section titles.' },
+        sectionTitleFontSize: { label: 'Section Title Font Size', type: 'number', description: 'Font size for section titles.' },
+        tileTitleFont: { label: 'Tile Title Font', type: 'font', description: 'Path to .ttf font file for tile group titles.' },
+        tileTitleFontSize: { label: 'Tile Title Font Size', type: 'number', description: 'Font size for tile group titles.' },
+    };
+
+    const themeColorsSchema = {
+        background: { label: 'Board Background', description: 'The background color of the entire board image.' },
+        primaryText: { label: 'Primary Text', description: 'The color for the main board title text.' },
+        boardTitleBackgroundColor: { label: 'Title BG Color (Optional)', description: 'The fill color for the box behind the main board title.' },
+        boardTitleBorderColor: { label: 'Title Border Color (Optional)', description: 'The border color for the box behind the main board title.' },
+        sectionBorder: { label: 'Section Border', description: 'The color of the border around each section.' },
+        sectionTitle: { label: 'Section Title Color', description: 'The color for section title text.' },
+        tileTitle: { label: 'Tile Group Title Color', description: 'The color for tile group title text.' },
+        tileBackgroundColor: { label: 'Tile BG Color (RGBA)', description: 'An [R, G, B, A] array for the tile background.' }
+    };
+
+
+    // --- Drag and Drop Logic ---
+    let draggedItem = null;
+
+    function makeDraggable(containerSelector, itemSelector, onDropCallback) {
+        const container = document.querySelector(containerSelector);
+        if (!container) return;
+        container.addEventListener('dragstart', e => {
+            if (e.target.closest(itemSelector)) {
+                draggedItem = e.target;
+                setTimeout(() => e.target.style.opacity = '0.5', 0);
+                e.target.classList.add('grabbing');
+            }
+        });
+
+        container.addEventListener('dragend', e => {
+            if (e.target.closest(itemSelector)) {
+                setTimeout(() => {
+                    e.target.style.opacity = '';
+                    e.target.classList.remove('grabbing');
+                }, 0);
+                draggedItem = null;
+            }
+        });
+
+        container.addEventListener('dragover', e => {
+            e.preventDefault();
+            const target = e.target.closest(itemSelector);
+            if (target && target !== draggedItem && target.parentElement === draggedItem.parentElement) {
+                const rect = target.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / rect.height > 0.5;
+                if (next) {
+                    target.parentNode.insertBefore(draggedItem, target.nextSibling);
+                } else {
+                    target.parentNode.insertBefore(draggedItem, target);
+                }
+            }
+        });
+
+        container.addEventListener('drop', e => {
+            e.preventDefault();
+            onDropCallback();
+        });
+    }
+
+    // --- State Management and Rendering ---
+
+    function initializeApp() {
+        console.log('[Init] Initializing app and event listeners.');
+        document.getElementById('import-json-btn').addEventListener('change', handleFileLoad);
+        document.getElementById('download-json-btn').addEventListener('click', handleFileDownload);
+        document.getElementById('add-section-btn').addEventListener('click', addSection);
+        document.getElementById('global-config-form').addEventListener('change', handleGlobalConfigChange);
+        document.getElementById('global-config-form').addEventListener('click', handleFieldsetToggle);
+        document.getElementById('theme-colors-form').addEventListener('change', handleGlobalConfigChange);
+
+        renderAll();
+        makeDraggable('#sections-container', '.section-item', updateStateFromDOM);
+        makeDraggable('#preview-sections-container', '.preview-section', updateStateFromPreview);
+        document.querySelectorAll('.tile-group-container').forEach(c => makeDraggable(`#${c.id}`, '.tile-group-item', updateStateFromDOM));
+        document.querySelectorAll('.preview-section-content').forEach(c => makeDraggable(`#${c.id}`, '.preview-tile-group', updateStateFromPreview));
+
+    }
+
+    function renderAll() {
+        console.log('%c[Render] Starting full re-render of all components.', 'color: lightblue');
+        renderGlobalConfig();
+        renderThemeColorsConfig();
+        renderSections();
+        renderPreview();
+    }
+
+    function createFormField(key, schema, value, group = null) {
+        const field = document.createElement('div');
+        field.className = 'form-field';
+        const label = document.createElement('label');
+        label.setAttribute('for', `global-${key}`);
+        label.textContent = schema.label;
+        field.appendChild(label);
+
+        let input;
+        if (schema.type === 'boolean') {
+            input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = value;
+            input.style.width = 'auto';
+        } else if (schema.type === 'color') {
+            const compoundDiv = document.createElement('div');
+            compoundDiv.className = 'form-field-compound';
+            const textInput = document.createElement('input');
+            textInput.type = 'text';
+            textInput.value = value;
+            const colorInput = document.createElement('input');
+            colorInput.type = 'color';
+            colorInput.value = value;
+            textInput.addEventListener('input', () => colorInput.value = textInput.value);
+            colorInput.addEventListener('input', () => textInput.value = colorInput.value);
+            compoundDiv.append(textInput, colorInput);
+            input = textInput; // The text input holds the final value
+        } else if (schema.type === 'font') {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.setAttribute('list', 'font-list');
+            input.value = value;
+            // Add a datalist if it doesn't exist
+            if (!document.getElementById('font-list')) {
+                const datalist = document.createElement('datalist');
+                datalist.id = 'font-list';
+                datalist.innerHTML = `
+                    <option value="arial.ttf">Arial</option>
+                    <option value="verdana.ttf">Verdana</option>
+                    <option value="cour.ttf">Courier New</option>
+                `;
+                document.body.appendChild(datalist);
+            }
+        } else {
+            input = document.createElement('input');
+            input.type = schema.type || 'text';
+            input.value = value;
+            if (schema.readonly) input.readOnly = true;
+            if (schema.step) input.step = schema.step;
+        }
+        input.id = `global-${key}`;
+        input.dataset.key = key;
+        if (group) input.dataset.group = group;
+        field.appendChild(input);
+
+        if (schema.description) {
+            const small = document.createElement('small');
+            small.textContent = schema.description;
+            field.appendChild(small);
+        }
+        return field;
+    }
+
+    function renderGlobalConfig() {
+        console.log('[Render] Rendering global config form.');
+        const form = document.getElementById('global-config-form');
+        form.innerHTML = '';
+        for (const [groupName, keys] of Object.entries(configGroups)) {
+            const fieldset = createFieldset(groupName);
+            const contentDiv = fieldset.querySelector('.fieldset-content');
+
+            // Update calculated width before rendering
+            const sW = editorState.config.sectionWidth || 0, sC = editorState.config.sectionColumns || 0, sP = editorState.config.sectionPadding || 0;
+            editorState.config.calculatedBoardWidth = `${(sW * sC) + (sP * (sC + 1))}px`;
+
+            keys.forEach(key => {
+                const schema = globalConfigSchema[key];
+                const value = editorState.config[key] ?? '';
+                const field = createFormField(key, schema, value);
+                contentDiv.appendChild(field);
+            });
+            form.appendChild(fieldset);
+        }
+    }
+
+    function renderThemeColorsConfig() {
+        console.log('[Render] Rendering theme colors form.');
+        const form = document.getElementById('theme-colors-form');
+        form.innerHTML = ''; // Clear previous content
+        for (const [groupName, keys] of Object.entries(themeColorGroups)) {
+            const fieldset = createFieldset(groupName);
+            const contentDiv = fieldset.querySelector('.fieldset-content');
+            const themeColors = editorState.config.themeColors || {};
+            keys.forEach(key => {
+                const schema = themeColorsSchema[key];
+                // Add color type for color picker
+                const fieldSchema = { ...schema, type: schema.type || 'color' };
+                const value = themeColors[key] ?? '';
+                const field = createFormField(key, fieldSchema, value, 'themeColors');
+                contentDiv.appendChild(field);
+            });
+            form.appendChild(fieldset);
+        }
+        form.addEventListener('click', handleFieldsetToggle);
+    }
+
+    function renderSections() {
+        console.log('[Render] Rendering sections editor with data:', JSON.parse(JSON.stringify(editorState.sections)));
+        const container = document.getElementById('sections-container');
+        container.innerHTML = '';
+        editorState.sections.forEach((section, index) => {
+            const sectionEl = document.createElement('div');
+            sectionEl.className = 'section-item';
+            sectionEl.dataset.index = index;
+            sectionEl.draggable = true;
+
+            if (section.isMinimized) {
+                sectionEl.classList.add('minimized');
+            }
+
+            sectionEl.innerHTML = `
+                <div class="section-header section-header-title">
+                    <button class="toggle-btn">${section.isMinimized ? '►' : '▼'}</button>
+                    <h3>Section: ${section.title || 'Untitled'}</h3>
+                </div>
+                <div class="section-content">
+                    <div class="config-grid">
+                        <div class="form-field">
+                            <label>Section Title</label>
+                            <input type="text" class="section-title-input" value="${section.title || ''}">
+                        </div>
+                        <div class="form-field">
+                            <label>Wiki Page (for background)</label>
+                            <input type="text" class="section-wiki-input" value="${section.wiki || ''}">
+                        </div>
+                    </div>
+                    <h4>Tile Groups</h4>
+                    <div class="tile-group-container" id="tgc-editor-${index}">
+                        <!-- Tile groups go here -->
+                    </div>
+                    <button class="add-tile-group-btn">Add Tile Group</button>
+                </div>
+                <div class="section-header" style="margin-top: 15px;">
+                    <button class="danger remove-section-btn">Remove Section</button>
+                </div>
+            `;
+
+            const tileGroupContainer = sectionEl.querySelector('.tile-group-container');
+            section.tiles.forEach((tileGroup, tileIndex) => {
+                const tileGroupEl = createTileGroupElement(tileGroup, index, tileIndex, `tgc-editor-${index}`);
+                tileGroupContainer.appendChild(tileGroupEl);
+            });
+
+            container.appendChild(sectionEl);
+        });
+
+        // Add event listeners after creation
+        container.querySelectorAll('.remove-section-btn').forEach(btn => btn.addEventListener('click', removeSection));
+        container.querySelectorAll('.add-tile-group-btn').forEach(btn => btn.addEventListener('click', addTileGroup));
+        container.querySelectorAll('.remove-tile-group-btn').forEach(btn => btn.addEventListener('click', removeTileGroup));
+        container.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', toggleMinimize));
+        container.querySelectorAll('input, textarea').forEach(input => input.addEventListener('change', updateStateFromDOM));
+
+        // Make tile groups draggable within their section
+        document.querySelectorAll('.tile-group-container').forEach(tgc => {
+            makeDraggable(`#${tgc.id}`, '.tile-group-item', updateStateFromDOM);
+        });
+    }
+
+
+    function createTileGroupElement(tileGroup, sectionIndex, tileIndex, parentId) {
+        const tileGroupEl = document.createElement('div');
+        tileGroupEl.className = 'tile-group-item';
+        tileGroupEl.dataset.sectionIndex = sectionIndex;
+        tileGroupEl.dataset.tileIndex = tileIndex;
+        tileGroupEl.draggable = true;
+
+        if (tileGroup.isMinimized) {
+            tileGroupEl.classList.add('minimized');
+        }
+
+        const pointsString = Array.isArray(tileGroup.points) ? tileGroup.points.join(', ') : '';
+
+        tileGroupEl.innerHTML = `
+            <div class="section-header section-header-title">
+                <button class="toggle-btn">${tileGroup.isMinimized ? '►' : '▼'}</button>
+                <h5>${tileGroup.title || 'Untitled'}</h5>
+                <button class="danger remove-tile-group-btn" style="margin-left: auto;">X</button>
+            </div>
+            <div class="tile-group-content">
+                <div class="config-grid">
+                    <div class="form-field">
+                        <label>Tile Title</label>
+                        <input type="text" class="tile-title-input" value="${tileGroup.title || ''}">
+                    </div>
+                    <div class="form-field">
+                        <label>Wiki Page (for image)</label>
+                        <input type="text" class="tile-wiki-input" value="${tileGroup.wiki || ''}">
+                    </div>
+                    <div class="form-field">
+                        <label>Tile ID (Base)</label>
+                        <input type="text" class="tile-id-input" value="${tileGroup.tileID || ''}">
+                        <small>Required unless 'Auto-generate' is on.</small>
+                    </div>
+                    <div class="form-field">
+                        <label>Points (comma-separated)</label>
+                        <input type="text" class="tile-points-input" value="${pointsString}">
+                        <small>The number of values determines how many tiles are created.</small>
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label>Description</label>
+                    <textarea class="tile-description-input">${tileGroup.description || ''}</textarea>
+                </div>
+            </div>
+        `;
+        return tileGroupEl;
+    }
+
+    function renderPreview() {
+        console.log('%c[Render] Rendering live preview...', 'color: orange');
+        const viewport = document.getElementById('preview-viewport');
+        const container = document.getElementById('preview-board'); // This is the scalable element
+        container.innerHTML = '';
+
+        const config = editorState.config;
+        const padding = config.sectionPadding || 10;
+        const sectionWidth = config.sectionWidth || 400;
+        const sectionColumns = config.sectionColumns || 1;
+
+        // --- Calculate total board dimensions for aspect ratio ---
+        console.log(`[Preview Calc] Base values: sectionWidth=${sectionWidth}, sectionColumns=${sectionColumns}, padding=${padding}`);
+
+        // FIX: boardWidth was not defined. It should be calculated from sectionWidth and columns.
+        const boardWidth = (sectionWidth * sectionColumns) + (padding * (sectionColumns + 1));
+        let titleBoxHeight = config.boardTitle ? (config.boardTitleFontSize || 64) + (padding * 2) : 0;
+        let totalBoardHeight = padding + titleBoxHeight + padding;
+
+        const sectionHeights = editorState.sections.map(section => {
+            let height = padding + (config.sectionTitleFontSize || 24) + padding;
+            for (const group of section.tiles) {
+                height += (config.tileTitleFontSize || 16) + (config.tilePadding || 5);
+                const numTiles = group.points ? group.points.length : 0;
+                const numRows = Math.ceil(numTiles / (config.tileColumns || 5));
+                height += numRows * ((config.tileWidth || 64) + (config.tilePadding || 5));
+            }
+            height += padding;
+            return height;
+        });
+        console.log('[Preview Calc] Calculated section heights:', sectionHeights);
+
+        const numSectionRows = editorState.sections.length > 0 ? Math.ceil(editorState.sections.length / sectionColumns) : 0;
+        for (let i = 0; i < numSectionRows; i++) {
+            const rowStartIndex = i * sectionColumns;
+            const rowEndIndex = rowStartIndex + sectionColumns;
+            const rowHeights = sectionHeights.slice(rowStartIndex, rowEndIndex);
+            const maxRowHeight = rowHeights.length > 0 ? Math.max(0, ...rowHeights) : 0;
+            totalBoardHeight += maxRowHeight + padding;
+        }
+
+        console.log(`[Preview Calc] Final dimensions: boardWidth=${boardWidth}, totalBoardHeight=${totalBoardHeight}`);
+        // --- Scale the board to fit the viewport ---
+        container.style.width = `${boardWidth}px`;
+        container.style.height = `${totalBoardHeight}px`;
+        const viewportRect = viewport.getBoundingClientRect();
+        // Prevent division by zero if boardWidth or totalBoardHeight is 0
+        const scaleX = boardWidth > 0 ? viewportRect.width / boardWidth : 1;
+        const scaleY = totalBoardHeight > 0 ? viewportRect.height / totalBoardHeight : 1;
+        const scale = Math.min(scaleX, scaleY);
+        container.style.transform = `scale(${scale})`;
+        console.log(`[Preview Calc] Viewport: ${viewportRect.width}x${viewportRect.height}. Final scale: ${scale}`);
+
+        if (isNaN(scale) || !isFinite(scale)) {
+            console.error('[Preview Error] Calculated scale is invalid. Aborting preview render.', {scale, boardWidth, totalBoardHeight});
+            return;
+        }
+
+
+        if (config.boardTitle) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'preview-title';
+            titleEl.textContent = config.boardTitle;
+            container.appendChild(titleEl);
+        }
+
+        const sectionContainer = document.createElement('div');
+        sectionContainer.id = 'preview-sections-container';
+        sectionContainer.style.gridTemplateColumns = `repeat(${config.sectionColumns || 1}, 1fr)`;
+
+        editorState.sections.forEach((section, sectionIndex) => {
+            const sectionEl = document.createElement('div');
+            sectionEl.className = 'preview-section';
+            sectionEl.draggable = true;
+            sectionEl.dataset.sectionIndex = sectionIndex;
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'preview-section-title';
+            titleEl.textContent = section.title || 'Untitled Section';
+            sectionEl.appendChild(titleEl);
+
+            const sectionContentEl = document.createElement('div');
+            sectionContentEl.className = 'preview-section-content';
+            sectionContentEl.id = `psc-preview-${sectionIndex}`;
+            sectionEl.appendChild(sectionContentEl);
+
+            section.tiles.forEach((tileGroup, tileGroupIndex) => {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'preview-tile-group';
+                groupEl.draggable = true;
+                groupEl.dataset.sectionIndex = sectionIndex;
+                groupEl.dataset.tileGroupIndex = tileGroupIndex;
+                
+                const groupTitleEl = document.createElement('div');
+                groupTitleEl.className = 'preview-tile-group-title';
+                groupTitleEl.textContent = tileGroup.title || 'Untitled Tile Group';
+                groupEl.appendChild(groupTitleEl);
+
+                const tileContainer = document.createElement('div');
+                tileContainer.className = 'preview-tile-container';
+                tileContainer.style.display = 'grid'; tileContainer.style.gridTemplateColumns = `repeat(${config.tileColumns || 5}, 1fr)`;
+
+                const numTiles = tileGroup.points ? tileGroup.points.length : 0;
+                for (let i = 0; i < numTiles; i++) {
+                    const tileEl = document.createElement('div');
+                    tileEl.className = 'preview-tile';
+                    tileEl.textContent = i + 1;
+                    tileContainer.appendChild(tileEl);
+                }
+                groupEl.appendChild(tileContainer);
+                sectionContentEl.appendChild(groupEl);
+            });
+
+            sectionContainer.appendChild(sectionEl);
+        });
+
+        container.appendChild(sectionContainer);
+
+        // Re-initialize draggables for the preview
+        makeDraggable('#preview-sections-container', '.preview-section', updateStateFromPreview);
+        document.querySelectorAll('.preview-section-content').forEach(c => makeDraggable(`#${c.id}`, '.preview-tile-group', updateStateFromPreview));
+    }
+
+    // --- Event Handlers ---
+
+    function handleFileLoad(event) {
+        console.log('[Event] handleFileLoad triggered.');
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.config || !data.sections) {
+                    throw new Error("Invalid config format. Must contain 'config' and 'sections' keys.");
+                }
+                editorState = data;
+                console.log('[State] Loaded new state from file:', JSON.parse(JSON.stringify(editorState)));
+                document.getElementById('file-name').textContent = file.name;
+                renderAll();
+            } catch (error) {
+                alert(`Error parsing JSON file: ${error.message}`);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleFileDownload() {
+        console.log('[Event] handleFileDownload triggered.');
+        updateStateFromDOM(); // Ensure state is current before downloading
+        const jsonString = JSON.stringify(editorState, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const fileName = editorState.config.projectTitle ? `${editorState.config.projectTitle.replace(/\s+/g, '_')}.json` : 'config.json';
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function handleGlobalConfigChange(event) {
+        console.log('[Event] handleGlobalConfigChange triggered.');
+        const input = event.target;
+        const key = input.dataset.key;
+        const group = input.dataset.group;
+        if (!key) return;
+
+        let targetObject = editorState.config;
+        if (group) {
+            if (!targetObject[group]) targetObject[group] = {};
+            targetObject = targetObject[group];
+        }
+
+
+        if (input.type === 'checkbox') {
+            targetObject[key] = input.checked;
+        } else if (input.type === 'number') {
+            targetObject[key] = parseFloat(input.value);
+        } else {
+            targetObject[key] = input.value;
+        }
+        renderGlobalConfig(); // Re-render to update calculated width
+        console.log(`[State] Global config '${key}' changed to:`, editorState.config[key]);
+        renderPreview();
+        validateAll();
+    }
+
+    function handleFieldsetToggle(event) {
+        const legend = event.target.closest('legend');
+        if (legend) {
+            const fieldset = legend.closest('.config-fieldset');
+            fieldset.classList.toggle('minimized');
+            legend.querySelector('.legend-toggle').textContent = fieldset.classList.contains('minimized') ? '►' : '▼';
+        }
+    }
+
+    function addSection() {
+        console.log('[Event] addSection triggered.');
+        preserveUIState();
+        editorState.sections.push({
+            title: 'New Section',
+            wiki: '',
+            tiles: []
+        });
+        renderSections();
+        renderPreview();
+    }
+
+    function toggleMinimize(event) {
+        console.log('[Event] toggleMinimize triggered.');
+        const btn = event.target;
+        const item = btn.closest('.section-item, .tile-group-item');
+        if (!item) return;
+
+        item.classList.toggle('minimized');
+        btn.textContent = item.classList.contains('minimized') ? '►' : '▼';
+        // No need to re-render, just save the state for the next full render
+        
+        const targetId = btn.dataset.target;
+        if (targetId) {
+            const targetPanel = document.getElementById(targetId);
+            targetPanel.style.display = targetPanel.style.display === 'none' ? '' : 'none';
+        }
+
+        preserveUIState();
+    }
+
+    function createFieldset(name) {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'config-fieldset';
+        fieldset.innerHTML = `
+            <legend>
+                <span class="legend-toggle">▼</span>${name}
+            </legend>
+            <div class="fieldset-content"></div>
+        `;
+        return fieldset;
+    }
+
+    // --- State Update Handlers ---
+    // These now preserve UI state before making changes
+
+    function removeSection(event) {
+        console.log('[Event] removeSection triggered.');
+        if (!confirm('Are you sure you want to remove this section and all its tile groups?')) return;
+        const sectionEl = event.target.closest('.section-item');
+        const index = parseInt(sectionEl.dataset.index, 10);
+        editorState.sections.splice(index, 1);
+        renderSections();
+        renderPreview();
+    }
+
+    function addTileGroup(event) {
+        console.log('[Event] addTileGroup triggered.');
+        preserveUIState();
+        const sectionEl = event.target.closest('.section-item');
+        const index = parseInt(sectionEl.dataset.index, 10);
+        editorState.sections[index].tiles.push({
+            title: 'New Tile Group',
+            description: '',
+            tileID: '',
+            wiki: '',
+            points: [10, 20, 30]
+        });
+        renderSections();
+        renderPreview();
+    }
+
+    function removeTileGroup(event) {
+        console.log('[Event] removeTileGroup triggered.');
+        preserveUIState();
+        const tileGroupEl = event.target.closest('.tile-group-item');
+        const sectionIndex = parseInt(tileGroupEl.dataset.sectionIndex, 10);
+        const tileIndex = parseInt(tileGroupEl.dataset.tileIndex, 10);
+        editorState.sections[sectionIndex].tiles.splice(tileIndex, 1);
+        renderSections();
+        renderPreview();
+    }
+
+    function preserveUIState() {
+        console.log('[State] Preserving UI state (minimized/maximized).');
+        document.querySelectorAll('#sections-container .section-item').forEach((sectionEl, sectionIndex) => {
+            if (editorState.sections[sectionIndex]) {
+                editorState.sections[sectionIndex].isMinimized = sectionEl.classList.contains('minimized');
+            }
+            sectionEl.querySelectorAll('.tile-group-item').forEach((tileGroupEl, tileIndex) => {
+                if (editorState.sections[sectionIndex]?.tiles[tileIndex]) {
+                    editorState.sections[sectionIndex].tiles[tileIndex].isMinimized = tileGroupEl.classList.contains('minimized');
+                }
+            });
+        });
+    }
+
+    function updateStateFromDOM() {
+        console.log('[State] Updating state from editor DOM...');
+        preserveUIState();
+        const newSections = [];
+        document.querySelectorAll('#sections-container .section-item').forEach(sectionEl => {
+            const newSection = {
+                title: sectionEl.querySelector('.section-title-input').value,
+                wiki: sectionEl.querySelector('.section-wiki-input')?.value || '',
+                tiles: []
+            };
+
+            const originalSection = editorState.sections[parseInt(sectionEl.dataset.index, 10)];
+            if (originalSection) newSection.isMinimized = originalSection.isMinimized;
+
+            sectionEl.querySelectorAll('.tile-group-item').forEach(tileGroupEl => {
+                const pointsString = tileGroupEl.querySelector('.tile-points-input').value;
+                const points = pointsString.split(',')
+                    .map(p => p.trim())
+                    .filter(p => p !== '')
+                    .map(p => parseFloat(p))
+                    .filter(p => !isNaN(p));
+
+                const newTileGroup = {
+                    title: tileGroupEl.querySelector('.tile-title-input').value,
+                    description: tileGroupEl.querySelector('.tile-description-input').value,
+                    tileID: tileGroupEl.querySelector('.tile-id-input').value,
+                    wiki: tileGroupEl.querySelector('.tile-wiki-input').value,
+                    points: points
+                };
+
+                const originalTileGroup = originalSection?.tiles[parseInt(tileGroupEl.dataset.tileIndex, 10)];
+                if (originalTileGroup) newTileGroup.isMinimized = originalTileGroup.isMinimized;
+
+                newSection.tiles.push(newTileGroup);
+            });
+            newSections.push(newSection);
+        });
+        editorState.sections = newSections;
+        console.log('[State] New state after DOM update:', JSON.parse(JSON.stringify(editorState.sections)));
+        renderAll(); // Full re-render to keep everything in sync
+        validateAll();
+    }
+
+    function updateStateFromPreview() {
+        console.log('[State] Updating state from preview DOM...');
+        preserveUIState();
+        const newSections = [];
+        const sectionOrder = Array.from(document.querySelectorAll('#preview-sections-container > .preview-section'))
+            .map(el => parseInt(el.dataset.sectionIndex, 10));
+
+        sectionOrder.forEach(originalSectionIndex => {
+            const originalSection = editorState.sections[originalSectionIndex];
+            const newSection = { ...originalSection, tiles: [] };
+
+            const tileGroupOrder = Array.from(document.querySelectorAll(`#psc-preview-${originalSectionIndex} > .preview-tile-group`))
+                .map(el => parseInt(el.dataset.tileGroupIndex, 10));
+
+            tileGroupOrder.forEach(originalTileGroupIndex => {
+                newSection.tiles.push(originalSection.tiles[originalTileGroupIndex]);
+            });
+
+            newSections.push(newSection);
+        });
+
+        // Check for cross-section drag (not fully supported, but let's handle it gracefully)
+        const draggedTileGroup = document.querySelector('.preview-tile-group.grabbing');
+        if (draggedTileGroup) {
+            const targetSectionEl = draggedTileGroup.closest('.preview-section');
+            // This logic is complex and can be added later if needed. For now, we only support reordering within a section.
+        }
+
+        editorState.sections = newSections;
+        console.log('[State] New state after preview update:', JSON.parse(JSON.stringify(editorState.sections)));
+        renderAll(); // Re-render both editor and preview to reflect the new order
+    }
+
+    function validateAll() {
+        const autoGenerate = editorState.config.autoGenerateTileIDs;
+        document.querySelectorAll('.tile-id-input').forEach(input => {
+            if (!autoGenerate && !input.value) {
+                input.classList.add('validation-error');
+            } else {
+                input.classList.remove('validation-error');
+            }
+        });
+    }
+
+    // --- Initial Load ---
+    initializeApp();
+});
+</script>
+
+</body>
+</html>
