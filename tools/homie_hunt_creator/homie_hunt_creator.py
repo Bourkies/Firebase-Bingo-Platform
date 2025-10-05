@@ -320,8 +320,8 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
                     bg_img.putalpha(new_alpha)
                     
                     # Calculate paste position to center the image
-                    paste_x = section_x + (target_w - bg_img.width) // 2
-                    paste_y = int(section_y) + (target_h - bg_img.height) // 2
+                    paste_x = section_x + (target_w - bg_img.width) // 2 # Center horizontally
+                    paste_y = int(section_y) + (target_h - bg_img.height) # Align to bottom vertically
                     board.paste(bg_img, (paste_x, paste_y), bg_img) # Use the image's own alpha channel as the mask
                 except Exception as e:
                     logging.error(f"Could not process background image {section['background_path']}: {e}")
