@@ -21,7 +21,46 @@ The tool is driven by a single `config.json` file. This file contains global set
 
 The JSON object has two main keys: `config` for global settings and `sections` for the board content.
 
-### 3.2. Section Object Structure
+### 3.2. Global `config` Object
+
+This object contains all the settings for the board's appearance, layout, and behavior.
+
+#### General Settings
+*   `projectTitle` (string): The name of your event, used for the output directory name.
+*   `boardTitle` (string): The main title text to be drawn at the top of the board image.
+*   `wikiApiUrl` (string): The URL to the MediaWiki API endpoint (e.g., `https://oldschool.runescape.wiki/api.php`).
+*   `autoLinkTileInstances` (boolean): If `true`, automatically creates prerequisites to chain tile instances together (e.g., tile `-2` will require tile `-1`).
+
+#### Layout & Sizing
+*   `sectionColumns` (integer): The number of section columns to arrange on the board. Defaults to `1`.
+*   `sectionWidth` (integer): The width of each section in pixels. Defaults to `400`.
+*   `sectionPadding` (integer): The padding in pixels inside and around sections.
+*   `sectionBgOpacity` (float): The opacity of the section background images, from `0.0` (transparent) to `1.0` (opaque). Defaults to `0.15`.
+*   `tileColumns` (integer): The number of tile columns within each tile group. Defaults to `5`.
+*   `tileWidth` (integer): The width and height of each square tile in pixels.
+*   `tilePadding` (integer): The padding in pixels between tiles.
+
+#### Fonts
+*   `boardTitleFont` (string): Path to the `.ttf` font file for the main board title. Defaults to `arial.ttf`.
+*   `boardTitleFontSize` (integer): Font size for the main board title. Defaults to `64`.
+*   `sectionTitleFont` (string): Path to the `.ttf` font file for section titles.
+*   `sectionTitleFontSize` (integer): Font size for section titles.
+*   `tileTitleFont` (string): Path to the `.ttf` font file for tile group titles.
+*   `tileTitleFontSize` (integer): Font size for tile group titles.
+
+#### Theming & Colors (`themeColors` object)
+This nested object defines the color palette for the generated board image.
+
+*   `background` (string): The background color of the entire board image (e.g., `#121212`).
+*   `primaryText` (string): The color for the main board title text (e.g., `#ffffff`).
+*   `boardTitleBackgroundColor` (string, optional): The fill color for the box behind the main board title.
+*   `boardTitleBorderColor` (string, optional): The border color for the box behind the main board title.
+*   `sectionBorder` (string): The color of the border around each section (e.g., `#333333`).
+*   `sectionTitle` (string): The color for section title text.
+*   `tileBackgroundColor` (array): An `[R, G, B, A]` array for the semi-transparent background drawn behind each tile image (e.g., `[50, 50, 50, 128]`).
+*   `tileTitle` (string): The color for tile group title text.
+
+### 3.3. Section Object Structure
 
 Each object in the `sections` array represents a distinct area on the board (e.g., a boss).
 
@@ -29,7 +68,7 @@ Each object in the `sections` array represents a distinct area on the board (e.g
 *   `wiki`: The name of the wiki page to query for the section's background image.
 *   `tiles`: An array of tile definitions for this section.
 
-### 3.3. Tile Object Structure
+### 3.4. Tile Object Structure
 
 Each object in a section's `tiles` array defines a type of tile. The tool will generate multiple instances of this tile based on the `points` array.
 
@@ -39,14 +78,14 @@ Each object in a section's `tiles` array defines a type of tile. The tool will g
 *   `wiki`: The name of the wiki page to query for the tile's image.
 *   `points`: An array of numbers. The **length** of this array determines how many instances of this tile are created. Each instance will be assigned the corresponding point value from the array.
 
-### 3.4. Complete `config.json` Example
+### 3.5. Complete `config.json` Example
 
 A complete example can be found in the `HHC_config.example.json` file. You can copy this file to `config.json` and modify it to create your own event.
 
 ## 4. Output Files
 
 1.  **`board.png`**: A single, tall PNG image containing all the generated sections and tiles.
-2.  **`tiles.csv`**: A CSV file with headers matching the import tool (`id`, `Name`, `Points`, `Description`, `Left (%)`, `Top (%)`, `Width (%)`, `Height (%)`).
+2.  **`tiles.csv`**: A CSV file with headers matching the import tool (`id`, `Name`, `Points`, `Description`, `Prerequisites`, `Left (%)`, `Top (%)`, `Width (%)`, `Height (%)`).
 
 ## 5. Directory Structure
 
@@ -79,9 +118,9 @@ pip install -r requirements.txt
 To generate the board image and CSV file, run the Python script and provide the path to your config.json file as an argument.
 
 ```bash
-python homie_hunt_creator.py config.json
+python homie_hunt_creator.py HHC_config.example.json
 ```
-### 4.3. Clearing the Cache
+### 6.3. Clearing the Cache
 To delete all cached images and force the tool to re-download them on the next run, use the --clear-cache flag
 
 ```bash

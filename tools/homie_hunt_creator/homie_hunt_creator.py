@@ -133,6 +133,7 @@ def process_sections(config_data, session):
     logging.info("Processing sections and tiles...")
     global_config = config_data['config']
     api_url = global_config['wikiApiUrl']
+    auto_link = global_config.get('autoLinkTileInstances', False)
 
     all_tile_data_for_csv = []
     image_layout_data = []
@@ -155,12 +156,21 @@ def process_sections(config_data, session):
             for i, points in enumerate(tile_def['points']):
                 unique_id = f"{tile_def['tileID']}-{i+1}"
                 
+                prereq_val = ''
+                if auto_link and i > 0:
+                    # Link this tile to the previous one in the sequence
+                    previous_tile_id = f"{tile_def['tileID']}-{i}"
+                    # Format as a JSON array of arrays for the web app's prerequisite system
+                    # e.g., [["some-tile-1"]] which means "some-tile-1 is required"
+                    prereq_val = json.dumps([[previous_tile_id]])
+
                 # Data for the CSV file
                 csv_tile = {
                     'id': unique_id,
                     'Name': tile_def['title'],
                     'Points': points,
                     'Description': tile_def['description'],
+                    'Prerequisites': prereq_val,
                     # Positional data will be added later
                 }
                 all_tile_data_for_csv.append(csv_tile)
@@ -212,8 +222,8 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
         section_heights.append(height)
 
     board_width = (section_width * section_columns) + (padding * (section_columns + 1))
-    
-    total_board_height = padding + config.get('boardTitleFontSize', 64) + padding
+    title_box_height = config.get('boardTitleFontSize', 64) + (padding * 2)
+    total_board_height = padding + title_box_height + padding
     num_section_rows = -(-len(image_layout_data) // section_columns)
     for i in range(num_section_rows):
         row_start_index = i * section_columns
@@ -225,12 +235,34 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
     board = Image.new('RGB', (board_width, int(total_board_height)), color=config['themeColors']['background'])
     draw = ImageDraw.Draw(board, 'RGBA') # Use RGBA for transparent shapes
 
-    # --- Draw Board Title ---
-    board_title_y = padding
-    draw.text((padding, board_title_y), config.get('boardTitle', ''), font=board_title_font, fill=config['themeColors'].get('primaryText', '#ffffff'))
+    # --- Draw Board Title Box and Text ---
+    title_text = config.get('boardTitle', '')
+    if title_text:
+        title_box_y = padding
+        
+        # Draw themed background box for the title
+        title_bg_color = config['themeColors'].get('boardTitleBackgroundColor')
+        if title_bg_color:
+            draw.rectangle(
+                [padding, title_box_y, board_width - padding, title_box_y + title_box_height],
+                fill=title_bg_color
+            )
+        title_border_color = config['themeColors'].get('boardTitleBorderColor')
+        if title_border_color:
+            draw.rectangle(
+                [padding, title_box_y, board_width - padding, title_box_y + title_box_height],
+                outline=title_border_color,
+                width=2
+            )
+        
+        # Calculate centered position for the text
+        text_bbox = draw.textbbox((0, 0), title_text, font=board_title_font)
+        text_x = (board_width - (text_bbox[2] - text_bbox[0])) / 2
+        text_y = title_box_y + (title_box_height - (text_bbox[3] - text_bbox[1])) / 2
+        draw.text((text_x, text_y), title_text, font=board_title_font, fill=config['themeColors'].get('primaryText', '#ffffff'))
     
     # --- Draw Sections ---
-    current_board_y = padding + config.get('boardTitleFontSize', 64) + padding
+    current_board_y = padding + title_box_height + padding
     tile_map = {tile['id']: tile for tile in all_tile_data_for_csv}
 
     for i in range(num_section_rows):
@@ -300,7 +332,8 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
                     y = content_y + row * (config['tileWidth'] + config['tilePadding'])
 
                     # Draw semi-transparent tile background
-                    draw.rectangle([x, y, x + config['tileWidth'], y + config['tileWidth']], fill=(50, 50, 50, 128))
+                    tile_bg_color = tuple(config['themeColors'].get('tileBackgroundColor', [50, 50, 50, 128]))
+                    draw.rectangle([x, y, x + config['tileWidth'], y + config['tileWidth']], fill=tile_bg_color)
 
                     # Update CSV data with calculated positions
                     tile_id = tile_instance['id']
@@ -338,7 +371,7 @@ def generate_tiles_csv(all_tile_data_for_csv, output_path):
         logging.warning("No tile data to generate CSV.")
         return
 
-    headers = ['id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)']
+    headers = ['id', 'Name', 'Points', 'Description', 'Prerequisites', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)']
     try:
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=headers)

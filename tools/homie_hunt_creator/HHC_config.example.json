@@ -1,29 +1,35 @@
 {
   "config": {
-    "boardWidth": 1200,
-    "projectTitle": "Grindmaster Homie Hunt",
-    "boardTitle": "Gridmaster bingo",
-    "sectionColumns": 3,
-    "sectionWidth": 400,
+    "projectTitle": "My Awesome Homie Hunt",
+    "boardTitle": "Awesome Homie Hunt Board",
+    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php",
+    "autoLinkTileInstances": true,
+    "sectionColumns": 2,
+    "sectionWidth": 450,
+    "sectionPadding": 15,
+    "sectionBgOpacity": 0.1,
     "tileColumns": 5,
-    "tileWidth": 100,
-    "tilePadding": 10,
-    "sectionPadding": 20,
-    "sectionTitleFont": "arial.ttf",
-    "boardTitleFont": "arial.ttf",
-    "boardTitleFontSize": 64,
-    "sectionBgOpacity": 0.15,
-    "sectionTitleFontSize": 48,
+    "tileWidth": 75,
+    "tilePadding": 5,
+    "boardTitleFont": "C:/Windows/Fonts/arialbd.ttf",
+    "boardTitleFontSize": 48,
+    "sectionTitleFont": "C:/Windows/Fonts/arial.ttf",
+    "sectionTitleFontSize": 24,
+    "tileTitleFont": "C:/Windows/Fonts/arial.ttf",
+    "tileTitleFontSize": 18,
     "themeColors": {
       "background": "#1a1a1a",
-      "primaryText": "#e0e0e0",
-      "sectionBorder": "#333333",
-      "sectionTitle": "#00bcd4",
-      "tileTitle": "#ffffff"
-    },
-    "tileTitleFont": "arial.ttf",
-    "tileTitleFontSize": 24,
-    "wikiApiUrl": "https://oldschool.runescape.wiki/api.php"
+      "primaryText": "#ffffff",
+      "sectionBorder": "#444444",
+      "sectionTitle": "#ffc107",
+      "tileBackgroundColor": [
+        40,
+        40,
+        40,
+        150
+      ],
+      "tileTitle": "#cccccc"
+    }
   },
   "sections": [
     {
