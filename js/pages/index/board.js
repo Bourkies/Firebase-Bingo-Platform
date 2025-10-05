@@ -101,11 +101,12 @@ export function renderBoard() {
             const { allStyles } = mainController.getState();
 
             const tileDiv = createTileElement(tile, status, config, allStyles, { baseClass: 'tile-overlay' });
-            const tileName = tile.Name || 'Censored';
-            const tileDesc = tile.Description || 'This tile is hidden until the event begins.';
+            const tileName = config.censorTilesBeforeEvent && !authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
+            const tileDesc = config.censorTilesBeforeEvent && !authState.isEventMod ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.');
+            const tilePoints = tile.Points ? ` (${tile.Points} pts)` : '';
 
             tileDiv.addEventListener('mousemove', (e) => {
-                tooltip.innerHTML = `<h4>${tile.id}: ${tileName}</h4><p>${tileDesc}</p>`;
+                tooltip.innerHTML = `<h4>${tile.id}: ${tileName}${tilePoints}</h4><p>${tileDesc}</p>`;
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${e.clientX + 15}px`;
                 tooltip.style.top = `${e.clientY + 15}px`;

@@ -331,7 +331,7 @@ const mainControllerInterface = {
             unsubscribeFromSingleSubmission = fb.onSnapshot(fb.doc(db, 'submissions', existingSubmission.docId), (doc) => {
                 console.log('[IndexController] Live update for open submission modal.');
                 const updatedData = doc.data();
-                // Call a new function in submissionModal.js to refresh its content
+                // Call a function in submissionModal.js to refresh its content
                 updateModalContent(tile, updatedData);
             });
         }
