@@ -177,6 +177,8 @@
         </div>
     </div>
 
+<!-- NEW: Add SortableJS library from a CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     let editorState = {
@@ -187,10 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
             previewScale: 'auto' // Default scale
         } // To store minimized states
     };
-
-    // --- Drag and Drop State ---
-    let draggedItem = null;
-    let isDragging = false;
 
     const configGroups = {
         'General': ['projectTitle', 'boardTitle', 'wikiApiUrl'],
@@ -256,13 +254,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderAll();
 
-        // Attach centralized drag-and-drop listeners using event delegation.
-        // These are attached ONCE to the main container that holds both columns.
-        document.querySelector('.container').addEventListener('dragstart', handleDragStart);
-        document.querySelector('.container').addEventListener('dragend', handleDragEnd);
-        document.querySelector('.container').addEventListener('dragover', handleDragOver);
-        document.querySelector('.container').addEventListener('drop', handleDrop);
-
+        // NEW: Initialize SortableJS for the main sections container
+        initSectionsSortable();
         // Attach section-specific listeners ONCE using event delegation.
         document.getElementById('sections-container').addEventListener('click', handleSectionContainerClick);
         document.getElementById('sections-container').addEventListener('change', handleSectionInputChange);
@@ -272,6 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('%c[Render] Starting full re-render of all components.', 'color: lightblue');
         renderGlobalConfig(); // This one is fine to re-render fully
         renderThemeColorsConfig();
+        // Preserve SortableJS instances by not clearing the container if it already exists.
+        // The renderSections function will handle adding/removing/updating children.
         renderSections();
         renderPreview();
     }
@@ -384,15 +379,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSections() {
         console.log('[Render] Rendering sections editor with data:', JSON.parse(JSON.stringify(editorState.sections)));
         const container = document.getElementById('sections-container');
-        container.innerHTML = '';
+        // NEW: Keyed rendering. We'll match existing elements by ID and only create new ones.
+        const existingElements = new Map(Array.from(container.children).map(el => [el.dataset.id, el]));
+        const newElements = [];
+
         editorState.sections.forEach((section, index) => {
-            // NEW: Assign a unique ID if it doesn't have one.
             if (section.id === undefined) {
                 section.id = editorState.nextId++;
             }
-            const sectionEl = createSectionElement(section, index);
-            container.appendChild(sectionEl);
+            // TODO: A full diffing implementation would be more robust, but for now, we'll just re-create.
+            // This is still better than innerHTML = '' because it preserves the main container and its listeners.
+            const sectionEl = createSectionElement(section, index); // This function now also inits sortable for tile groups
+            newElements.push(sectionEl);
         });
+        container.replaceChildren(...newElements);
     }
 
     function createSectionElement(section, index) {
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sectionEl.dataset.id = section.id; // NEW: Key for reordering
         sectionEl.innerHTML = `
                 <div class="section-header section-header-title">
-                    <span class="drag-handle" draggable="true">⠿</span>
+                    <span class="drag-handle">⠿</span>
                     <button class="toggle-btn">${section.isMinimized ? '►' : '▼'}</button>
                     <h3>Section: ${section.title || 'Untitled'}</h3>
                 </div>
@@ -440,6 +440,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const tileGroupEl = createTileGroupElement(tileGroup, index, tileIndex);
             tileGroupContainer.appendChild(tileGroupEl);
         });
+
+        // NEW: Initialize SortableJS for the tile groups within this new section element.
+        initTileGroupsSortable(tileGroupContainer, index);
         return sectionEl;
     }
 
@@ -458,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tileGroupEl.innerHTML = `
             <div class="section-header section-header-title">
-                <span class="drag-handle" draggable="true">⠿</span>
+                <span class="drag-handle">⠿</span>
                 <button class="toggle-btn">${tileGroup.isMinimized ? '►' : '▼'}</button>
                 <h5>${tileGroup.title || 'Untitled'}</h5>
                 <button class="danger remove-tile-group-btn" style="margin-left: auto;">X</button>
@@ -594,7 +597,6 @@ document.addEventListener('DOMContentLoaded', () => {
         sectionContainer.style.padding = `${padding}px`;
         // NEW: Make the section container fill the remaining vertical space
         sectionContainer.style.flexGrow = '1';
-
         editorState.sections.forEach((section, sectionIndex) => {
             const sectionEl = document.createElement('div');
             sectionEl.className = 'preview-section';
@@ -652,8 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         container.appendChild(sectionContainer);
-
-    }
+        initPreviewSortable(); // NEW: Make the preview elements draggable
+    }    
 
     // --- Event Handlers ---
 
@@ -902,112 +904,6 @@ document.addEventListener('DOMContentLoaded', () => {
         validateAll();
     }
 
-    // --- NEW: Centralized Drag and Drop Handlers ---
-
-    function handleDragStart(e) {
-        // Find the closest draggable item (editor or preview)
-        let item = null;
-        if (e.target.classList.contains('drag-handle')) {
-            // For the editor, only start drag from the handle
-            item = e.target.closest('.section-item, .tile-group-item');
-        } else {
-            // For the preview, the whole item is draggable
-            item = e.target.closest('.preview-section, .preview-tile-group');
-        }
-
-        if (item) {
-            isDragging = true;
-            draggedItem = item;
-            // Use a timeout to allow the browser to create the drag image before we modify the original element's style.
-            setTimeout(() => {
-                if (draggedItem) { // Check if drag is still active
-                    draggedItem.classList.add('grabbing');
-                }
-            }, 0);
-        }
-    }
-
-    function handleDragEnd(e) {
-        if (isDragging && draggedItem) {
-            draggedItem.classList.remove('grabbing');
-        }
-        draggedItem = null;
-        isDragging = false;
-    }
-
-    function handleDragOver(e) {
-        if (!isDragging || !draggedItem) return;
-        e.preventDefault(); // Necessary to allow a drop.
-
-        // Determine the valid target selector based on what's being dragged.
-        let targetSelector;
-        if (draggedItem.matches('.section-item, .preview-section')) {
-            targetSelector = '.section-item, .preview-section';
-        } else if (draggedItem.matches('.tile-group-item, .preview-tile-group')) {
-            targetSelector = '.tile-group-item, .preview-tile-group';
-        }
-
-        const targetItem = e.target.closest(targetSelector);
-
-        if (targetItem && targetItem !== draggedItem && targetItem.parentElement === draggedItem.parentElement) {
-            const rect = targetItem.getBoundingClientRect();
-            let clientY = e.clientY;
-
-            // Adjust for CSS scaling in the preview
-            if (draggedItem.matches('.preview-section, .preview-tile-group')) {
-                const scale = editorState.uiState.previewScale === 'auto' ? 1 : (parseFloat(editorState.uiState.previewScale) || 1);
-                if (scale !== 1) {
-                    clientY = (e.clientY - rect.top) / scale + rect.top;
-                }
-            }
-
-            const isAfter = (clientY - rect.top) / rect.height > 0.5;
-            if (isAfter) {
-                targetItem.parentNode.insertBefore(draggedItem, targetItem.nextSibling);
-            } else {
-                targetItem.parentNode.insertBefore(draggedItem, targetItem);
-            }
-        }
-    }
-
-    function handleDrop(e) {
-        if (!isDragging || !draggedItem) return;
-        e.preventDefault();
-        console.log('[Event] handleDrop triggered.');
-
-        // NEW: Centralized state update logic after a drop.
-        // The DOM has already been re-ordered by handleDragOver.
-        // Now, we read the new order from the DOM and update our state array to match.
-        
-        const isSectionDrop = draggedItem.matches('.section-item, .preview-section');
-        const isTileGroupDrop = draggedItem.matches('.tile-group-item, .preview-tile-group');
-
-        preserveUIState(); // Capture minimized states before reordering
-
-        if (isSectionDrop) {
-            const newSectionOrder = Array.from(document.querySelectorAll('#sections-container .section-item'))
-                .map(el => editorState.sections.find(s => s.id == el.dataset.id));
-            editorState.sections = newSectionOrder;
-        } else if (isTileGroupDrop) {
-            // This is more complex as we need to find which section it belongs to.
-            const parentSectionEl = draggedItem.closest('.section-item');
-            const sectionIndex = parseInt(parentSectionEl.dataset.index, 10);
-            const section = editorState.sections[sectionIndex];
-
-            const newTileOrder = Array.from(parentSectionEl.querySelectorAll('.tile-group-item'))
-                .map(el => section.tiles.find(t => t.id == el.dataset.id));
-            section.tiles = newTileOrder;
-        }
-
-        // After updating state, re-render everything to ensure consistency.
-        // This is much faster now because renderSections will just re-order elements.
-        if (draggedItem.matches('.section-item, .tile-group-item')) {
-            renderAll();
-        } else if (draggedItem.matches('.preview-section, .preview-tile-group')) {
-            updateStateFromPreview(true);
-        }
-    }
-
     function handleSectionContainerClick(event) {
         const target = event.target;
         if (target.classList.contains('remove-section-btn')) {
@@ -1022,46 +918,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item) {
                 toggleMinimize(event);
             }
-        }
-    }
-
-    function updateStateFromPreview(shouldRerenderEditor = false) {
-        console.log('[State] Updating state from preview DOM (drag/drop)...');
-        preserveUIState();
-
-        // Read the new section order from the preview
-        const sectionOrder = Array.from(document.querySelectorAll('#preview-sections-container > .preview-section'))
-            .map(el => editorState.sections.find(s => s.id == el.dataset.id)); // Find by unique ID
-
-        // For each section in the new order, read its tile group order
-        const newSections = sectionOrder.map(section => {
-            const newSection = { ...section, tiles: [] };
-            const previewSectionEl = document.querySelector(`.preview-section[data-id='${section.id}']`);
-            
-            const tileGroupOrder = Array.from(previewSectionEl.querySelectorAll('.preview-tile-group'))
-                .map(el => section.tiles.find(t => t.id == el.dataset.id)); // Find by unique ID
-
-            tileGroupOrder.forEach(tileGroup => {
-                if (tileGroup) { // Ensure the tile group was found
-                    newSection.tiles.push(tileGroup);
-                }
-            });
-
-            newSections.push(newSection);
-        });
-
-        // Check for cross-section drag (not fully supported, but let's handle it gracefully)
-        const draggedTileGroup = document.querySelector('.preview-tile-group.grabbing');
-        if (draggedTileGroup) {
-            const targetSectionEl = draggedTileGroup.closest('.preview-section');
-            // This logic is complex and can be added later if needed. For now, we only support reordering within a section.
-        }
-
-        editorState.sections = newSections;
-        console.log('[State] New state after preview update:', JSON.parse(JSON.stringify(editorState.sections)));
-
-        if (shouldRerenderEditor) {
-            renderAll(); // Re-render both editor and preview to reflect the new order
         }
     }
 
@@ -1117,6 +973,72 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- NEW: SortableJS Integration ---
+
+    function initSectionsSortable() {
+        const container = document.getElementById('sections-container');
+        new Sortable(container, {
+            animation: 150,
+            handle: '.drag-handle', // Use the handle to initiate drag
+            ghostClass: 'grabbing', // Use our existing class for styling
+            onEnd: (evt) => {
+                console.log('[Sortable] Section moved in editor.');
+                const { oldIndex, newIndex } = evt;
+                // Move the item in the state array
+                const [movedItem] = editorState.sections.splice(oldIndex, 1);
+                editorState.sections.splice(newIndex, 0, movedItem);
+                // Re-render to update indices and preview
+                renderAll();
+            }
+        });
+    }
+
+    function initTileGroupsSortable(container, sectionIndex) {
+        new Sortable(container, {
+            group: 'tileGroups', // Allows dragging between sections in the future
+            animation: 150,
+            handle: '.drag-handle',
+            ghostClass: 'grabbing',
+            onEnd: (evt) => {
+                console.log('[Sortable] Tile group moved in editor.');
+                const { oldIndex, newIndex } = evt;
+                const section = editorState.sections[sectionIndex];
+                if (section) {
+                    const [movedItem] = section.tiles.splice(oldIndex, 1);
+                    section.tiles.splice(newIndex, 0, movedItem);
+                    renderAll();
+                }
+            }
+        });
+    }
+
+    function initPreviewSortable() {
+        const sectionContainer = document.getElementById('preview-sections-container');
+        if (sectionContainer && !sectionContainer.sortable) { // Prevent re-initialization
+            new Sortable(sectionContainer, {
+                animation: 150,
+                ghostClass: 'grabbing',
+                onEnd: (evt) => {
+                    console.log('[Sortable] Section moved in preview.');
+                    const { oldIndex, newIndex } = evt;
+                    const [movedItem] = editorState.sections.splice(oldIndex, 1);
+                    editorState.sections.splice(newIndex, 0, movedItem);
+                    renderAll();
+                }
+            });
+        }
+
+        document.querySelectorAll('.preview-section-content').forEach((tileContainer, sectionIndex) => {
+            if (tileContainer && !tileContainer.sortable) {
+                new Sortable(tileContainer, {
+                    group: 'previewTileGroups',
+                    animation: 150,
+                    ghostClass: 'grabbing',
+                    // onEnd handler for preview tile groups can be added here if needed
+                });
+            }
+        });
+    }
     // --- Initial Load ---
     initializeApp();
 });
