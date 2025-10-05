@@ -952,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...originalSection, // Preserve ID and other properties
                 title: sectionEl.querySelector('.section-title-input').value,
                 wiki: sectionEl.querySelector('.section-wiki-input')?.value || '',
+                tiles: [] // FIX: Initialize tiles as an empty array to prevent duplication
             };
 
             newSection.isMinimized = sectionEl.classList.contains('minimized');
