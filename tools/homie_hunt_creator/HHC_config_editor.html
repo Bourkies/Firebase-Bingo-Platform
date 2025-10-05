@@ -185,6 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } // To store minimized states
     };
 
+    // --- Drag and Drop State ---
+    let draggedItem = null;
+    let isDragging = false;
+
     const configGroups = {
         'General': ['projectTitle', 'boardTitle', 'wikiApiUrl'],
         'Behavior': ['autoLinkTileInstances', 'autoGenerateTileIDs'],
@@ -232,64 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tileBackgroundColor: { label: 'Tile BG Color (RGBA)', description: 'An [R, G, B, A] array for the tile background.' }
     };
 
-
-    // --- Drag and Drop Logic ---
-    let draggedItem = null;
-
-    function makeDraggable(containerSelector, itemSelector, onDropCallback) {
-        // Use querySelectorAll to handle cases where multiple containers match (like tile groups)
-        // but we only need one event listener on a parent.
-        // The main logic here is to attach listeners to a static parent.
-        const container = document.querySelector(containerSelector); // The parent container
-        if (!container) return;
-        container.addEventListener('dragstart', e => {
-            if (e.target.closest(itemSelector)) {
-                draggedItem = e.target;
-                setTimeout(() => e.target.style.opacity = '0.5', 0);
-                e.target.classList.add('grabbing');
-            }
-        });
-
-        container.addEventListener('dragend', e => {
-            if (e.target.closest(itemSelector)) {
-                setTimeout(() => {
-                    e.target.style.opacity = '';
-                    e.target.classList.remove('grabbing');
-                }, 0);
-                draggedItem = null;
-            }
-        });
-
-        container.addEventListener('dragover', e => {
-            e.preventDefault();
-            const target = e.target.closest(itemSelector);
-            const isPreview = container.id.includes('preview');
-
-            if (target && target !== draggedItem && target.parentElement === draggedItem.parentElement) {
-                const rect = target.getBoundingClientRect();
-                let clientY = e.clientY;
-
-                // FIX: If we are in the preview, we need to adjust the mouse coordinates
-                // to account for the CSS scaling on the board.
-                if (isPreview) {
-                    const scale = parseFloat(editorState.uiState.previewScale) || 1;
-                    clientY = (e.clientY - rect.top) / scale + rect.top;
-                }
-                const next = (clientY - rect.top) / rect.height > 0.5;
-                if (next) {
-                    target.parentNode.insertBefore(draggedItem, target.nextSibling);
-                } else {
-                    target.parentNode.insertBefore(draggedItem, target);
-                }
-            }
-        });
-
-        container.addEventListener('drop', e => {
-            e.preventDefault();
-            onDropCallback();
-        });
-    }
-
     // --- State Management and Rendering ---
 
     function initializeApp() {
@@ -305,8 +251,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('preview-scale-select').addEventListener('change', handlePreviewScaleChange);
 
         renderAll();
-        makeDraggable('#sections-container', '.section-item', updateStateFromDOM);
 
+        // Attach centralized drag-and-drop listeners using event delegation.
+        // These are attached ONCE to the main container that holds both columns.
+        document.querySelector('.container').addEventListener('dragstart', handleDragStart);
+        document.querySelector('.container').addEventListener('dragend', handleDragEnd);
+        document.querySelector('.container').addEventListener('dragover', handleDragOver);
+        document.querySelector('.container').addEventListener('drop', handleDrop);
     }
 
     function renderAll() {
@@ -477,13 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // FIX: Use event delegation on the container to avoid re-binding listeners and to handle events more efficiently.
         // This also prevents the re-render issue that was causing the cursor to jump.
         container.addEventListener('click', handleSectionContainerClick);
-        container.addEventListener('change', updateStateFromDOM);
-
-
-        // Make tile groups draggable within their section
-        document.querySelectorAll('.tile-group-container').forEach(tgc => {
-            makeDraggable(`#${tgc.id}`, '.tile-group-item', updateStateFromDOM);
-        });
+        container.addEventListener('change', handleSectionInputChange);
     }
 
 
@@ -696,11 +641,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.appendChild(sectionContainer);
 
-        // Re-initialize draggables for the preview
-        // This needs to be done *after* the elements are in the DOM.
-        makeDraggable('#preview-sections-container', '.preview-section', updateStateFromPreview);
-        document.querySelectorAll('.preview-section-content').forEach(c => makeDraggable(`#${c.id}`, '.preview-tile-group', updateStateFromPreview));
-
     }
 
     // --- Event Handlers ---
@@ -899,49 +839,130 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateStateFromDOM() {
-        console.log('[State] Updating state from editor DOM...');
-        // No need to preserve UI state here as we are not re-rendering the editor.
-        const newSections = [];
-        document.querySelectorAll('#sections-container .section-item').forEach(sectionEl => {
-            const newSection = {
-                title: sectionEl.querySelector('.section-title-input').value,
-                wiki: sectionEl.querySelector('.section-wiki-input')?.value || '',
-                tiles: []
-            };
+    function updateStateFromDOM(shouldRerenderEditor = true) {
+        console.log('[State] Updating state from editor DOM (full read)...');
+        readStateFromDOM();
+        if (shouldRerenderEditor) {
+            renderAll(); // Re-render everything after a drag-drop
+        } else {
+            renderPreview(); // Only re-render the preview on a simple value change
+        }
+    }
 
-            // Read minimized state directly from the DOM
-            newSection.isMinimized = sectionEl.classList.contains('minimized');
+    function handleSectionInputChange(event) {
+        const input = event.target;
+        const sectionItem = input.closest('.section-item');
+        const tileGroupItem = input.closest('.tile-group-item');
 
-            sectionEl.querySelectorAll('.tile-group-item').forEach(tileGroupEl => {
-                const pointsString = tileGroupEl.querySelector('.tile-points-input').value;
-                const points = pointsString.split(',')
+        if (!sectionItem) return;
+
+        const sectionIndex = parseInt(sectionItem.dataset.index, 10);
+        const section = editorState.sections[sectionIndex];
+
+        if (tileGroupItem) {
+            // It's an input inside a tile group
+            const tileIndex = parseInt(tileGroupItem.dataset.tileIndex, 10);
+            const tileGroup = section.tiles[tileIndex];
+
+            if (input.classList.contains('tile-title-input')) tileGroup.title = input.value;
+            else if (input.classList.contains('tile-wiki-input')) tileGroup.wiki = input.value;
+            else if (input.classList.contains('tile-id-input')) tileGroup.tileID = input.value;
+            else if (input.classList.contains('tile-description-input')) tileGroup.description = input.value;
+            else if (input.classList.contains('tile-points-input')) {
+                tileGroup.points = input.value.split(',')
                     .map(p => p.trim())
                     .filter(p => p !== '')
                     .map(p => parseFloat(p))
                     .filter(p => !isNaN(p));
+            }
+        } else {
+            // It's an input directly in the section
+            if (input.classList.contains('section-title-input')) {
+                section.title = input.value;
+                // Also update the header text for immediate feedback
+                sectionItem.querySelector('h3').textContent = `Section: ${input.value || 'Untitled'}`;
+            } else if (input.classList.contains('section-wiki-input')) {
+                section.wiki = input.value;
+            }
+        }
 
-                const newTileGroup = {
-                    title: tileGroupEl.querySelector('.tile-title-input').value,
-                    description: tileGroupEl.querySelector('.tile-description-input').value,
-                    tileID: tileGroupEl.querySelector('.tile-id-input').value,
-                    wiki: tileGroupEl.querySelector('.tile-wiki-input').value,
-                    points: points
-                };
-
-                // Read minimized state directly from the DOM
-                newTileGroup.isMinimized = tileGroupEl.classList.contains('minimized');
-
-                newSection.tiles.push(newTileGroup);
-            });
-            newSections.push(newSection);
-        });
-        editorState.sections = newSections;
-        console.log('[State] New state after DOM update:', JSON.parse(JSON.stringify(editorState.sections)));
-        // FIX: Don't do a full re-render, which loses focus. Just re-render the preview.
-        // The editor DOM is already the source of truth.
+        console.log('[State] Targeted state update from input change.');
+        // Only render the preview, do not touch the editor DOM at all.
         renderPreview();
         validateAll();
+    }
+
+    // --- NEW: Centralized Drag and Drop Handlers ---
+
+    function handleDragStart(e) {
+        // Find the closest draggable item (editor or preview)
+        const item = e.target.closest('.section-item, .tile-group-item, .preview-section, .preview-tile-group');
+        if (item) {
+            isDragging = true;
+            draggedItem = item;
+            // Use a timeout to allow the browser to create the drag image before we modify the original element's style.
+            setTimeout(() => {
+                if (draggedItem) { // Check if drag is still active
+                    draggedItem.style.opacity = '0.5';
+                    draggedItem.classList.add('grabbing');
+                }
+            }, 0);
+        }
+    }
+
+    function handleDragEnd(e) {
+        if (isDragging && draggedItem) {
+            draggedItem.style.opacity = '';
+            draggedItem.classList.remove('grabbing');
+        }
+        draggedItem = null;
+        isDragging = false;
+    }
+
+    function handleDragOver(e) {
+        if (!isDragging || !draggedItem) return;
+        e.preventDefault(); // Necessary to allow a drop.
+
+        // Determine the valid target selector based on what's being dragged.
+        let targetSelector;
+        if (draggedItem.matches('.section-item, .preview-section')) {
+            targetSelector = '.section-item, .preview-section';
+        } else if (draggedItem.matches('.tile-group-item, .preview-tile-group')) {
+            targetSelector = '.tile-group-item, .preview-tile-group';
+        }
+
+        const targetItem = e.target.closest(targetSelector);
+
+        if (targetItem && targetItem !== draggedItem && targetItem.parentElement === draggedItem.parentElement) {
+            const rect = targetItem.getBoundingClientRect();
+            let clientY = e.clientY;
+
+            // Adjust for CSS scaling in the preview
+            if (draggedItem.matches('.preview-section, .preview-tile-group')) {
+                const scale = editorState.uiState.previewScale === 'auto' ? 1 : (parseFloat(editorState.uiState.previewScale) || 1);
+                if (scale !== 1) {
+                    clientY = (e.clientY - rect.top) / scale + rect.top;
+                }
+            }
+
+            const isAfter = (clientY - rect.top) / rect.height > 0.5;
+            if (isAfter) {
+                targetItem.parentNode.insertBefore(draggedItem, targetItem.nextSibling);
+            } else {
+                targetItem.parentNode.insertBefore(draggedItem, targetItem);
+            }
+        }
+    }
+
+    function handleDrop(e) {
+        if (!isDragging || !draggedItem) return;
+        e.preventDefault();
+
+        if (draggedItem.matches('.section-item, .tile-group-item')) {
+            updateStateFromDOM(true); // A drop in the editor happened
+        } else if (draggedItem.matches('.preview-section, .preview-tile-group')) {
+            updateStateFromPreview(true); // A drop in the preview happened
+        }
     }
 
     function handleSectionContainerClick(event) {
@@ -961,8 +982,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateStateFromPreview() {
-        console.log('[State] Updating state from preview DOM...');
+    function updateStateFromPreview(shouldRerenderEditor = false) {
+        console.log('[State] Updating state from preview DOM (drag/drop)...');
         preserveUIState();
         const newSections = [];
         const sectionOrder = Array.from(document.querySelectorAll('#preview-sections-container > .preview-section'))
@@ -991,7 +1012,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         editorState.sections = newSections;
         console.log('[State] New state after preview update:', JSON.parse(JSON.stringify(editorState.sections)));
-        renderAll(); // Re-render both editor and preview to reflect the new order
+
+        if (shouldRerenderEditor) {
+            renderAll(); // Re-render both editor and preview to reflect the new order
+        }
+    }
+
+    function readStateFromDOM() {
+        const newSections = [];
+        document.querySelectorAll('#sections-container .section-item').forEach(sectionEl => {
+            const newSection = {
+                title: sectionEl.querySelector('.section-title-input').value,
+                wiki: sectionEl.querySelector('.section-wiki-input')?.value || '',
+                tiles: []
+            };
+
+            newSection.isMinimized = sectionEl.classList.contains('minimized');
+
+            sectionEl.querySelectorAll('.tile-group-item').forEach(tileGroupEl => {
+                const pointsString = tileGroupEl.querySelector('.tile-points-input').value;
+                const points = pointsString.split(',')
+                    .map(p => p.trim())
+                    .filter(p => p !== '')
+                    .map(p => parseFloat(p))
+                    .filter(p => !isNaN(p));
+
+                const newTileGroup = {
+                    title: tileGroupEl.querySelector('.tile-title-input').value,
+                    description: tileGroupEl.querySelector('.tile-description-input').value,
+                    tileID: tileGroupEl.querySelector('.tile-id-input').value,
+                    wiki: tileGroupEl.querySelector('.tile-wiki-input').value,
+                    points: points,
+                    isMinimized: tileGroupEl.classList.contains('minimized')
+                };
+                newSection.tiles.push(newTileGroup);
+            });
+            newSections.push(newSection);
+        });
+        editorState.sections = newSections;
+        console.log('[State] New state after full DOM read:', JSON.parse(JSON.stringify(editorState.sections)));
     }
 
     function validateAll() {
