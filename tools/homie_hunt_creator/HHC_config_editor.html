@@ -56,11 +56,14 @@
         #sections-container { display: flex; flex-direction: column; gap: 15px; }
         .section-item {
             background-color: #2a2a2a; padding: 15px; border-radius: 6px; border: 1px solid #444;
-            cursor: grab; transition: background-color 0.2s;
+            transition: background-color 0.2s;
         }
         .section-item.minimized .section-content,
         .tile-group-item.minimized .tile-group-content {
             display: none;
+        }
+        .drag-handle {
+            cursor: grab; padding: 0 10px; font-size: 1.2em; color: var(--secondary-text); user-select: none;
         }
         .section-item:grabbing { cursor: grabbing; background-color: #3a3a3a; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -71,7 +74,6 @@
         .tile-group-container { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; min-height: 20px; }
         .tile-group-item {
             background-color: var(--surface-color); padding: 10px; border-radius: 4px; border-left: 3px solid var(--accent-color);
-            cursor: grab;
         }
         .tile-group-item:grabbing, .preview-section:grabbing, .preview-tile-group:grabbing {
             cursor: grabbing; background-color: #333; opacity: 0.7;
@@ -258,6 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.container').addEventListener('dragend', handleDragEnd);
         document.querySelector('.container').addEventListener('dragover', handleDragOver);
         document.querySelector('.container').addEventListener('drop', handleDrop);
+
+        // Attach section-specific listeners ONCE using event delegation.
+        document.getElementById('sections-container').addEventListener('click', handleSectionContainerClick);
+        document.getElementById('sections-container').addEventListener('change', handleSectionInputChange);
     }
 
     function renderAll() {
@@ -382,7 +388,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const sectionEl = document.createElement('div');
             sectionEl.className = 'section-item';
             sectionEl.dataset.index = index;
-            sectionEl.draggable = true;
 
             if (section.isMinimized) {
                 sectionEl.classList.add('minimized');
@@ -390,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             sectionEl.innerHTML = `
                 <div class="section-header section-header-title">
+                    <span class="drag-handle" draggable="true">⠿</span>
                     <button class="toggle-btn">${section.isMinimized ? '►' : '▼'}</button>
                     <h3>Section: ${section.title || 'Untitled'}</h3>
                 </div>
@@ -424,11 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(sectionEl);
         });
 
-        // Add event listeners after creation
-        // FIX: Use event delegation on the container to avoid re-binding listeners and to handle events more efficiently.
-        // This also prevents the re-render issue that was causing the cursor to jump.
-        container.addEventListener('click', handleSectionContainerClick);
-        container.addEventListener('change', handleSectionInputChange);
     }
 
 
@@ -437,7 +438,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tileGroupEl.className = 'tile-group-item';
         tileGroupEl.dataset.sectionIndex = sectionIndex;
         tileGroupEl.dataset.tileIndex = tileIndex;
-        tileGroupEl.draggable = true;
 
         if (tileGroup.isMinimized) {
             tileGroupEl.classList.add('minimized');
@@ -447,6 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tileGroupEl.innerHTML = `
             <div class="section-header section-header-title">
+                <span class="drag-handle" draggable="true">⠿</span>
                 <button class="toggle-btn">${tileGroup.isMinimized ? '►' : '▼'}</button>
                 <h5>${tileGroup.title || 'Untitled'}</h5>
                 <button class="danger remove-tile-group-btn" style="margin-left: auto;">X</button>
@@ -896,14 +897,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleDragStart(e) {
         // Find the closest draggable item (editor or preview)
-        const item = e.target.closest('.section-item, .tile-group-item, .preview-section, .preview-tile-group');
+        let item = null;
+        if (e.target.classList.contains('drag-handle')) {
+            // For the editor, only start drag from the handle
+            item = e.target.closest('.section-item, .tile-group-item');
+        } else {
+            // For the preview, the whole item is draggable
+            item = e.target.closest('.preview-section, .preview-tile-group');
+        }
+
         if (item) {
             isDragging = true;
             draggedItem = item;
             // Use a timeout to allow the browser to create the drag image before we modify the original element's style.
             setTimeout(() => {
                 if (draggedItem) { // Check if drag is still active
-                    draggedItem.style.opacity = '0.5';
                     draggedItem.classList.add('grabbing');
                 }
             }, 0);
@@ -912,7 +920,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleDragEnd(e) {
         if (isDragging && draggedItem) {
-            draggedItem.style.opacity = '';
             draggedItem.classList.remove('grabbing');
         }
         draggedItem = null;
