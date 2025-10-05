@@ -30,6 +30,7 @@ This object contains all the settings for the board's appearance, layout, and be
 *   `boardTitle` (string): The main title text to be drawn at the top of the board image.
 *   `wikiApiUrl` (string): The URL to the MediaWiki API endpoint (e.g., `https://oldschool.runescape.wiki/api.php`).
 *   `autoLinkTileInstances` (boolean): If `true`, automatically creates prerequisites to chain tile instances together (e.g., tile `-2` will require tile `-1`).
+*   `autoGenerateTileIDs` (boolean): If `true`, the script will automatically generate a base `tileID` for each tile definition based on its position (e.g., `s1-t2`). If `false` (default), you must provide a `tileID` for each tile.
 
 #### Layout & Sizing
 *   `sectionColumns` (integer): The number of section columns to arrange on the board. Defaults to `1`.
@@ -74,7 +75,7 @@ Each object in a section's `tiles` array defines a type of tile. The tool will g
 
 *   `title`: The display name of the item/task.
 *   `description`: The full description of the task.
-*   `tileID`: A **base ID** for the tile. The tool will append a suffix (e.g., `-1`, `-2`) to create unique IDs for each instance.
+*   `tileID` (string, optional): A **base ID** for the tile. The tool will append a suffix (e.g., `-1`, `-2`) to create unique IDs for each instance. This key is required unless `autoGenerateTileIDs` is set to `true` in the global config.
 *   `wiki`: The name of the wiki page to query for the tile's image.
 *   `points`: An array of numbers. The **length** of this array determines how many instances of this tile are created. Each instance will be assigned the corresponding point value from the array.
 

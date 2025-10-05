@@ -134,11 +134,12 @@ def process_sections(config_data, session):
     global_config = config_data['config']
     api_url = global_config['wikiApiUrl']
     auto_link = global_config.get('autoLinkTileInstances', False)
+    auto_generate_ids = global_config.get('autoGenerateTileIDs', False)
 
     all_tile_data_for_csv = []
     image_layout_data = []
 
-    for section in config_data['sections']:
+    for section_index, section in enumerate(config_data['sections']):
         logging.info(f"--- Processing section: {section['title']} ---")
         section_layout = {
             'title': section['title'],
@@ -146,20 +147,30 @@ def process_sections(config_data, session):
             'tile_groups': []
         }
 
-        for tile_def in section['tiles']:
+        for tile_def_index, tile_def in enumerate(section['tiles']):
             tile_group_layout = {
                 'title': tile_def['title'],
                 'image_path': get_image(tile_def.get('wiki'), api_url, session),
                 'tiles': []
             }
 
+            base_tile_id = ""
+            if auto_generate_ids:
+                base_tile_id = f"s{section_index+1}-t{tile_def_index+1}"
+                logging.info(f"Auto-generating base tile ID: '{base_tile_id}' for tile '{tile_def['title']}'")
+            else:
+                base_tile_id = tile_def.get('tileID')
+                if not base_tile_id:
+                    logging.error(f"Missing 'tileID' for tile '{tile_def['title']}' in section '{section['title']}'. Skipping this tile definition.")
+                    continue # Skip this tile definition entirely
+
             for i, points in enumerate(tile_def['points']):
-                unique_id = f"{tile_def['tileID']}-{i+1}"
+                unique_id = f"{base_tile_id}-{i+1}"
                 
                 prereq_val = ''
                 if auto_link and i > 0:
                     # Link this tile to the previous one in the sequence
-                    previous_tile_id = f"{tile_def['tileID']}-{i}"
+                    previous_tile_id = f"{base_tile_id}-{i}"
                     # Format as a JSON array of arrays for the web app's prerequisite system
                     # e.g., [["some-tile-1"]] which means "some-tile-1 is required"
                     prereq_val = json.dumps([[previous_tile_id]])
