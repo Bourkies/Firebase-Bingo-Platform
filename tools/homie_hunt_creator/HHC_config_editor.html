@@ -91,7 +91,7 @@
         #preview-board {
             /* REVISED: Use flexbox for robust vertical layout */
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* This will be the main container for title and sections */
             transform-origin: top left;
             background-color: var(--bg-color); /* Match the theme */
         }
@@ -99,7 +99,7 @@
         .preview-title { text-align: center; font-size: 1.5em; font-weight: bold; padding: 10px; margin-bottom: 10px; border: 1px solid var(--border-color); }
         .preview-section {
             /* FIX: Use outline instead of border. Outline is not scaled by transform, ensuring it's always visible. */
-            outline: 1px solid var(--secondary-text, #a0a0a0); outline-offset: -1px;
+            outline: 1px solid var(--border-color); outline-offset: -1px;
             padding: 10px;
             cursor: grab;
         }
@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const globalConfigSchema = {
         projectTitle: { label: 'Project Title', type: 'text', description: 'Name of the event, used for the output directory name.' },
-        boardTitle: { label: 'Board Title', type: 'text', description: 'Main title text drawn at the top of the board image.' },
+        boardTitle: { label: 'Board Title', type: 'text', description: 'Main title text drawn at the top of the board image.' }, 
         wikiApiUrl: { label: 'Wiki API URL', type: 'text', description: 'The URL to the MediaWiki API endpoint.' },
         autoLinkTileInstances: { label: 'Auto-link Tile Instances', type: 'boolean', description: 'If true, automatically creates prerequisites to chain tile instances together.' },
         autoGenerateTileIDs: { label: 'Auto-generate Tile IDs', type: 'boolean', description: 'If true, the script will generate a base tileID for each tile definition.' },
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sectionPadding: { label: 'Section Padding (px)', type: 'number', description: 'The padding in pixels inside and around sections.' },
         calculatedBoardWidth: { label: 'Calculated Board Width', type: 'text', description: 'Read-only: The final calculated width of the board image.', readonly: true },
         sectionBgOpacity: { label: 'Section BG Opacity', type: 'number', step: 0.01, description: 'Opacity of section background images (0.0 to 1.0).' },
-        tileColumns: { label: 'Tile Columns', type: 'number', description: 'The number of tile columns within each tile group.' },
+        tileColumns: { label: 'Tile Columns', type: 'number', description: 'The number of tile columns within each tile group.' }, 
         tileWidth: { label: 'Tile Width (px)', type: 'number', description: 'The width and height of each square tile in pixels.' },
         tilePadding: { label: 'Tile Padding (px)', type: 'number', description: 'The padding in pixels between tiles.' },
         boardTitleFont: { label: 'Board Title Font', type: 'font', description: 'Path to .ttf font file for the main board title (e.g., arial.ttf).' },
@@ -331,7 +331,8 @@ document.addEventListener('DOMContentLoaded', () => {
             input.type = 'checkbox';
             input.checked = value;
             input.style.width = 'auto';
-        } else if (schema.type === 'color') {
+        } else if (schema.type === 'color' || key.toLowerCase().includes('color')) {
+            // FIX: Re-implement robust color picker logic
             const compoundDiv = document.createElement('div');
             compoundDiv.className = 'form-field-compound';
             const textInput = document.createElement('input');
@@ -339,27 +340,21 @@ document.addEventListener('DOMContentLoaded', () => {
             textInput.value = value;
             const colorInput = document.createElement('input');
             colorInput.type = 'color';
-            colorInput.value = value;
-            textInput.addEventListener('input', () => colorInput.value = textInput.value);
-            colorInput.addEventListener('input', () => textInput.value = colorInput.value);
+            if (typeof value === 'string' && value.startsWith('#')) {
+                colorInput.value = value;
+            }
+            textInput.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) colorInput.value = e.target.value; });
+            colorInput.addEventListener('input', (e) => {
+                textInput.value = e.target.value;
+                textInput.dispatchEvent(new Event('change', { bubbles: true })); // Ensure main handler picks up the change
+            });
             compoundDiv.append(textInput, colorInput);
             input = textInput; // The text input holds the final value
         } else if (schema.type === 'font') {
-            input = document.createElement('input');
-            input.type = 'text';
-            input.setAttribute('list', 'font-list');
-            input.value = value;
-            // Add a datalist if it doesn't exist
-            if (!document.getElementById('font-list')) {
-                const datalist = document.createElement('datalist');
-                datalist.id = 'font-list';
-                datalist.innerHTML = `
-                    <option value="arial.ttf">Arial</option>
-                    <option value="verdana.ttf">Verdana</option>
-                    <option value="cour.ttf">Courier New</option>
-                `;
-                document.body.appendChild(datalist);
-            }
+            // FIX: Re-implement font dropdown logic
+            input = document.createElement('select');
+            const fonts = { 'arial.ttf': 'Arial', 'verdana.ttf': 'Verdana', 'cour.ttf': 'Courier New', 'times.ttf': 'Times New Roman', 'georgia.ttf': 'Georgia' };
+            input.innerHTML = Object.entries(fonts).map(([file, name]) => `<option value="${file}" ${value === file ? 'selected' : ''}>${name}</option>`).join('');
         } else {
             input = document.createElement('input');
             input.type = schema.type || 'text';
@@ -392,8 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const sW = Number(editorState.config.sectionWidth) || 0, sC = Number(editorState.config.sectionColumns) || 0, sP = Number(editorState.config.sectionPadding) || 0;
             editorState.config.calculatedBoardWidth = `${(sW * sC) + (sP * (sC + 1))}px`;
 
+            // Calculate sectionWidth based on tile configuration
+            const tW = Number(editorState.config.tileWidth) || 0, tC = Number(editorState.config.tileColumns) || 0, tP = Number(editorState.config.tilePadding) || 0;
+            const calculatedSectionWidth = (tW * tC) + (tP * (tC - 1)) + (sP * 2);
+            editorState.config.sectionWidth = calculatedSectionWidth;
+
             keys.forEach(key => {
-                const schema = globalConfigSchema[key];
+                const schema = { ...globalConfigSchema[key] };
                 const value = editorState.config[key] ?? '';
                 const field = createFormField(key, schema, value);
                 contentDiv.appendChild(field);
@@ -411,11 +411,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const contentDiv = fieldset.querySelector('.fieldset-content');
             const themeColors = editorState.config.themeColors || {};
             keys.forEach(key => {
-                const schema = themeColorsSchema[key];
+                const schema = { ...themeColorsSchema[key] };
                 // Add color type for color picker
-                const fieldSchema = { ...schema, type: schema.type || 'color' };
+                schema.type = schema.type || 'color';
                 const value = themeColors[key] ?? '';
-                const field = createFormField(key, fieldSchema, value, 'themeColors');
+                const field = createFormField(key, schema, value, 'themeColors');
                 contentDiv.appendChild(field);
             });
             form.appendChild(fieldset);
@@ -474,15 +474,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Add event listeners after creation
-        container.querySelectorAll('.remove-section-btn').forEach(btn => btn.addEventListener('click', removeSection));
-        container.querySelectorAll('.add-tile-group-btn').forEach(btn => btn.addEventListener('click', addTileGroup));
-        container.querySelectorAll('.remove-tile-group-btn').forEach(btn => btn.addEventListener('click', removeTileGroup));
-        container.querySelectorAll('.toggle-btn').forEach(btn => btn.addEventListener('click', toggleMinimize));
-        container.querySelectorAll('input, textarea').forEach(input => input.addEventListener('change', updateStateFromDOM));
-
-        // Re-initialize draggables for the editor
-        makeDraggable('#sections-container', '.section-item', updateStateFromDOM);
-        document.querySelectorAll('.tile-group-container').forEach(c => makeDraggable(`#${c.id}`, '.tile-group-item', updateStateFromDOM));
+        // FIX: Use event delegation on the container to avoid re-binding listeners and to handle events more efficiently.
+        // This also prevents the re-render issue that was causing the cursor to jump.
+        container.addEventListener('click', handleSectionContainerClick);
+        container.addEventListener('change', updateStateFromDOM);
 
 
         // Make tile groups draggable within their section
@@ -629,6 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
             titleEl.className = 'preview-title';
             titleEl.textContent = config.boardTitle;
             titleEl.style.fontSize = `${config.boardTitleFontSize || 64}px`;
+            titleEl.style.fontFamily = `"${(config.boardTitleFont || 'arial.ttf').split('.')[0]}"`;
             container.appendChild(titleEl);
             console.log(`%c[Preview Render] Title: text="${config.boardTitle}", fontSize=${titleEl.style.fontSize}`, 'color: cyan');
         }
@@ -652,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
             titleEl.className = 'preview-section-title';
             titleEl.textContent = section.title || 'Untitled Section';
             titleEl.style.fontSize = `${config.sectionTitleFontSize || 24}px`;
+            titleEl.style.fontFamily = `"${(config.sectionTitleFont || 'arial.ttf').split('.')[0]}"`;
             sectionEl.appendChild(titleEl);
 
             const sectionContentEl = document.createElement('div');
@@ -670,6 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 groupTitleEl.className = 'preview-tile-group-title';
                 groupTitleEl.textContent = tileGroup.title || 'Untitled Tile Group';
                 groupTitleEl.style.fontSize = `${config.tileTitleFontSize || 16}px`;
+                groupTitleEl.style.fontFamily = `"${(config.tileTitleFont || 'arial.ttf').split('.')[0]}"`;
                 groupEl.appendChild(groupTitleEl);
 
                 const tileContainer = document.createElement('div');
@@ -771,7 +769,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             targetObject[key] = input.value;
         }
-        renderGlobalConfig(); // Re-render to update calculated width
+
+        // FIX: Instead of re-rendering the whole form, just update the calculated fields.
+        const tW = Number(editorState.config.tileWidth) || 0, tC = Number(editorState.config.tileColumns) || 0, sP = Number(editorState.config.sectionPadding) || 0, tP = Number(editorState.config.tilePadding) || 0;
+        const newSectionWidth = (tW * tC) + (tP * (tC - 1)) + (sP * 2);
+        const newBoardWidth = (newSectionWidth * (Number(editorState.config.sectionColumns) || 0)) + (sP * ((Number(editorState.config.sectionColumns) || 0) + 1));
+        editorState.config.sectionWidth = newSectionWidth;
+        editorState.config.calculatedBoardWidth = `${newBoardWidth}px`;
+        document.getElementById('global-sectionWidth').value = newSectionWidth;
+        document.getElementById('global-calculatedBoardWidth').value = `${newBoardWidth}px`;
+
         console.log(`[State] Global config '${key}' changed to:`, editorState.config[key]);
         renderPreview();
         validateAll();
@@ -894,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStateFromDOM() {
         console.log('[State] Updating state from editor DOM...');
-        preserveUIState();
+        // No need to preserve UI state here as we are not re-rendering the editor.
         const newSections = [];
         document.querySelectorAll('#sections-container .section-item').forEach(sectionEl => {
             const newSection = {
@@ -903,8 +910,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 tiles: []
             };
 
-            const originalSection = editorState.sections[parseInt(sectionEl.dataset.index, 10)];
-            if (originalSection) newSection.isMinimized = originalSection.isMinimized;
+            // Read minimized state directly from the DOM
+            newSection.isMinimized = sectionEl.classList.contains('minimized');
 
             sectionEl.querySelectorAll('.tile-group-item').forEach(tileGroupEl => {
                 const pointsString = tileGroupEl.querySelector('.tile-points-input').value;
@@ -922,8 +929,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     points: points
                 };
 
-                const originalTileGroup = originalSection?.tiles[parseInt(tileGroupEl.dataset.tileIndex, 10)];
-                if (originalTileGroup) newTileGroup.isMinimized = originalTileGroup.isMinimized;
+                // Read minimized state directly from the DOM
+                newTileGroup.isMinimized = tileGroupEl.classList.contains('minimized');
 
                 newSection.tiles.push(newTileGroup);
             });
@@ -931,8 +938,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         editorState.sections = newSections;
         console.log('[State] New state after DOM update:', JSON.parse(JSON.stringify(editorState.sections)));
-        renderAll(); // Full re-render to keep everything in sync
+        // FIX: Don't do a full re-render, which loses focus. Just re-render the preview.
+        // The editor DOM is already the source of truth.
+        renderPreview();
         validateAll();
+    }
+
+    function handleSectionContainerClick(event) {
+        const target = event.target;
+        if (target.classList.contains('remove-section-btn')) {
+            removeSection(event);
+        } else if (target.classList.contains('add-tile-group-btn')) {
+            addTileGroup(event);
+        } else if (target.classList.contains('remove-tile-group-btn')) {
+            removeTileGroup(event);
+        } else if (target.classList.contains('toggle-btn')) {
+            // Check if it's a section/tile-group toggle and not a panel toggle
+            const item = target.closest('.section-item, .tile-group-item');
+            if (item) {
+                toggleMinimize(event);
+            }
+        }
     }
 
     function updateStateFromPreview() {
