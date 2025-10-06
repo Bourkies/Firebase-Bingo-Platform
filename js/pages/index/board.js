@@ -72,10 +72,30 @@ export function renderBoard() {
     const container = document.getElementById('board-container');
     // NEW: Use the dedicated notification container.
     const notificationContainer = document.getElementById('board-notification');
-    notificationContainer.innerHTML = ''; // Always clear previous messages on re-render.
+    const adminWarningContainer = document.getElementById('admin-warning-container');
+    notificationContainer.innerHTML = ''; // Always clear general notifications on re-render.
+    adminWarningContainer.innerHTML = ''; // Always clear admin warnings on re-render.
 
     if (!config) {
         return;
+    }
+
+    // NEW: Add a guard clause for the new "Setup Mode"
+    if (config.setupModeEnabled === true) {
+        if (!authState.isEventMod) {
+            // For non-admins, show a simple message and hide the board completely.
+            container.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">The event has not started or is currently being set up. Please check back later.</p>';
+            // Also hide the scoreboard and color key.
+            const scoreboardWrapper = document.querySelector('.scoreboard-wrapper');
+            if (scoreboardWrapper) scoreboardWrapper.style.display = 'none';
+            const colorKeyContainer = document.getElementById('color-key-container');
+            if (colorKeyContainer) colorKeyContainer.innerHTML = '';
+            return; // Stop all further rendering for non-admins.
+        } else {
+            // For admins, show a prominent, non-dismissible warning message above the board.
+            const adminMessage = '<p style="text-align:center; font-weight: bold; color: var(--warn-text-color); padding: 1rem; background-color: var(--warn-bg-color); border: 2px solid var(--warn-color); border-radius: 8px; margin-bottom: 1rem;">SETUP MODE IS ON: The board is currently hidden from all non-admin users.</p>';
+            adminWarningContainer.innerHTML = adminMessage; // Use the dedicated admin container
+        }
     }
 
     const isPrivate = config.boardVisibility === 'private';
@@ -96,10 +116,10 @@ export function renderBoard() {
     } else if (isPrivate && !isCensored) {
         // The board is visible, but we show a helpful message above it.
         let message = '';
-        if (!isLoggedIn) {
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You must be logged in and assigned to a team to view your teams progress.</p>';
-        } else if (!hasTeam) {
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You must be assigned to a team to view your teams progress.</p>';
+        if (!isLoggedIn) { // This case shows the generic board, so we guide them to log in.
+            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">This is a private event. Please log in to see team progress.</p>';
+        } else if (!hasTeam) { // Logged in, but no team. Guide them to select one.
+            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not yet assigned to a team. Please contact an administrator.</p>';
         }
         notificationContainer.innerHTML = message;
     } else if (!isPrivate && isCensored) {
@@ -108,10 +128,10 @@ export function renderBoard() {
     } else if (!isPrivate && !isCensored) {
         // NEW: Handle public, non-censored board states.
         let message = '';
-        if (!isLoggedIn) {
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You must be logged and assigned a team to view, edit or add submissions.</p>';
-        } else if (!hasTeam) {
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You must be assigned a team to view, edit or add submissions.</p>';
+        if (!isLoggedIn) { // Public board, but guide them to log in for full functionality.
+            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not logged in. Please log in to see team progress.</p>';
+        } else if (!hasTeam) { // Logged in, but no team. Guide them to select one.
+            message = '<p style-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not assigned to a team. Please select a team to see its progress.</p>';
         }
         notificationContainer.innerHTML = message;
     }
