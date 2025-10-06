@@ -8,7 +8,8 @@
  * @returns {Array<object>} A sorted array of team score objects.
  */
 export function calculateScoreboardData(submissions, tiles, allTeams, config) {
-    if (!submissions || !tiles || !allTeams || !config) {
+    // FIX: Use Array.isArray to prevent crashes if a listener fails and passes undefined.
+    if (!Array.isArray(submissions) || !Array.isArray(tiles) || !allTeams || !config) {
         return [];
     }
 

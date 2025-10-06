@@ -151,6 +151,108 @@
         </tbody>
     </table>
 
+    <!-- NEW: Board Visibility & Setup Mode Tests -->
+    <h2>Board Visibility & Setup Mode</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Test Case ID</th>
+                <th>Feature Area</th>
+                <th>Test Case Description</th>
+                <th>Prerequisites</th>
+                <th>Test Steps</th>
+                <th>Expected Result</th>
+                <th class="status-col">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>VIS-001</td>
+                <td>Setup Mode</td>
+                <td>Non-admin user views board in Setup Mode</td>
+                <td><code>setupModeEnabled</code> is true. User is a Player or logged out.</td>
+                <td><ol><li>Navigate to the main board page (index.html).</li></ol></td>
+                <td>The board is hidden. A message "The event has not started or is currently being set up. Please check back later." is displayed.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-001" value="pass"> Pass
+                    <input type="radio" name="VIS-001" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-002</td>
+                <td>Setup Mode</td>
+                <td>Admin/Mod user views board in Setup Mode</td>
+                <td><code>setupModeEnabled</code> is true. User is an Admin or Event Mod.</td>
+                <td><ol><li>Navigate to the main board page (index.html).</li></ol></td>
+                <td>A prominent warning message "SETUP MODE IS ON: The board is currently hidden from all non-admin users." is displayed above the board. The board itself renders normally according to other visibility rules.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-002" value="pass"> Pass
+                    <input type="radio" name="VIS-002" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-003</td>
+                <td>Visibility</td>
+                <td>Logged-out user views a Public, Non-Censored board</td>
+                <td><code>boardVisibility: 'public'</code>, <code>censorTilesBeforeEvent: false</code>.</td>
+                <td><ol><li>Navigate to the main board page while logged out.</li></ol></td>
+                <td>The generic board is visible. A notification message "You are not logged in. Please log in to see team progress." is displayed above the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-003" value="pass"> Pass
+                    <input type="radio" name="VIS-003" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-004</td>
+                <td>Visibility</td>
+                <td>Logged-in user (no team) views a Public, Non-Censored board</td>
+                <td><code>boardVisibility: 'public'</code>, <code>censorTilesBeforeEvent: false</code>. User is logged in but not assigned to a team.</td>
+                <td><ol><li>Navigate to the main board page.</li></ol></td>
+                <td>The generic board is visible. A notification message "You are not assigned to a team. Please select a team to see its progress." is displayed above the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-004" value="pass"> Pass
+                    <input type="radio" name="VIS-004" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-005</td>
+                <td>Visibility</td>
+                <td>User views a Public, Censored board</td>
+                <td><code>boardVisibility: 'public'</code>, <code>censorTilesBeforeEvent: true</code>.</td>
+                <td><ol><li>Navigate to the main board page.</li></ol></td>
+                <td>The censored board is visible. A notification message "The event has not started. Tile details are hidden." is displayed above the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-005" value="pass"> Pass
+                    <input type="radio" name="VIS-005" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-006</td>
+                <td>Visibility</td>
+                <td>Logged-out user views a Private, Non-Censored board</td>
+                <td><code>boardVisibility: 'private'</code>, <code>censorTilesBeforeEvent: false</code>.</td>
+                <td><ol><li>Navigate to the main board page while logged out.</li></ol></td>
+                <td>The generic board is visible. A notification message "This is a private event. Please log in to see team progress." is displayed above the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-006" value="pass"> Pass
+                    <input type="radio" name="VIS-006" value="fail"> Fail
+                </td>
+            </tr>
+            <tr>
+                <td>VIS-007</td>
+                <td>Visibility</td>
+                <td>Logged-in user (no team) views a Private, Non-Censored board</td>
+                <td><code>boardVisibility: 'private'</code>, <code>censorTilesBeforeEvent: false</code>. User is logged in but not on a team.</td>
+                <td><ol><li>Navigate to the main board page.</li></ol></td>
+                <td>The generic board is visible. A notification message "You are not yet assigned to a team. Please contact an administrator." is displayed above the board.</td>
+                <td class="status-col">
+                    <input type="radio" name="VIS-007" value="pass"> Pass
+                    <input type="radio" name="VIS-007" value="fail"> Fail
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
     <!-- Player Tests -->
     <h2>Player</h2>
     <table>

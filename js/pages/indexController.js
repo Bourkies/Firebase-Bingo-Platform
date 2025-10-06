@@ -14,7 +14,11 @@ import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } f
 import { initializeBoard, renderBoard, renderScoreboard, getTileStatus } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
-let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
+// FIX: Initialize data stores as empty arrays to prevent them from ever being undefined.
+// This is the definitive fix for the 'filter is not a function' race condition.
+let config = {}, allTeams = {}, allStyles = {}, teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
+let tiles = [];
+let submissions = [];
 let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
 let unsubscribeFromSingleSubmission = null; // NEW: For the modal listener
 
@@ -116,7 +120,10 @@ async function onAuthStateChanged(newAuthState) {
     // it means the Firestore profile hasn't been merged yet. So we wait.
     if (newAuthState.isLoggedIn && newAuthState.profile && newAuthState.profile.team === undefined) {
         console.log("[IndexController] Auth state updated, but full profile (with team) not ready. Deferring board render.");
-        return;
+        // Do not proceed to render, but we can still set up listeners that depend on auth state.
+    } else {
+        // This is the key fix: After auth is confirmed and the profile is loaded, explicitly trigger a team change and board render.
+        handleTeamChange();
     }
 
     if (newAuthState.teamChanged) {
@@ -139,8 +146,6 @@ async function onAuthStateChanged(newAuthState) {
     setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
     setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
 
-    // This is the key fix: After auth is confirmed and the profile is loaded, explicitly trigger a team change and board render.
-    handleTeamChange();
 }
 
 // This function sets up the listener for tiles, respecting censorship rules.
@@ -152,9 +157,10 @@ const setupTilesListener = () => {
         tiles = newTiles;
         processAllData();
         // Do not render here directly. Let the auth state change or team selection be the trigger.
-        // Only render if a team is already selected, which means initial load is complete.
-        if (currentTeam) {
-            console.log("[IndexController] Tiles updated, re-rendering for current team.");
+        // FIX: If tiles are loaded, we might be able to render the generic view now, even without a team.
+        // The renderBoard function itself will decide if it has enough info.
+        if (tiles.length > 0) {
+            console.log("[IndexController] Tiles updated, attempting to re-render board.");
             renderBoard();
         }
     }, authState, config, true); // Pass true for includeDocId
@@ -167,7 +173,9 @@ const setupSubmissionsListener = () => {
     unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => { // FIX: Changed log to match format
         console.log("[IndexController] Submissions updated in real-time.");
         // The manager already converts timestamps, so we just assign the data.
-        submissions = newSubmissions;
+        // FIX: If the listener fails (e.g. permissions), newSubmissions will be undefined.
+        // Default to an empty array to prevent crashes in processAllData.
+        submissions = newSubmissions || [];
         processAllData();
         // Do not render here directly. Let the auth state change or team selection be the trigger.
         // Only render if a team is already selected, which means initial load is complete.
@@ -278,6 +286,14 @@ function setupUsersListener() {
 
 function processAllData() {
     console.log('[IndexController] processAllData called.');
+    // FIX: Guard against submissions or tiles being undefined if a listener fails (e.g., permissions error).
+    // This is the definitive fix. It ensures that even if a listener fails and passes `undefined`,
+    // this function will not proceed with invalid data types, preventing the .filter error.
+    if (!Array.isArray(submissions) || !Array.isArray(tiles)) {
+        console.warn('[IndexController] processAllData aborted: submissions or tiles data is not a valid array.');
+        return;
+    }
+
     teamData = {};
     const teamIds = allTeams ? Object.keys(allTeams) : [];
 
