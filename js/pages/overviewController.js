@@ -10,7 +10,11 @@ import * as submissionManager from '../core/data/submissionManager.js';
 import * as userManager from '../core/data/userManager.js';
 import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
-let config = {}, allTeams = {}, allUsers = {}, tiles = [], submissions = [];
+// FIX: Initialize all data stores as empty arrays to prevent them from ever being undefined.
+// This is the definitive fix for the 'filter is not a function' race condition.
+let config = {}, allTeams = {}, tiles = [];
+let allUsers = [];
+let submissions = [];
 let authState = {};
 
 let fullFeedData = [];
@@ -44,11 +48,14 @@ function onAuthStateChanged(newAuthState) {
  * @param {*} newData - The new data from the listener.
  */
 function handleDataUpdateAndRender(dataType, newData) {
+    // FIX: Ensure that if a listener fails and returns undefined, we default to an empty array.
+    const data = newData || [];
+
     // Update the corresponding global variable
-    if (dataType === 'teams') allTeams = newData;
-    else if (dataType === 'users') allUsers = newData;
-    else if (dataType === 'tiles') tiles = newData;
-    else if (dataType === 'submissions') submissions = newData;
+    if (dataType === 'teams') allTeams = newData; // teams are objects, not arrays
+    else if (dataType === 'users') allUsers = data;
+    else if (dataType === 'tiles') tiles = data;
+    else if (dataType === 'submissions') submissions = data;
 
     if (initialDataLoaded.config && initialDataLoaded.teams && initialDataLoaded.users && initialDataLoaded.tiles && initialDataLoaded.submissions) {
         processAllData();
@@ -79,6 +86,33 @@ function initializeApp() {
         }
         config = newConfig.config;
 
+        const disabledPageContainer = document.getElementById('page-disabled');
+        const mainContentContainer = document.getElementById('main-content');
+
+        // FIX: Add a specific check for private boards when the user is not logged in.
+        // This provides better user feedback than just showing an empty page.
+        if (config.boardVisibility === 'private' && !authState.isLoggedIn) {
+            disabledPageContainer.innerHTML = `
+                <h1>Private Event</h1>
+                <p>The scoreboard and activity for this event are private. Please log in to view the content.</p>`;
+            disabledPageContainer.style.display = 'block';
+            mainContentContainer.style.display = 'none';
+            hideGlobalLoader();
+            return; // Stop further processing
+        } else if (config.boardVisibility === 'private' && authState.isLoggedIn && !authState.profile?.team) {
+            // NEW: Handle the case where the user is logged in but not on a team for a private event.
+            disabledPageContainer.innerHTML = `
+                <h1>Team Assignment Required</h1>
+                <p>You must be assigned to a team to view this private event. Please contact an administrator for assistance.</p>`;
+            disabledPageContainer.style.display = 'block';
+            mainContentContainer.style.display = 'none';
+            hideGlobalLoader();
+            return; // Stop further processing
+        } else {
+            // FIX: If none of the above conditions are met, ensure the main content is visible.
+            disabledPageContainer.style.display = 'none';
+            mainContentContainer.style.display = 'grid'; // Use 'grid' as per the original style
+        }
         if (config.enableOverviewPage !== true && !authState.isEventMod) {
             document.getElementById('page-disabled').style.display = 'block';
             document.getElementById('main-content').style.display = 'none';
@@ -131,6 +165,13 @@ function initializeApp() {
 
 function processAllData() {
     // Guard against processing until all necessary data is loaded.
+    // FIX: Add a definitive guard here. If any listener fails (e.g., permissions error),
+    // the corresponding data variable might be undefined. This check prevents any processing
+    // until all required data is available as a valid array.
+    if (!Array.isArray(submissions) || !Array.isArray(tiles) || !Array.isArray(allUsers)) {
+        console.warn('[Overview] processAllData aborted: Not all required data is available as an array.');
+        return;
+    }
     if (!initialDataLoaded.config || !initialDataLoaded.teams || !initialDataLoaded.users || !initialDataLoaded.tiles) return;
     const tilesByVisibleId = tiles.reduce((acc, tile) => {
         if (tile.id) acc[tile.id] = tile;
