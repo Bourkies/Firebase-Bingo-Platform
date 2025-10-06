@@ -93,7 +93,7 @@ function injectSearchStyles() {
         .search-result-item:hover { background-color: var(--hover-bg-color); }
         .search-result-item.locked { cursor: not-allowed; color: var(--secondary-text); }
         .search-result-item.locked:hover { background-color: transparent; }
-        .search-result-status { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .search-result-status { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--border-color); box-sizing: border-box; }
         .search-result-info { display: flex; flex-direction: column; overflow: hidden; }
         .search-result-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .search-result-id { font-size: 0.8em; color: var(--secondary-text); }
@@ -517,7 +517,7 @@ function handleSearchInput(event) {
         return;
     }
 
-    const { tiles, teamData, currentTeam, config, authState } = mainControllerInterface.getState();
+    const { tiles, teamData, currentTeam, config, authState, allStyles } = mainControllerInterface.getState();
     const currentTeamData = teamData[currentTeam] || { tileStates: {} };
 
     const filteredTiles = tiles.filter(tile => 
@@ -539,6 +539,24 @@ function handleSearchInput(event) {
         const { status, statusClass } = getStatusWithClass(statusString);
         console.log(`[Search] Tile: ${tile.id}, Status: ${status}`); // Logging requested by user
 
+        // REVISED: Prioritize specific status color from styles, fallback to theme color for both dot and text.
+        let finalStatusColor = `var(--status-${statusClass}-color)`; // Default to theme color
+        const statusStyle = allStyles[status];
+        if (statusStyle && statusStyle.color) {
+            const rgbaMatch = statusStyle.color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+            const alpha = rgbaMatch ? parseFloat(rgbaMatch[4]) : 1;
+
+            if (alpha > 0) {
+                // If a specific color is set and not transparent, use it.
+                // For the dot, we want a solid color, so we strip the alpha.
+                if (rgbaMatch) {
+                    finalStatusColor = `rgb(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]})`;
+                } else {
+                    finalStatusColor = statusStyle.color; // Assumes hex or named color
+                }
+            }
+        }
+
         const isLocked = status === 'Locked';
         const displayName = getStatusDisplayName(status);
         const tileName = config.censorTilesBeforeEvent && !authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
@@ -547,12 +565,12 @@ function handleSearchInput(event) {
 
         return `
             <div class="search-result-item ${isLocked ? 'locked' : ''}" data-tile-id="${tile.id}" data-status="${status}">
-                <div class="search-result-status" style="background-color: var(--status-${statusClass}-color);"></div>
+                <div class="search-result-status" style="background-color: ${finalStatusColor};"></div>
                 <div class="search-result-info">
                     <span class="search-result-name">${tileName}${tilePoints}</span>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span class="search-result-id">ID: ${tile.id}</span>
-                        <span class="search-result-status-text" style="color: var(--status-${statusClass}-color);">${displayName}</span>
+                        <span class="search-result-status-text" style="color: ${finalStatusColor};">${displayName}</span>
                     </div>
                     <span class="search-result-desc">${tileDesc}</span>
                 </div>
