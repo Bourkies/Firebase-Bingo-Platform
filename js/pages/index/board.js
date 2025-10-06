@@ -70,8 +70,11 @@ export function renderBoard() {
     console.log('[Board] renderBoard called.');
     const { config, authState, tiles, currentTeam, allTeams } = mainController.getState();
 
-    if (!config || (config.boardVisibility === 'private' && !authState.isLoggedIn)) {
-        console.log('[Board] renderBoard aborted: No config or private board and not logged in.');
+    // FIX: If config exists and is private, and user is not logged in, stop immediately.
+    // This prevents rendering an empty board while waiting for auth state to resolve.
+    if (config && config.boardVisibility === 'private' && !authState.isLoggedIn) {
+        console.log('[Board] renderBoard aborted: Private board and user is not logged in.');
+        document.getElementById('board-container').innerHTML = '<p style="text-align:center; color: var(--secondary-text);">You must be logged in to view this board.</p>';
         return;
     }
 
