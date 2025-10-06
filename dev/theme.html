@@ -258,6 +258,10 @@
                     <div class="status-dot" style="background-color: var(--warn-color);"></div><span>Warning</span>
                     <div class="status-dot" style="background-color: var(--status-submitted-color);"></div><span>Submitted</span>
                     <div class="status-dot" style="background-color: var(--status-partially-complete-color);"></div><span>Partial</span>
+                    <div class="status-dot" style="background-color: var(--status-unlocked-color);"></div><span>Unlocked</span>
+                    <div class="status-dot" style="background-color: var(--status-locked-color);"></div><span>Locked</span>
+                    <div class="status-dot" style="background-color: var(--status-verified-color);"></div><span>Verified</span>
+                    <div class="status-dot" style="background-color: var(--status-requires-action-color);"></div><span>Feedback</span>
                 </div>
                 <div style="margin-top: 1.5rem;">
                     <p style="text-align: left; margin-bottom: 0.5rem; color: var(--secondary-text);">Loader Bar:</p>
@@ -294,6 +298,10 @@
                 '--hover-bg-color',
                 '--status-submitted-color',
                 '--status-partially-complete-color',
+                '--status-unlocked-color',
+                '--status-locked-color',
+                '--status-verified-color',
+                '--status-requires-action-color',
                 '--accent-color-darker',
                 '--accent-color-light',
                 '--shadow-color',
@@ -348,7 +356,11 @@
                     },
                      '--status-submitted-color': ['.status-dot[style*="--status-submitted-color"]'],
                     '--status-partially-complete-color': ['.status-dot[style*="--status-partially-complete-color"]'],
+                    '--status-unlocked-color': ['.status-dot[style*="--status-unlocked-color"]'],
+                    '--status-locked-color': ['.status-dot[style*="--status-locked-color"]'],
                     '--accent-color-darker': [], // Hover state, hard to highlight
+                    '--status-verified-color': ['.status-dot[style*="--status-verified-color"]'],
+                    '--status-requires-action-color': ['.status-dot[style*="--status-requires-action-color"]'],
                     '--accent-color-light': ['.example-loader'],
                     '--shadow-color': ['.example-modal'],
                     '--text-shadow-color': ['.example-embed p'],

@@ -11,7 +11,7 @@ import { renderColorKey as renderColorKeyComponent } from '../components/TileRen
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 // Import new sub-modules
-import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
+import { initializeBoard, renderBoard, renderScoreboard, getTileStatus } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
 let config = {}, allTeams = {}, allStyles = {}, tiles = [], submissions = [], teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
@@ -22,6 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
     document.body.addEventListener('show-message', (e) => showMessage(e.detail.message, e.detail.isError));
 
+    // NEW: Search bar listeners
+    const searchInput = document.getElementById('tile-search-input');
+    searchInput.addEventListener('input', handleSearchInput);
+    searchInput.addEventListener('focus', handleSearchInput); // Show results on focus if there's text
+    document.addEventListener('click', handleGlobalClickForSearch); // To close results when clicking away
+    injectSearchStyles(); // NEW: Inject CSS for the search bar
+
     // Initialize sub-modules
     initializeBoard(mainControllerInterface);
     initializeSubmissionModal(mainControllerInterface); // This sets up the base modal listeners
@@ -29,6 +36,73 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     initAuth(onAuthStateChanged);
 });
+
+/**
+ * NEW: Injects the necessary CSS for the tile search bar into the document's head.
+ * This keeps all component-specific logic and styling within the controller.
+ */
+function injectSearchStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        #tile-search-container {
+            width: 100%;
+            max-width: 1400px; /* Match other main elements */
+            margin: 0 auto 1rem auto;
+            position: relative; /* For positioning the results dropdown */
+            display: none; /* Hidden by default, shown by controller */
+        }
+        #tile-search-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            background-color: var(--surface-color);
+            color: var(--primary-text);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+        #tile-search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px var(--accent-color-transparent);
+        }
+        #tile-search-results {
+            display: none; /* Hidden until there are results */
+            position: absolute;
+            width: 100%;
+            top: 100%;
+            left: 0;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 99; /* Below navbar modal but above board */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background-color: var(--hover-bg-color); }
+        .search-result-item.locked { cursor: not-allowed; color: var(--secondary-text); }
+        .search-result-item.locked:hover { background-color: transparent; }
+        .search-result-status { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--border-color); box-sizing: border-box; }
+        .search-result-info { display: flex; flex-direction: column; overflow: hidden; }
+        .search-result-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-result-id { font-size: 0.8em; color: var(--secondary-text); }
+        .search-result-desc { font-size: 0.8em; color: var(--secondary-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.25rem; }
+        .search-result-status-text { font-size: 0.8em; font-weight: bold; }
+
+    `;
+    document.head.appendChild(style);
+}
 
 async function onAuthStateChanged(newAuthState) {
     console.log('[IndexController] onAuthStateChanged triggered.', { isLoggedIn: newAuthState.isLoggedIn, profileExists: !!newAuthState.profile });
@@ -315,6 +389,9 @@ function handleTeamChange() {
         currentTeam = selector.value;
     }
     renderBoard();
+
+    // NEW: Show search bar only when a team is selected
+    document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
 }
 
 // This object acts as an interface for the sub-modules to access the main controller's state and methods.
@@ -348,6 +425,7 @@ const mainControllerInterface = {
         const { config, allStyles } = mainControllerInterface.getState();
         renderColorKeyComponent(config, allStyles, document.getElementById('color-key-container'));
     },
+    getTileStatus: (tile, tileState) => getTileStatus(tile, tileState),
     logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
         if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
 
@@ -403,5 +481,131 @@ const mainControllerInterface = {
 
             if (changesSummary.length > 0) historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changesSummary.join('; ')}` });
         }
-    }
+    },
 };
+
+/**
+ * Maps internal status names to user-friendly display names for the search results.
+ * @param {string} status - The internal status name (e.g., 'Partially Complete').
+ * @returns {string} The display-friendly name (e.g., 'Draft').
+ */
+function getStatusDisplayName(status) {
+    const nameMap = { 'Partially Complete': 'Draft', 'Requires Action': 'Admin Feedback' };
+    return nameMap[status] || status;
+}
+
+/**
+ * NEW: A wrapper to get both the status string and its corresponding CSS class.
+ * This is needed because the main getTileStatus function was refactored to only return a string.
+ * @param {string} status - The status string (e.g., "Verified", "Requires Action").
+ * @returns {{status: string, statusClass: string}}
+ */
+function getStatusWithClass(status) {
+    const statusClass = status.replace(/\s+/g, '-').toLowerCase();
+    return { status, statusClass };
+}
+
+// --- NEW: Search Functionality ---
+
+function handleSearchInput(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    const resultsContainer = document.getElementById('tile-search-results');
+
+    if (!searchTerm) {
+        resultsContainer.innerHTML = '';
+        resultsContainer.style.display = 'none';
+        return;
+    }
+
+    const { tiles, teamData, currentTeam, config, authState, allStyles } = mainControllerInterface.getState();
+    const currentTeamData = teamData[currentTeam] || { tileStates: {} };
+
+    const filteredTiles = tiles.filter(tile => 
+        (tile.id?.toLowerCase().includes(searchTerm)) ||
+        (tile.Name?.toLowerCase().includes(searchTerm)) ||
+        (tile.Description?.toLowerCase().includes(searchTerm))
+    ).slice(0, 10); // Limit to 10 results
+
+    if (filteredTiles.length === 0) {
+        resultsContainer.innerHTML = '<div class="search-result-item locked">No tiles found.</div>';
+        resultsContainer.style.display = 'block';
+        return;
+    }
+
+    resultsContainer.innerHTML = filteredTiles.map(tile => {
+        const tileState = currentTeamData.tileStates[tile.id] || {};
+        // FIX: The main getTileStatus now returns a string. We need to process it.
+        const statusString = mainControllerInterface.getTileStatus(tile, currentTeam);
+        const { status, statusClass } = getStatusWithClass(statusString);
+        console.log(`[Search] Tile: ${tile.id}, Status: ${status}`); // Logging requested by user
+
+        // REVISED: Prioritize specific status color from styles, fallback to theme color for both dot and text.
+        let finalStatusColor = `var(--status-${statusClass}-color)`; // Default to theme color
+        const statusStyle = allStyles[status];
+        if (statusStyle && statusStyle.color) {
+            const rgbaMatch = statusStyle.color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+            const alpha = rgbaMatch ? parseFloat(rgbaMatch[4]) : 1;
+
+            if (alpha > 0) {
+                // If a specific color is set and not transparent, use it.
+                // For the dot, we want a solid color, so we strip the alpha.
+                if (rgbaMatch) {
+                    finalStatusColor = `rgb(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]})`;
+                } else {
+                    finalStatusColor = statusStyle.color; // Assumes hex or named color
+                }
+            }
+        }
+
+        const isLocked = status === 'Locked';
+        const displayName = getStatusDisplayName(status);
+        const tileName = config.censorTilesBeforeEvent && !authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
+        const tileDesc = config.censorTilesBeforeEvent && !authState.isEventMod ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.');
+        const tilePoints = tile.Points ? ` (${tile.Points} pts)` : '';
+
+        return `
+            <div class="search-result-item ${isLocked ? 'locked' : ''}" data-tile-id="${tile.id}" data-status="${status}">
+                <div class="search-result-status" style="background-color: ${finalStatusColor};"></div>
+                <div class="search-result-info">
+                    <span class="search-result-name">${tileName}${tilePoints}</span>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="search-result-id">ID: ${tile.id}</span>
+                        <span class="search-result-status-text" style="color: ${finalStatusColor};">${displayName}</span>
+                    </div>
+                    <span class="search-result-desc">${tileDesc}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    resultsContainer.style.display = 'block';
+
+    // Add click listeners to the new results
+    resultsContainer.querySelectorAll('.search-result-item').forEach(item => {
+        if (!item.classList.contains('locked')) {
+            item.addEventListener('click', handleSearchResultClick);
+        }
+    });
+}
+
+function handleSearchResultClick(event) {
+    const item = event.currentTarget;
+    const tileId = item.dataset.tileId;
+    const status = item.dataset.status;
+    const { tiles } = mainControllerInterface.getState();
+    const tile = tiles.find(t => t.id === tileId);
+
+    if (tile) {
+        mainControllerInterface.openSubmissionModal(tile, status);
+        // Clear search after selection
+        document.getElementById('tile-search-input').value = '';
+        document.getElementById('tile-search-results').style.display = 'none';
+    }
+}
+
+function handleGlobalClickForSearch(event) {
+    const searchContainer = document.getElementById('tile-search-container');
+    if (!searchContainer.contains(event.target)) {
+        document.getElementById('tile-search-results').style.display = 'none';
+    }
+}

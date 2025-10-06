@@ -218,9 +218,13 @@ def generate_board_image(config, image_layout_data, all_tile_data_for_csv, outpu
 
     # --- Calculate Section Heights & Board Dimensions ---
     section_columns = config.get('sectionColumns', 1)
-    section_width = config.get('sectionWidth', 400)
     tile_columns = config.get('tileColumns', 5)
+    tile_width = config.get('tileWidth', 64)
+    tile_padding = config.get('tilePadding', 5)
     padding = config['sectionPadding']
+
+    # NEW: Calculate section_width based on tile configuration
+    section_width = (tile_width * tile_columns) + (tile_padding * (tile_columns - 1)) + (padding * 2)
 
     section_heights = []
     for section in image_layout_data:
