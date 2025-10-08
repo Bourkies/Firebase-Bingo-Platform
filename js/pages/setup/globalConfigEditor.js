@@ -1,7 +1,7 @@
 /* globalconfigEditor.js */
 import { createFormFields } from '../../components/FormBuilder.js';
 import { createTileElement } from '../../components/TileRenderer.js';
-import { configStore } from '../../stores/configStore.js';
+import { configStore, updateConfig, updateStyle } from '../../stores/configStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 
 const configSchema = {
@@ -45,15 +45,9 @@ const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Veri
 
 async function saveConfig(key, value) {
     try {
-        // FIX: Use the get/set pattern for atom stores instead of setKey.
-        const currentStore = configStore.get();
-        const newConfig = { ...currentStore.config, [key]: value };
-        configStore.set({
-            ...currentStore,
-            config: newConfig
-        });
+        // NEW: Call the write function from the store
+        await updateConfig({ [key]: value });
 
-        // The showMessage logic remains the same.
         const fieldLabel = configSchema[key]?.label || key;
         const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
         showMessage(`Saved ${fieldLabel}: ${displayValue}`, false);
@@ -65,18 +59,9 @@ async function saveConfig(key, value) {
 
 async function saveStyle(status, key, value) {
     try {
-        // FIX: Use the get/set pattern for atom stores instead of setKey.
-        const currentStore = configStore.get();
-        const newStyles = {
-            ...currentStore.styles,
-            [status]: {
-                ...currentStore.styles[status],
-                [key]: value
-            }
-        };
-        configStore.set({ ...currentStore, styles: newStyles });
+        // NEW: Call the write function from the store
+        await updateStyle(status, { [key]: value });
 
-        // The showMessage logic remains the same.
         const fieldLabel = styleSchema[key]?.label || key;
         const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
         showMessage(`Saved ${status} ${fieldLabel}: ${displayValue}`, false);

@@ -45,3 +45,64 @@ export function initConfigListener() {
         console.error("[configStore] Error listening to styles:", error);
     });
 }
+
+// --- NEW: Write Operations ---
+
+/**
+ * Updates a field in the main config document.
+ * @param {object} data - The data to update.
+ * @returns {Promise<void>}
+ */
+export function updateConfig(data) {
+    const configRef = fb.doc(db, 'config', 'main');
+    return fb.setDoc(configRef, data, { merge: true });
+}
+
+/**
+ * Updates a specific style document.
+ * @param {string} styleId - The ID of the style document (e.g., 'Verified').
+ * @param {object} data - The data to update.
+ * @returns {Promise<void>}
+ */
+export function updateStyle(styleId, data) {
+    const styleRef = fb.doc(db, 'styles', styleId);
+    return fb.setDoc(styleRef, data, { merge: true });
+}
+
+/**
+ * Imports a full configuration from a JSON object.
+ * @param {object} data - The full config object with `config` and `styles` keys.
+ * @param {'merge'|'replace'} mode - The import mode.
+ * @returns {Promise<void>}
+ */
+export async function importFullConfig(data, mode = 'merge') {
+    const batch = fb.writeBatch(db);
+
+    if (mode === 'replace') {
+        const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+        stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        batch.delete(fb.doc(db, 'config', 'main'));
+    }
+
+    if (data.config) {
+        batch.set(fb.doc(db, 'config', 'main'), data.config, { merge: mode === 'merge' });
+    }
+    if (data.styles) {
+        for (const [styleId, styleData] of Object.entries(data.styles)) {
+            batch.set(fb.doc(db, 'styles', styleId), styleData, { merge: mode === 'merge' });
+        }
+    }
+    return batch.commit();
+}
+
+/**
+ * Clears all config and style documents.
+ * @returns {Promise<void>}
+ */
+export async function clearAllConfig() {
+    const batch = fb.writeBatch(db);
+    batch.delete(fb.doc(db, 'config', 'main'));
+    const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+    stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+    return batch.commit();
+}

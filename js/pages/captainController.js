@@ -1,90 +1,66 @@
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
-// Import the new data managers
-import * as userManager from '../core/data/userManager.js';
-import * as teamManager from '../core/data/teamManager.js';
-import * as configManager from '../core/data/configManager.js';
+// NEW: Import stores for reading data
+import { authStore } from '../stores/authStore.js'; 
+import { usersStore, updateUser } from '../stores/usersStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
+import { configStore } from '../stores/configStore.js';
 
-let allUsers = [], allTeams = {};
-let authState = {};
 let captainTeamId = null;
 
-let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
-let unsubscribeUsers = null; // NEW: Separate tracker for the user listener
-
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-    initAuth(onAuthStateChanged);
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+    configStore.subscribe(onDataChanged);
+
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
-function onAuthStateChanged(newAuthState) {
-    console.log('[CaptainController] Auth state changed:', newAuthState);
-    authState = newAuthState;
-    // The initializeApp function will handle visibility after data is loaded
-    // and we can determine if the user is a captain.
-    initializeApp();
-}
+function onDataChanged() {
+    const authState = authStore.get();
+    const allTeams = teamsStore.get();
+    const allUsers = usersStore.get();
+    const { config } = configStore.get();
 
-function checkCaptainStatus() {
-    captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
-    console.log(`[CaptainController] Captain status check. User is captain of team: ${captainTeamId || 'None'}`);
-    if (captainTeamId) {
+    // --- Page Title ---
+    document.title = (config.pageTitle || 'Bingo') + " | Captain's Dashboard";
+
+    // --- Visibility / Access Control ---
+    if (!authState.authChecked) {
+        showGlobalLoader();
+        document.getElementById('access-denied').style.display = 'none';
+        document.getElementById('captain-view').style.display = 'none';
+        return;
+    }
+
+    if (authState.isTeamCaptain) {
         document.getElementById('access-denied').style.display = 'none';
         document.getElementById('captain-view').style.display = 'block';
     } else {
         document.getElementById('access-denied').style.display = 'block';
         document.getElementById('captain-view').style.display = 'none';
         if (authState.isLoggedIn) {
-            document.querySelector('#access-denied p').textContent = 'You are not a captain of any team. This page is for team captains only.';
+            document.querySelector('#access-denied p').textContent = 'You are not a Team Captain. This page is for team captains only.';
         }
         hideGlobalLoader();
+        return;
     }
-}
 
-function initializeApp() {
-    console.log('[CaptainController] Initializing app and data listeners...');
-    showGlobalLoader();
-    unsubscribeFromAll();
-    // NEW: Also specifically clear the user listener if it exists
-    if (unsubscribeUsers) {
-        unsubscribeUsers();
-        unsubscribeUsers = null;
+    // --- Data Loading Check ---
+    if (Object.keys(allTeams).length === 0 || allUsers.length === 0) {
+        showGlobalLoader();
+        return;
+    } else {
+        hideGlobalLoader();
     }
-    const unsubs = [];
-
-    // Listen for config to set the page title
-    unsubs.push(configManager.listenToConfigAndStyles(configData => {
-        const config = configData.config || {};
-        document.title = (config.pageTitle || 'Bingo') + " | Captain's Dashboard";
-    }));
-
-    // First, listen to teams to determine if the user is a captain.
-    console.log('[CaptainController] Subscribing to team data...');
-    unsubs.push(teamManager.listenToTeams(newTeams => {
-        allTeams = newTeams;
-        checkCaptainStatus();
-
-        // If the user is a captain, we can now safely listen to users.
-        // We assume the security rules allow a captain to read user data.
-        if (captainTeamId && !unsubscribeUsers) { // NEW: Check if we are already subscribed
-            console.log('[CaptainController] User is a captain. Subscribing to all user data.');
-            // NEW: Assign the unsubscribe function to our specific variable
-            unsubscribeUsers = userManager.listenToUsers(newUsers => {
-                console.log(`[CaptainController] Received ${newUsers.length} total users.`);
-                allUsers = newUsers;
-                renderCaptainView();
-                hideGlobalLoader();
-            });
-        } else {
-            // If not a captain, we don't need to fetch users.
-            renderCaptainView(); // Render an empty state
-            hideGlobalLoader();
-        }
-    }));
-
-    unsubscribeFromAll = () => { unsubs.forEach(unsub => unsub && unsub()); if (unsubscribeUsers) unsubscribeUsers(); };
+    
+    // Find the captain's team ID
+    captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
+    renderCaptainView();
 }
 
 function renderCaptainView() {
@@ -92,6 +68,10 @@ function renderCaptainView() {
     container.innerHTML = ''; // Clear previous content
 
     if (!captainTeamId) return;
+
+    const allTeams = teamsStore.get();
+    const allUsers = usersStore.get();
+    const authState = authStore.get();
 
     const team = allTeams[captainTeamId];
     const teamCard = document.createElement('div');
@@ -153,11 +133,14 @@ function renderCaptainView() {
 async function processUpdate(uid, newTeamId) {
     console.log(`[CaptainController] Processing update for user ${uid}, new team ${newTeamId}`);
 
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+
     showGlobalLoader();
     try {
         const user = allUsers.find(u => u.uid === uid);
 
-        await userManager.updateUser(uid, { team: newTeamId });
+        await updateUser(uid, { team: newTeamId });
 
         const action = newTeamId ? 'Added' : 'Removed';
         const teamName = allTeams[captainTeamId]?.name || 'your team';
@@ -166,8 +149,8 @@ async function processUpdate(uid, newTeamId) {
 
     } catch (error) {
         console.error(`Failed to update user ${uid}:`, error);
-        alert(`Update failed: ${error.message}`);
-        // The real-time listener will automatically revert the UI on error.
+        showMessage(`Update failed: ${error.message}`, true);
+        // The real-time store listener will automatically revert the UI on error.
     } finally {
         hideGlobalLoader();
     }

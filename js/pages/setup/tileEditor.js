@@ -1,7 +1,6 @@
 /* tileEditor.js */
 import { createFormFields } from '../../components/FormBuilder.js';
-import { tilesStore } from '../../stores/tilesStore.js';
-import * as tileManager from '../../core/data/tileManager.js';
+import { tilesStore, createTile, deleteTile, deleteAllTiles } from '../../stores/tilesStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 import { createOverrideFieldset, populateOverridesUI, handleRawJsonOverrideChange, addOverrideRow } from './overrideEditor.js';
 import { createPrereqFieldset, populatePrereqUI } from './prereqEditor.js';
@@ -248,7 +247,7 @@ async function addNewTile() {
     };
 
     try {
-        await tileManager.createTile(newDocId, newTileData);
+        await createTile(newDocId, newTileData);
         showMessage(`Tile ${newDocId} created successfully.`, false);
     } catch (err) {
         showMessage(`Failed to create tile: ${err.message}`, true);
@@ -263,7 +262,7 @@ async function deleteSelectedTile() {
     const tileToDelete = tilesData[lastSelectedTileIndex];
     if (confirm(`Are you sure you want to delete tile "${tileToDelete.id}"?`)) {
         try {
-            await tileManager.deleteTile(tileToDelete.docId);
+            await deleteTile(tileToDelete.docId);
             showMessage(`Tile ${tileToDelete.id} deleted.`, false);
         } catch (err) {
             showMessage(`Failed to delete tile: ${err.message}`, true);
@@ -296,7 +295,7 @@ async function executeDeleteAll() {
     confirmBtn.textContent = 'Deleting...';
 
     try {
-        await tileManager.deleteAllTiles();
+        await deleteAllTiles();
         showMessage('All tiles have been deleted.', false);
         closeDeleteAllModal();
     } catch (error) {

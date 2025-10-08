@@ -1,7 +1,8 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { initAuth } from '../core/auth.js';
-import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js'; 
+import { importTiles } from '../stores/tilesStore.js';
 
 const TILE_FIELDS = ['id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Prerequisites', 'Overrides (JSON)'];
 let csvHeaders = [];
@@ -250,17 +251,7 @@ async function handleImport() {
     const tilesToImport = successfulRows;
 
     try {
-        const BATCH_SIZE = 499; // Firestore batch limit is 500
-        for (let i = 0; i < tilesToImport.length; i += BATCH_SIZE) {
-            const batch = fb.writeBatch(db);
-            const chunk = tilesToImport.slice(i, i + BATCH_SIZE);
-            chunk.forEach(tile => {
-                const tileRef = fb.doc(db, 'tiles', tile.docId);
-                batch.set(tileRef, tile.data);
-            });
-            await batch.commit();
-            showMessage(`Imported ${i + chunk.length} of ${tilesToImport.length} tiles...`, false);
-        }
+        await importTiles(tilesToImport);
 
         // --- NEW: Handle mixed success/failure reporting ---
         resultsContainer.style.display = 'block';

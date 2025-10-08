@@ -1,13 +1,10 @@
 import '../components/Navbar.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
-// Keep tileManager for write operations for now
-import * as tileManager from '../core/data/tileManager.js';
-
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
-import { configStore } from '../stores/configStore.js';
-import { tilesStore } from '../stores/tilesStore.js';
+import { configStore } from '../stores/configStore.js'; 
+import { tilesStore, updateTile } from '../stores/tilesStore.js';
 
 import { createTileElement } from '../components/TileRenderer.js';
 
@@ -385,7 +382,7 @@ async function saveTile(docId, data, mainControllerInterface) {
     if (!docId) return;
     // console.log(`[SetupController] Saving tile ${docId}`, data); // This is very noisy
     try {
-        await tileManager.updateTile(docId, data);
+        await updateTile(docId, data);
         
         // Provide user feedback
         const key = Object.keys(data)[0];

@@ -3,7 +3,7 @@ import { db, fb } from '../core/firebase-config.js';
 import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 // NEW: Import stores instead of old managers for reading data
 import { authStore } from '../stores/authStore.js';
-import { teamsStore } from '../stores/teamsStore.js';
+import { teamsStore } from '../stores/teamsStore.js'; 
 import { tilesStore } from '../stores/tilesStore.js';
 import { submissionsStore } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
@@ -354,13 +354,9 @@ async function handleSubmissionUpdate(event) {
     if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
     if (newRequiresAction) dataToUpdate.IsComplete = false;
 
-    const subRef = fb.doc(db, 'submissions', submissionId);
     try {
-        // Only add history if there were actual changes
-        if (historyEntry.changes.length > 0) {
-            dataToUpdate.history = fb.arrayUnion(historyEntry);
-        }
-        await fb.updateDoc(subRef, dataToUpdate);
+        const history = historyEntry.changes.length > 0 ? historyEntry : null;
+        await updateSubmission(submissionId, dataToUpdate, history);
         document.getElementById('submission-modal').style.display = 'none';
         currentOpenSubmissionId = null; // NEW: Clear tracking on successful update
     } catch (error) {

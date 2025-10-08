@@ -1,5 +1,5 @@
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
-import * as submissionManager from '../../core/data/submissionManager.js';
+import { saveSubmission } from '../../stores/submissionsStore.js';
 
 let mainController;
 
@@ -268,7 +268,7 @@ async function handleAcknowledgeFeedback() {
         IsComplete: false,
         history: [...(existingSubmission.history || []), historyEntry]
     };
-    await submissionManager.saveSubmission(existingSubmission.docId, dataToUpdate);
+    await saveSubmission(existingSubmission.docId, dataToUpdate);
     showMessage('Feedback acknowledged. You can now edit and resubmit.', false);    
     mainController.closeSubmissionModal(); // Use the controller interface to close
 }
@@ -349,7 +349,7 @@ async function handleFormSubmit(event) {
             mainController.logDetailedChanges(historyEntry, dataToSave, existingSubmission, evidenceItems);
             if (historyEntry.changes.length > 0) dataToSave.history = [...(existingSubmission.history || []), historyEntry];
             if (dataToSave.IsComplete && !existingSubmission.IsComplete) dataToSave.CompletionTimestamp = new Date();
-            await submissionManager.saveSubmission(existingSubmission.docId, dataToSave);
+            await saveSubmission(existingSubmission.docId, dataToSave);
         } else {
             dataToSave.Timestamp = new Date();
             if (dataToSave.IsComplete) dataToSave.CompletionTimestamp = new Date();
@@ -371,7 +371,7 @@ async function handleFormSubmit(event) {
             }).join('; ');
             historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: evidenceSummary || 'None' });
             dataToSave.history = [historyEntry];
-            await submissionManager.saveSubmission(null, dataToSave);
+            await saveSubmission(null, dataToSave);
         }
         showMessage('Submission saved!', false);
         mainController.closeSubmissionModal(); // Use the controller interface to close

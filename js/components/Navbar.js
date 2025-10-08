@@ -1,12 +1,12 @@
-import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
+import { initAuth, signOut, getAuthState, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
 // NEW: Import all stores and their initializers
 import { authStore } from '../stores/authStore.js';
 import { configStore, initConfigListener } from '../stores/configStore.js';
 import { teamsStore, initTeamsListener } from '../stores/teamsStore.js';
-import { initSubmissionsListener } from '../stores/submissionsStore.js';
+import { initSubmissionsListener } from '../stores/submissionsStore.js'; 
 import { initTilesListener } from '../stores/tilesStore.js';
-import { initUsersListener } from '../stores/usersStore.js';
+import { initUsersListener, updateUserDisplayName } from '../stores/usersStore.js';
 
 
 // NEW: Centralized variable for the responsive breakpoint.

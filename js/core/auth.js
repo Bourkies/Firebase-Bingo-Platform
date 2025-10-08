@@ -185,31 +185,6 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     });
 }
 
-export async function updateUserDisplayName(newName) {
-    if (!currentUser || !userProfile) {
-        throw new Error("User not authenticated.");
-    }
-    if (userProfile.isNameLocked) {
-        throw new Error("Your display name has been locked by an administrator.");
-    }
-
-    const userRef = fb.doc(db, 'users', currentUser.uid);
-    const authProfileUpdate = fb.updateProfile(currentUser, { displayName: newName });
-    const firestoreUpdate = fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
-
-    try {
-        // The onSnapshot listener in listenToUserProfile will automatically detect the Firestore change
-        // and trigger the onAuthChangeCallback to update the UI across the app.
-        await Promise.all([
-            authProfileUpdate,
-            firestoreUpdate
-        ]);
-    } catch (error) {
-        console.error("Display name update error:", error);
-        throw new Error("Failed to update display name: " + error.message);
-    }
-}
-
 function notifyListeners(authState = null) {
     const state = authState || getAuthState(false); // Pass a default for isTeamCaptain
     console.log('[Auth] Notifying listeners with state:', { isLoggedIn: state.isLoggedIn, isAdmin: state.isAdmin, isEventMod: state.isEventMod, isTeamCaptain: state.isTeamCaptain });

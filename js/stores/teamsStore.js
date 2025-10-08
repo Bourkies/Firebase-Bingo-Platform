@@ -27,3 +27,40 @@ export function initTeamsListener() {
         console.error("[teamsStore] Error listening to teams:", error);
     });
 }
+
+// --- NEW: Write Operations ---
+
+/**
+ * Adds a new team with an auto-generated ID.
+ * @param {string} teamName - The name for the new team.
+ * @returns {Promise<void>}
+ */
+export function addTeam(teamName) {
+    const teamsCollection = fb.collection(db, 'teams');
+    const newTeamRef = fb.doc(teamsCollection); // Create a reference to get a new ID
+    return fb.setDoc(newTeamRef, {
+        name: teamName,
+        captainId: null
+    });
+}
+
+/**
+ * Updates a team document.
+ * @param {string} teamId - The ID of the team to update.
+ * @param {object} data - The data to merge into the team document.
+ * @returns {Promise<void>}
+ */
+export function updateTeam(teamId, data) {
+    const teamRef = fb.doc(db, 'teams', teamId);
+    return fb.updateDoc(teamRef, data);
+}
+
+/**
+ * Deletes a team.
+ * @param {string} teamId - The ID of the team to delete.
+ * @returns {Promise<void>}
+ */
+export function deleteTeam(teamId) {
+    const teamRef = fb.doc(db, 'teams', teamId);
+    return fb.deleteDoc(teamRef);
+}

@@ -404,10 +404,31 @@ This plan will integrate the following free, open-source libraries that work wit
   - [x] **5.1.4:** Modify `js/components/Navbar.js` to import and call all `init...Listener()` functions in its `connectedCallback`, centralizing data fetching. The navbar will then subscribe to the stores it needs (e.g., `authStore`, `configStore`).
   - [x] **5.1.5:** Refactor `indexController.js` to remove local state/listeners and subscribe to the global stores. Data will be passed down to its sub-modules (`board.js`, `submissionModal.js`).
   - [x] **5.1.6:** Refactor `overviewController.js` to use the global stores for rendering the scoreboard, feed, and chart.
-  - [ ] **5.1.7:** Refactor `adminController.js` to use the global stores.
-  - [ ] **5.1.8:** Refactor `setupController.js` to use the global stores, passing data down to its sub-modules (`tileEditor.js`, `globalConfigEditor.js`, etc.).
-  - [ ] **5.1.9:** Refactor `usersController.js` to use the global stores.
-  - [ ] **5.1.10:** Refactor `permissionsController.js` to use the global stores.
-  - [ ] **5.1.11:** Refactor `captainController.js` to use the global stores.
-  - [ ] **5.1.12:** Review UI components (`TileRenderer.js`, `Scoreboard.js`, `FormBuilder.js`) to ensure they function correctly with state passed from store-connected controllers. No direct changes are expected in these files.
-  - [ ] **5.1.13:** Delete the old `js/core/data/` directory once all its logic has been moved to the new `js/stores/` files.
+  - [x] **5.1.7:** Refactor `adminController.js` to use the global stores.
+  - [x] **5.1.8:** Refactor `setupController.js` to use the global stores, passing data down to its sub-modules (`tileEditor.js`, `globalConfigEditor.js`, etc.).
+  - [x] **5.1.9:** Refactor `usersController.js` to use the global stores.
+  - [x] **5.1.10:** Refactor `permissionsController.js` to use the global stores.
+  - [x] **5.1.11:** Refactor `captainController.js` to use the global stores.
+  - [x] **5.1.12:** Review UI components (`TileRenderer.js`, `Scoreboard.js`, `FormBuilder.js`) to ensure they function correctly with state passed from store-connected controllers. No direct changes are expected in these files.
+  - [ ] **5.1.13:** **REVISED:** Migrate write operations from `js/core/data/` managers into the corresponding `js/stores/` files. This centralizes all database interactions (reads and writes) into the stores.
+    - [x] **5.1.13.1:** Move `configManager` write logic to `configStore.js`.
+        - **Source:** `js/core/data/configManager.js`
+        - **Destination:** `js/stores/configStore.js`
+        - **Calling Files to Update:** `js/pages/setup/globalConfigEditor.js` 
+    - [x] **5.1.13.2:** Move `tileManager` write logic to `tilesStore.js`.
+        - **Source:** `js/core/data/tileManager.js`
+        - **Destination:** `js/stores/tilesStore.js`
+        - **Calling Files to Update:** `js/pages/setupController.js`, `js/pages/setup/tileEditor.js`, `js/pages/importTilesController.js`
+    - [x] **5.1.13.3:** Move `teamManager` write logic to `teamsStore.js`.
+        - **Source:** `js/core/data/teamManager.js`
+        - **Destination:** `js/stores/teamsStore.js`
+        - **Calling Files to Update:** `js/pages/usersController.js` 
+    - [x] **5.1.13.4:** Move `userManager` write logic to `usersStore.js`.
+        - **Source:** `js/core/data/userManager.js`, `js/core/auth.js`
+        - **Destination:** `js/stores/usersStore.js`
+        - **Calling Files to Update:** `js/pages/permissionsController.js`, `js/pages/usersController.js`, `js/pages/captainController.js`, `js/components/Navbar.js`
+    - [x] **5.1.13.5:** Move `submissionManager` write logic to `submissionsStore.js`.
+        - **Source:** `js/core/data/submissionManager.js`
+        - **Destination:** `js/stores/submissionsStore.js`
+        - **Calling Files to Update:** `js/pages/index/submissionModal.js`, `js/pages/adminController.js`, `js/pages/importSubmissionsController.js` 
+  - [x] **5.1.14:** Delete the old `js/core/data/` directory once all its logic has been successfully moved and tested.
