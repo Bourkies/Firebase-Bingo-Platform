@@ -1,8 +1,8 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { initAuth } from '../core/auth.js';
-import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js'; 
-import { importTiles } from '../stores/tilesStore.js';
+import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { importTiles as batchImportTiles } from '../stores/tilesStore.js';
 
 const TILE_FIELDS = ['id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Prerequisites', 'Overrides (JSON)'];
 let csvHeaders = [];
@@ -251,7 +251,7 @@ async function handleImport() {
     const tilesToImport = successfulRows;
 
     try {
-        await importTiles(tilesToImport);
+        await batchImportTiles(tilesToImport);
 
         // --- NEW: Handle mixed success/failure reporting ---
         resultsContainer.style.display = 'block';

@@ -70,6 +70,25 @@ export function updateStyle(styleId, data) {
 }
 
 /**
+ * Exports the full config (main config + all styles) as a JSON object.
+ * @returns {Promise<object>}
+ */
+export async function exportFullConfig() {
+    const configDoc = await fb.getDoc(fb.doc(db, 'config', 'main'));
+    const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
+
+    const stylesData = {};
+    stylesSnapshot.forEach(doc => {
+        stylesData[doc.id] = doc.data();
+    });
+
+    return {
+        config: configDoc.exists() ? configDoc.data() : {},
+        styles: stylesData
+    };
+}
+
+/**
  * Imports a full configuration from a JSON object.
  * @param {object} data - The full config object with `config` and `styles` keys.
  * @param {'merge'|'replace'} mode - The import mode.

@@ -4,7 +4,7 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
 import { configStore } from '../stores/configStore.js'; 
-import { tilesStore, updateTile } from '../stores/tilesStore.js';
+import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
 
 import { createTileElement } from '../components/TileRenderer.js';
 
@@ -53,7 +53,7 @@ const mainControllerInterface = {
     get tilesData() { return tilesStore.get(); },
     get config() { return configStore.get().config; },
     get allStyles() { return configStore.get().styles; },
-    updateEditorPanel, renderTiles, saveTile,
+    updateEditorPanel, renderTiles,
     flashField, loadBoardImage,
 };
 
@@ -376,24 +376,4 @@ function loadBoardImage(imageUrl) {
         boardContent.appendChild(Object.assign(document.createElement('div'), { className: 'error-message', innerHTML: `<strong>Board Image Failed to Load</strong><br><small>Check the URL in the config or try re-uploading.</small>` }));
     };
     boardImage.src = imageUrl;
-}
-
-async function saveTile(docId, data, mainControllerInterface) {
-    if (!docId) return;
-    // console.log(`[SetupController] Saving tile ${docId}`, data); // This is very noisy
-    try {
-        await updateTile(docId, data);
-        
-        // Provide user feedback
-        const key = Object.keys(data)[0];
-        const value = data[key];
-        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
-        showMessage(`Saved ${key}: ${displayValue}`, false);
-
-        // FIX: Re-render tiles to show override changes immediately.
-        if (mainControllerInterface) mainControllerInterface.renderTiles();
-
-    } catch (err) {
-        showMessage(`Error saving tile: ${err.message}`, true);
-    }
 }

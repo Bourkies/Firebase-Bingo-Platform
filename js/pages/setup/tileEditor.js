@@ -196,6 +196,31 @@ function validateTileId() {
     }
 }
 
+async function addNewTile() {
+    console.log("[TileEditor] addNewTile called.");
+    const tilesData = tilesStore.get();
+    const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
+    const maxNumber = existingNumbers.length > 0 ? Math.max(0, ...existingNumbers) : 0;
+    const newDocId = String(maxNumber + 1).padStart(5, '0');
+
+    const newTileData = {
+        id: newDocId,
+        Name: 'New Tile',
+        'Left (%)': '45.00',
+        'Top (%)': '45.00',
+        'Width (%)': '10.00',
+        'Height (%)': '10.00',
+        Points: '', Description: '', Prerequisites: '', Rotation: '', 'Overrides (JSON)': ''
+    };
+
+    try {
+        await createTile(newDocId, newTileData);
+        showMessage(`Tile ${newDocId} created successfully.`, false);
+    } catch (err) {
+        showMessage(`Failed to create tile: ${err.message}`, true);
+    }
+}
+
 function handleEditorInputChange(event) {
     const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     if (lastSelectedTileIndex === null) return;
@@ -226,31 +251,6 @@ function handleEditorInputChange(event) {
         if (key === 'id') {
             validateTileId();
         }
-    }
-}
-
-async function addNewTile() {
-    console.log("[TileEditor] addNewTile called.");
-    const tilesData = tilesStore.get();
-    const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
-    const maxNumber = existingNumbers.length > 0 ? Math.max(0, ...existingNumbers) : 0;
-    const newDocId = String(maxNumber + 1).padStart(5, '0');
-
-    const newTileData = {
-        id: newDocId,
-        Name: 'New Tile',
-        'Left (%)': '45.00',
-        'Top (%)': '45.00',
-        'Width (%)': '10.00',
-        'Height (%)': '10.00',
-        Points: '', Description: '', Prerequisites: '', Rotation: '', 'Overrides (JSON)': ''
-    };
-
-    try {
-        await createTile(newDocId, newTileData);
-        showMessage(`Tile ${newDocId} created successfully.`, false);
-    } catch (err) {
-        showMessage(`Failed to create tile: ${err.message}`, true);
     }
 }
 

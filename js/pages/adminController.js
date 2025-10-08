@@ -5,7 +5,7 @@ import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 import { authStore } from '../stores/authStore.js';
 import { teamsStore } from '../stores/teamsStore.js'; 
 import { tilesStore } from '../stores/tilesStore.js';
-import { submissionsStore } from '../stores/submissionsStore.js';
+import { submissionsStore, updateSubmission } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
 let currentOpenSubmissionId = null; // NEW: To track the currently open modal
@@ -357,6 +357,7 @@ async function handleSubmissionUpdate(event) {
     try {
         const history = historyEntry.changes.length > 0 ? historyEntry : null;
         await updateSubmission(submissionId, dataToUpdate, history);
+        
         document.getElementById('submission-modal').style.display = 'none';
         currentOpenSubmissionId = null; // NEW: Clear tracking on successful update
     } catch (error) {
