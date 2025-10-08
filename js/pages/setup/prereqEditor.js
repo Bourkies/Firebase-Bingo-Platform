@@ -1,15 +1,12 @@
 /* prereqEditor.js */
+// NEW: Import the tilesStore to read data directly.
+import { tilesStore } from '../../stores/tilesStore.js';
 
-let tilesData = [];
-let lastSelectedTileIndex = null;
+let mainController;
 
-export function initializePrereqEditor(mainController) {
+export function initializePrereqEditor(controller) {
     console.log("[PrereqEditor] Initializing...");
-}
-
-export function updatePrereqEditorData(newTilesData, newLastSelectedTileIndex) {
-    tilesData = newTilesData;
-    lastSelectedTileIndex = newLastSelectedTileIndex;
+    mainController = controller;
 }
 
 export function populatePrereqUI(prereqString, mainController) {
@@ -76,6 +73,8 @@ function addPrereqOrGroup(andConditions = [], mainController) {
 function updatePrereqJson(mainController) {
     const prereqUiContainer = document.getElementById('prereq-ui-container'); // FIX: Added semicolon
     if (!prereqUiContainer) return;
+    const tilesData = tilesStore.get();
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
 
     const validIds = new Set(tilesData.map(t => t.id));
 
@@ -123,11 +122,13 @@ function parsePrerequisites(prereqString) {
 
 export function renderPrereqLines(prereqVisMode) {
     // console.log("[PrereqEditor] renderPrereqLines called."); // This can be noisy, commented out for now.
+    const tilesData = tilesStore.get();
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     const prereqLinesSvg = document.getElementById('prereq-lines-svg');
     if (!prereqLinesSvg) return;
     prereqLinesSvg.innerHTML = '';
     if (prereqVisMode === 'hide' || lastSelectedTileIndex === null || !tilesData) return;
-
+    
     const destTileData = tilesData[lastSelectedTileIndex];
     if (!destTileData) return;
 

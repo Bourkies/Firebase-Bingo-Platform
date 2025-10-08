@@ -373,6 +373,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [x]  **5.1.17** improve usermanagement pages (users, permisions, captian)
   - [x]  **5.1.18** Add tile search bar on index page
   - [x]  **5.1.18** Add setup mode to the page to hide board from all non admin/mod users
+  - [ ]  **5.1.19** Switch to using libraries to improve performance and reliability. see section 6
 - [x] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
   - [ ] **5.3.1:** Complete a full QA pass using `TEST_PLAN.md`.
@@ -380,3 +381,33 @@ This is the target architecture we are working towards. It separates shared serv
     - [ ] **.5.3.2.1:** Bug 1
   - [ ] **5.3.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.
+
+
+
+
+### Phase 6: Testing & Documentation
+### **Recommended Libraries**
+
+This plan will integrate the following free, open-source libraries that work with simple module imports:
+
+1.  **Navigo**: A lightweight client-side router to manage SPA navigation.
+2.  **Lit**: A library for building fast, lightweight, and reactive Web Components.
+3.  **Shoelace**: A library of pre-built, high-quality UI components (modals, inputs, etc.).
+4.  **Nano Stores**: A tiny state management library for sharing global state (e.g., auth status).
+5.  **Zod**: A schema validation library to ensure data integrity.
+6.  **Day.js**: A modern utility for parsing and formatting dates.
+  
+- [ ] **5.1:** setup and switch to nano store
+  - [x] **5.1.1:** Create `js/stores/` directory and define stores for each data domain (`authStore`, `configStore`, `tilesStore`, `usersStore`, `teamsStore`, `submissionsStore`).
+  - [x] **5.1.2:** Implement `init<StoreName>Listener()` in each store file to sync Firebase `onSnapshot` data to the Nano Store atom/map. This will replace the logic in the `js/core/data/` managers.
+  - [x] **5.1.3:** Modify `js/core/auth.js` to update the `authStore` instead of calling multiple page callbacks.
+  - [x] **5.1.4:** Modify `js/components/Navbar.js` to import and call all `init...Listener()` functions in its `connectedCallback`, centralizing data fetching. The navbar will then subscribe to the stores it needs (e.g., `authStore`, `configStore`).
+  - [x] **5.1.5:** Refactor `indexController.js` to remove local state/listeners and subscribe to the global stores. Data will be passed down to its sub-modules (`board.js`, `submissionModal.js`).
+  - [x] **5.1.6:** Refactor `overviewController.js` to use the global stores for rendering the scoreboard, feed, and chart.
+  - [ ] **5.1.7:** Refactor `adminController.js` to use the global stores.
+  - [ ] **5.1.8:** Refactor `setupController.js` to use the global stores, passing data down to its sub-modules (`tileEditor.js`, `globalConfigEditor.js`, etc.).
+  - [ ] **5.1.9:** Refactor `usersController.js` to use the global stores.
+  - [ ] **5.1.10:** Refactor `permissionsController.js` to use the global stores.
+  - [ ] **5.1.11:** Refactor `captainController.js` to use the global stores.
+  - [ ] **5.1.12:** Review UI components (`TileRenderer.js`, `Scoreboard.js`, `FormBuilder.js`) to ensure they function correctly with state passed from store-connected controllers. No direct changes are expected in these files.
+  - [ ] **5.1.13:** Delete the old `js/core/data/` directory once all its logic has been moved to the new `js/stores/` files.

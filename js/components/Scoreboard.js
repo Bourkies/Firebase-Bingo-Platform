@@ -48,23 +48,10 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
  * @param {object} authState - The current user authentication state. 
  */
 export function renderScoreboard(container, scoreboardData, allTeams, config, authState, teamColorMap = {}, sourcePage = 'Unknown') {
-    const wrapper = container.closest('.scoreboard-wrapper');
-
-    // --- DEBUGGING ---
-    console.log(`[Scoreboard Debug - ${sourcePage}] Rendering scoreboard.`, {
-        showScoreboard: config?.showScoreboard,
-        boardVisibility: config?.boardVisibility,
-        isLoggedIn: authState?.isLoggedIn,
-        userTeam: authState?.profile?.team,
-    });
-
-    // If the wrapper exists (on index.html), check the config to show/hide it.
-    // If it doesn't exist (on overview.html), skip this check and proceed.
-    if (wrapper && (!config || config.showScoreboard !== true)) {
-        wrapper.style.display = 'none';
+    // Visibility is now handled by the parent controller (e.g., indexController).
+    if (!container) {
         return;
     }
-    if (wrapper) wrapper.style.display = 'block';
     container.innerHTML = ''; // Clear the tbody for re-rendering
 
     let dataToRender;
@@ -80,12 +67,6 @@ export function renderScoreboard(container, scoreboardData, allTeams, config, au
     } else {
         dataToRender = scoreboardData;
     }
-
-    // --- DEBUGGING ---
-    console.log(`[Scoreboard Debug - ${sourcePage}] Filtered data to render:`, {
-        totalItems: scoreboardData.length,
-        itemsToRender: dataToRender.length,
-    });
 
     if (dataToRender.length === 0) {
         container.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #888;">No scores to display.</td></tr>';

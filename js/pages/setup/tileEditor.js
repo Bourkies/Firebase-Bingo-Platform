@@ -1,12 +1,13 @@
 /* tileEditor.js */
 import { createFormFields } from '../../components/FormBuilder.js';
+import { tilesStore } from '../../stores/tilesStore.js';
 import * as tileManager from '../../core/data/tileManager.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 import { createOverrideFieldset, populateOverridesUI, handleRawJsonOverrideChange, addOverrideRow } from './overrideEditor.js';
 import { createPrereqFieldset, populatePrereqUI } from './prereqEditor.js';
 
-let tilesData = [];
-let lastSelectedTileIndex = null;
+// NEW: Add a module-level variable to hold the main controller interface.
+let mainController;
 
 const TILE_FIELD_DESCRIPTIONS = {
     'docId': 'The internal, unique, non-editable Firestore document ID.',
@@ -35,12 +36,13 @@ const tileEditorSchema = {
     Rotation: { label: 'Rotation', type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: TILE_FIELD_DESCRIPTIONS.Rotation },
 };
 
-export function initializeTileEditor(mainController) {
+export function initializeTileEditor(controller) {
     const detailsForm = document.getElementById('details-form');
     const addNewTileBtn = document.getElementById('add-new-tile-btn');
     const deleteTileBtn = document.getElementById('delete-tile-btn');
 
     console.log("[TileEditor] Initializing...");
+    mainController = controller; // Store the controller reference.
     document.getElementById('delete-all-tiles-btn')?.addEventListener('click', openDeleteAllModal);
     document.querySelector('#delete-all-modal .close-button')?.addEventListener('click', closeDeleteAllModal);
     document.getElementById('delete-confirm-input')?.addEventListener('input', validateDeleteAll);
@@ -56,16 +58,11 @@ export function initializeTileEditor(mainController) {
     });
 
     // REFACTOR: Use 'change' event for more deliberate saves.
-    detailsForm?.addEventListener('change', (e) => handleEditorInputChange(e, mainController));
-    addNewTileBtn?.addEventListener('click', () => addNewTile(mainController));
-    deleteTileBtn?.addEventListener('click', () => deleteSelectedTile(mainController));
+    detailsForm?.addEventListener('change', handleEditorInputChange);
+    addNewTileBtn?.addEventListener('click', addNewTile);
+    deleteTileBtn?.addEventListener('click', deleteSelectedTile);
 
     // createEditorForm is now called from the main controller when data is ready
-}
-
-export function updateTileEditorData(newTilesData, newLastSelectedTileIndex) {
-    tilesData = newTilesData;
-    lastSelectedTileIndex = newLastSelectedTileIndex;
 }
 
 export function createEditorForm(tileData, mainController) {
@@ -98,6 +95,7 @@ export function createEditorForm(tileData, mainController) {
 export function populateTileSelector() {
     console.log("[TileEditor] populateTileSelector called.");
     const selector = document.getElementById('tile-selector-dropdown');
+    const tilesData = tilesStore.get();
     if (!selector) return;
 
     const sortedTiles = [...tilesData].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
@@ -111,6 +109,7 @@ export function populateTileSelector() {
         selector.appendChild(option);
     });
 
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     if (lastSelectedTileIndex !== null) {
         selector.value = lastSelectedTileIndex;
     } else {
@@ -118,9 +117,10 @@ export function populateTileSelector() {
     }
 }
 
-export function updateEditorPanelContent(index, mainController) {
+export function updateEditorPanelContent(index) {
     console.log(`[TileEditor] updateEditorPanelContent called for index: ${index}`);
     const deleteTileBtn = document.getElementById('delete-tile-btn');
+    const tilesData = tilesStore.get();
     if (!deleteTileBtn || !mainController) return; // Guard against element not existing or controller not ready
 
     if (index === null || !tilesData[index]) {
@@ -170,12 +170,14 @@ function getDuplicateIds(tiles) {
 }
 
 function validateTileId() {
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     if (lastSelectedTileIndex === null) return;
-    const tile = tilesData[lastSelectedTileIndex];
-    const duplicateIds = getDuplicateIds(tilesData.filter(t => t.docId !== tile.docId));
+    const allTiles = tilesStore.get();
+    const tile = allTiles[lastSelectedTileIndex];
+    const duplicateIds = getDuplicateIds(allTiles.filter(t => t.docId !== tile.docId));
     const idInput = document.querySelector('#details-form input[name="id"]');
     if (!idInput) return;
-
+    
     const parentField = idInput.closest('.form-field');
     if (!parentField) return;
 
@@ -195,7 +197,8 @@ function validateTileId() {
     }
 }
 
-function handleEditorInputChange(event, mainController) {
+function handleEditorInputChange(event) {
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     if (lastSelectedTileIndex === null) return;
     if (!mainController) return;
 
@@ -204,6 +207,7 @@ function handleEditorInputChange(event, mainController) {
     if (!key) return;
 
     if (input.closest('#details-form') && !input.closest('.overrides-fieldset') && !input.closest('.prereq-fieldset')) {
+        const tilesData = tilesStore.get();
         const tile = tilesData[lastSelectedTileIndex];
         if (!tile) return;
 
@@ -211,7 +215,8 @@ function handleEditorInputChange(event, mainController) {
         // Append unit if the input element has a unit defined in its dataset
         if (input.dataset.unit) newValue += input.dataset.unit;
 
-        tile[key] = newValue;
+        // Don't mutate the store's data directly. The save will trigger a re-render.
+        // tile[key] = newValue;
 
         mainController.saveTile(tile.docId, { [key]: newValue }, mainController);
 
@@ -225,8 +230,9 @@ function handleEditorInputChange(event, mainController) {
     }
 }
 
-async function addNewTile(mainController) {
+async function addNewTile() {
     console.log("[TileEditor] addNewTile called.");
+    const tilesData = tilesStore.get();
     const existingNumbers = tilesData.map(t => parseInt(t.docId, 10)).filter(n => !isNaN(n));
     const maxNumber = existingNumbers.length > 0 ? Math.max(0, ...existingNumbers) : 0;
     const newDocId = String(maxNumber + 1).padStart(5, '0');
@@ -249,9 +255,11 @@ async function addNewTile(mainController) {
     }
 }
 
-async function deleteSelectedTile(mainController) {
+async function deleteSelectedTile() {
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     if (lastSelectedTileIndex === null) return;
     console.log(`[TileEditor] deleteSelectedTile called for index: ${lastSelectedTileIndex}`);
+    const tilesData = tilesStore.get();
     const tileToDelete = tilesData[lastSelectedTileIndex];
     if (confirm(`Are you sure you want to delete tile "${tileToDelete.id}"?`)) {
         try {

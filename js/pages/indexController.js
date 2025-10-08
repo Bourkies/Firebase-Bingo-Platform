@@ -1,11 +1,13 @@
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
-import { db, fb } from '../core/firebase-config.js'; // NEW: Import db and fb for direct listener
-import * as userManager from '../core/data/userManager.js';
-import * as tileManager from '../core/data/tileManager.js';
-import * as configManager from '../core/data/configManager.js';
-import * as teamManager from '../core/data/teamManager.js';
-import * as submissionManager from '../core/data/submissionManager.js';
+// NEW: Import stores instead of old managers
+import { authStore } from '../stores/authStore.js';
+import { db, fb } from '../core/firebase-config.js';
+import { configStore } from '../stores/configStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
+import { tilesStore } from '../stores/tilesStore.js';
+import { submissionsStore } from '../stores/submissionsStore.js';
+import { usersStore } from '../stores/usersStore.js';
+
 import { calculateScoreboardData } from '../components/Scoreboard.js';
 import { renderColorKey as renderColorKeyComponent } from '../components/TileRenderer.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
@@ -14,13 +16,10 @@ import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } f
 import { initializeBoard, renderBoard, renderScoreboard, getTileStatus } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
-// FIX: Initialize data stores as empty arrays to prevent them from ever being undefined.
-// This is the definitive fix for the 'filter is not a function' race condition.
-let config = {}, allTeams = {}, allStyles = {}, teamData = {}, scoreboardData = [], currentTeam = '', authState = {}, allUsers = [], teamColorMap = {};
-let tiles = [];
-let submissions = [];
-let unsubscribeConfig = null, unsubscribeTiles = null, unsubscribeSubmissions = null, unsubscribeStyles = null, unsubscribeUsers = null;
-let unsubscribeFromSingleSubmission = null; // NEW: For the modal listener
+// State variables. These will be populated by the stores.
+let currentTeam = '';
+let teamColorMap = {};
+let unsubscribeFromSingleSubmission = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
@@ -37,8 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeBoard(mainControllerInterface);
     initializeSubmissionModal(mainControllerInterface); // This sets up the base modal listeners
 
-    initializeApp();
-    initAuth(onAuthStateChanged);
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    configStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+    tilesStore.subscribe(onDataChanged);
+    submissionsStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
+
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
 /**
@@ -108,193 +115,69 @@ function injectSearchStyles() {
     document.head.appendChild(style);
 }
 
-async function onAuthStateChanged(newAuthState) {
-    console.log('[IndexController] onAuthStateChanged triggered.', { isLoggedIn: newAuthState.isLoggedIn, profileExists: !!newAuthState.profile });
-    const oldAuthState = authState;
-    authState = newAuthState;
-    const loadFirstTeam = config.loadFirstTeamByDefault === true;
+function onDataChanged(storeName, changedData) {
+    console.log(`[IndexController] onDataChanged triggered by a store update.`);
+    
+    // Get the latest state from all stores
+    const authState = authStore.get();
+    const { config, styles } = configStore.get();
+    const allTeams = teamsStore.get();
+    const tiles = tilesStore.get();
+    const submissions = submissionsStore.get();
 
-    // If the user's login status hasn't changed, but their profile has (e.g., team assignment),
-    // we can proceed with updates. The key is to avoid acting before the profile is loaded.
-    // The key check: if logged in, but the profile doesn't yet have a team property (even if it's null),
-    // it means the Firestore profile hasn't been merged yet. So we wait.
-    if (newAuthState.isLoggedIn && newAuthState.profile && newAuthState.profile.team === undefined) {
-        console.log("[IndexController] Auth state updated, but full profile (with team) not ready. Deferring board render.");
-        // Do not proceed to render, but we can still set up listeners that depend on auth state.
-    } else {
-        // This is the key fix: After auth is confirmed and the profile is loaded, explicitly trigger a team change and board render.
-        handleTeamChange();
+    // Check if essential data is loaded.
+    if (!config.pageTitle || Object.keys(allTeams).length === 0) {
+        showGlobalLoader();
+        return; // Wait for more data
+    }
+    hideGlobalLoader();
+
+    // Regenerate team colors if teams have changed.
+    if (Object.keys(teamColorMap).length !== Object.keys(allTeams).length) {
+        teamColorMap = generateTeamColors(Object.keys(allTeams));
     }
 
-    if (newAuthState.teamChanged) {
-        const newTeamName = allTeams[newAuthState.profile.team]?.name || 'a new team';
+    // Handle team change notification
+    if (authState.teamChanged) {
+        const newTeamName = allTeams[authState.profile.team]?.name || 'a new team';
         showMessage(`Your team has been changed to: ${newTeamName}. The board is updating.`, false);
     }
 
-    // Re-populate the selector and set the correct team value now that we know the profile is loaded.
-    populateTeamSelector(allTeams, loadFirstTeam); // This will handle private board logic
+    // Update UI elements that depend on the new data
+    applyGlobalStyles(config);
+    document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
+    populateTeamSelector(allTeams, config, authState);
+
+    // Set the current team based on the new state
     const selector = document.getElementById('team-selector');
-    
-    if (authState.isLoggedIn && authState.profile?.team && !selector.disabled) {
-        // For public boards, if the user is logged in and has a team, select it.
-        selector.value = authState.profile.team;
-    } else if (!selector.value && loadFirstTeam && Object.keys(allTeams).length > 0 && !selector.disabled) {
-        // Fallback for public boards if no user team is set but the config says to load the first one.
-        selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
+    currentTeam = selector.value;
+
+    // NEW: Centralized check for Setup Mode.
+    // If setup mode is on and the user is not a mod, we stop all board/scoreboard rendering here.
+    if (config.setupModeEnabled === true && !authState.isEventMod) {
+        // The renderBoard function will show the "check back later" message.
+        renderBoard();
+        // Ensure scoreboard and color key are hidden.
+        const scoreboardWrapper = document.querySelector('.scoreboard-wrapper');
+        if (scoreboardWrapper) scoreboardWrapper.style.display = 'none';
+        document.getElementById('color-key-container').innerHTML = '';
+        return; // Exit early
     }
 
-    setupUsersListener(); // Re-fetch users based on new auth state (e.g., to see teammates).
-    setupSubmissionsListener(); // Re-setup the submissions listener based on the new auth state.
-
+    // If checks pass, proceed with normal rendering.
+    renderBoard();
+    mainControllerInterface.renderColorKey();
+    renderScoreboard();
 }
 
-// This function sets up the listener for tiles, respecting censorship rules.
-const setupTilesListener = () => {
-    if (unsubscribeTiles) unsubscribeTiles();
-    // Use the centralized tileManager to handle fetching tiles based on permissions and config.
-    unsubscribeTiles = tileManager.listenToTiles((newTiles) => { // FIX: Changed log to match format
-        console.log("[IndexController] Tiles updated in real-time.");
-        tiles = newTiles;
-        processAllData();
-        // Do not render here directly. Let the auth state change or team selection be the trigger.
-        // FIX: If tiles are loaded, we might be able to render the generic view now, even without a team.
-        // The renderBoard function itself will decide if it has enough info.
-        if (tiles.length > 0) {
-            console.log("[IndexController] Tiles updated, attempting to re-render board.");
-            renderBoard();
-        }
-    }, authState, config, true); // Pass true for includeDocId
-};
-
-// This function sets up the listener for submissions, respecting privacy rules.
-const setupSubmissionsListener = () => {
-    if (unsubscribeSubmissions) unsubscribeSubmissions();
-    // Use the centralized submissionManager to handle fetching submissions based on permissions and config.
-    unsubscribeSubmissions = submissionManager.listenToSubmissions((newSubmissions) => { // FIX: Changed log to match format
-        console.log("[IndexController] Submissions updated in real-time.");
-        // The manager already converts timestamps, so we just assign the data.
-        // FIX: If the listener fails (e.g. permissions), newSubmissions will be undefined.
-        // Default to an empty array to prevent crashes in processAllData.
-        submissions = newSubmissions || [];
-        processAllData();
-        // Do not render here directly. Let the auth state change or team selection be the trigger.
-        // Only render if a team is already selected, which means initial load is complete.
-        if (currentTeam) {
-            console.log("[IndexController] Submissions updated, re-rendering for current team.");
-            renderBoard();
-        }
-    }, authState, config);
-};
-
-function initializeApp() {
-    let unsubscribeTeams = null; // New listener for teams
-
-    let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, styles: false, users: false };
-    // Check if initialization is already in progress to avoid race conditions on re-authentication
-    if (document.body.dataset.initializing === 'true') {
-        console.log("[IndexController] Initialization already in progress. Aborting new run.");
-        return;
-    }
-    document.body.dataset.initializing = 'true';
-    const checkAllLoaded = () => {
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            hideGlobalLoader();
-        }
-    };
-
-    showGlobalLoader();
-
-    // Detach old listeners if they exist to prevent memory leaks on hot-reloads
-    if (unsubscribeConfig) unsubscribeConfig();
-    if (unsubscribeTiles) unsubscribeTiles();
-    if (unsubscribeSubmissions) unsubscribeSubmissions();
-    if (unsubscribeStyles) unsubscribeStyles();
-    if (unsubscribeUsers) unsubscribeUsers();
-
-    // Listener for the main configuration document
-    unsubscribeConfig = configManager.listenToConfigAndStyles((newConfigData) => {
-        console.log("[IndexController] Config updated in real-time.");
-        if (newConfigData.error || !newConfigData.config) {
-            document.getElementById('board-container').innerHTML = `<div class="error-message">Board configuration not found. Please contact an admin.</div>`;
-            hideGlobalLoader();
-            return;
-        }
-        config = newConfigData.config;
-        allStyles = newConfigData.styles;
-
-        setupTilesListener();
-        setupSubmissionsListener();
-        
-        applyGlobalStyles();
-        const loadFirstTeam = config.loadFirstTeamByDefault === true;
-        populateTeamSelector(allTeams, loadFirstTeam); // This is correct
-        // Do not call handleTeamChange here. Let onAuthStateChanged be the single source of truth for this.
-        // The initial render will happen when all data is loaded and auth state is confirmed.
-        // For a logged-out user on a public board, the first team selection will trigger the render.
-        // Only render if a team is already selected, which means initial load is complete.
-        if (currentTeam) {
-            console.log("[IndexController] Config updated, re-rendering for current team.");
-            renderBoard();
-        }
-
-        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
-        mainControllerInterface.renderColorKey();
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; initialDataLoaded.styles = true; checkAllLoaded(); }
-        document.body.dataset.initializing = 'false'; // Mark initialization as complete
-    });
-
-    // Listener for the new teams collection
-    unsubscribeTeams = teamManager.listenToTeams((newTeams) => { // FIX: Changed log to match format
-        console.log("[IndexController] Teams updated in real-time.");
-        allTeams = newTeams;
-        teamColorMap = generateTeamColors(Object.keys(newTeams));
-        const loadFirstTeam = config.loadFirstTeamByDefault === true;
-        const selector = document.getElementById('team-selector');
-
-        populateTeamSelector(allTeams, loadFirstTeam);
-        // If no team is selected yet and the config is set, select the first one.
-        if (!selector.value && loadFirstTeam && Object.keys(allTeams).length > 0) {
-            // As a fallback, if the setting is enabled, select the first team in the list.
-            selector.value = Object.keys(allTeams).sort((a, b) => a.localeCompare(b))[0];
-        }
-
-        // Do not call handleTeamChange here. It will be called by onAuthStateChanged when ready.
-        // Only render if a team is already selected, which means initial load is complete.
-        if (currentTeam) {
-            console.log("[IndexController] Teams updated, re-rendering for current team.");
-            renderBoard();
-        }
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    });
-}
-
-// Listener for users collection, must be called after auth state is known
-function setupUsersListener() {
-    if (unsubscribeUsers) unsubscribeUsers();
-
-    // NEW: Only listen to users if logged in. This prevents permission errors for guests.
-    if (!authState.isLoggedIn) {
-        allUsers = []; // Clear user data on logout
-        return;
-    }
-
-    unsubscribeUsers = userManager.listenToUsers((newUsers) => { // FIX: Changed log to match format
-        console.log(`[IndexController] Users updated. Received ${newUsers.length} users.`);
-        allUsers = newUsers;
-    }, authState);
-}
-
-function processAllData() {
+function processAllData(submissions, tiles, allTeams, config) {
     console.log('[IndexController] processAllData called.');
-    // FIX: Guard against submissions or tiles being undefined if a listener fails (e.g., permissions error).
-    // This is the definitive fix. It ensures that even if a listener fails and passes `undefined`,
-    // this function will not proceed with invalid data types, preventing the .filter error.
     if (!Array.isArray(submissions) || !Array.isArray(tiles)) {
         console.warn('[IndexController] processAllData aborted: submissions or tiles data is not a valid array.');
-        return;
+        return { teamData: {}, scoreboardData: [] };
     }
 
-    teamData = {};
+    const teamData = {};
     const teamIds = allTeams ? Object.keys(allTeams) : [];
 
     teamIds.forEach(teamId => {
@@ -314,14 +197,12 @@ function processAllData() {
         teamData[teamId] = { tileStates };
     });
 
-    // NEW: Use the centralized scoreboard calculation function
-    scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
+    const scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
 
-    // NEW: Render the scoreboard here, now that scoreboardData is guaranteed to be calculated.
-    renderScoreboard();
+    return { teamData, scoreboardData };
 }
 
-function applyGlobalStyles() {
+function applyGlobalStyles(config) {
     if (!config) return;
     const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container');
 
@@ -345,10 +226,11 @@ function applyGlobalStyles() {
     elements.forEach(el => el.style.maxWidth = maxWidth);
 }
 
-function populateTeamSelector(teams = {}, loadFirstTeam = false) {
+function populateTeamSelector(teams = {}, config = {}, authState = {}) {
     const selector = document.getElementById('team-selector');
     selector.innerHTML = '';
     selector.disabled = false; // Enable by default
+    const loadFirstTeam = config.loadFirstTeamByDefault === true;
 
     const isPrivate = config.boardVisibility === 'private';
 
@@ -390,6 +272,14 @@ function populateTeamSelector(teams = {}, loadFirstTeam = false) {
             option.textContent = teamData.name;
             selector.appendChild(option);
         });
+
+        // Set the selected value based on auth state or default
+        if (authState.isLoggedIn && authState.profile?.team) {
+            selector.value = authState.profile.team;
+        } else if (!selector.value && loadFirstTeam && Object.keys(teams).length > 0) {
+            selector.value = Object.keys(teams).sort((a, b) => a.localeCompare(b))[0];
+        }
+
     }
 }
 
@@ -412,10 +302,24 @@ function handleTeamChange() {
 
 // This object acts as an interface for the sub-modules to access the main controller's state and methods.
 const mainControllerInterface = {
-    getState: () => ({ config, allTeams, allStyles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap }),
+    getState: () => {
+        const { config, styles } = configStore.get();
+        const allTeams = teamsStore.get();
+        const tiles = tilesStore.get();
+        const submissions = submissionsStore.get();
+        const allUsers = usersStore.get();
+        const authState = authStore.get();
+
+        const { teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config);
+
+        return { config, allTeams, allStyles: styles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap };
+    },
     openSubmissionModal: (tile, status) => {
         // NEW: When opening the modal, attach a real-time listener to its specific submission document.
         if (unsubscribeFromSingleSubmission) unsubscribeFromSingleSubmission();
+
+        const authState = authStore.get();
+        const submissions = submissionsStore.get();
 
         const teamSubmissions = submissions.filter(s => s.Team === authState.profile.team && !s.IsArchived);
         const existingSubmission = teamSubmissions.find(s => s.id === tile.id) || {};
@@ -437,13 +341,14 @@ const mainControllerInterface = {
         closeSubmissionModal(); // Call the original close function from the module
     },
     renderColorKey: () => { // This now renders both the scoreboard and color key
-        // The scoreboard is now rendered in processAllData(). This function now only renders the color key.
-        const { config, allStyles } = mainControllerInterface.getState();
-        renderColorKeyComponent(config, allStyles, document.getElementById('color-key-container'));
+        const { config, styles } = configStore.get();
+        renderColorKeyComponent(config, styles, document.getElementById('color-key-container'));
     },
     getTileStatus: (tile, tileState) => getTileStatus(tile, tileState),
     logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
         if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
+
+        const allUsers = usersStore.get();
 
         const oldPlayerIDs = existingSubmission.PlayerIDs || [];
         const newPlayerIDs = dataToSave.PlayerIDs || [];
@@ -533,7 +438,12 @@ function handleSearchInput(event) {
         return;
     }
 
-    const { tiles, teamData, currentTeam, config, authState, allStyles } = mainControllerInterface.getState();
+    const { config, styles: allStyles } = configStore.get();
+    const tiles = tilesStore.get();
+    const authState = authStore.get();
+    const { teamData } = processAllData(submissionsStore.get(), tiles, teamsStore.get(), config);
+
+
     const currentTeamData = teamData[currentTeam] || { tileStates: {} };
 
     const filteredTiles = tiles.filter(tile => 

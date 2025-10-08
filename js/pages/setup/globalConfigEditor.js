@@ -1,10 +1,8 @@
 /* globalconfigEditor.js */
 import { createFormFields } from '../../components/FormBuilder.js';
 import { createTileElement } from '../../components/TileRenderer.js';
-import * as configManager from '../../core/data/configManager.js';
+import { configStore } from '../../stores/configStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
-
-let config = {}, allStyles = {};
 
 const configSchema = {
     // Global Config Fields
@@ -47,7 +45,15 @@ const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Veri
 
 async function saveConfig(key, value) {
     try {
-        await configManager.updateConfig({ [key]: value });
+        // FIX: Use the get/set pattern for atom stores instead of setKey.
+        const currentStore = configStore.get();
+        const newConfig = { ...currentStore.config, [key]: value };
+        configStore.set({
+            ...currentStore,
+            config: newConfig
+        });
+
+        // The showMessage logic remains the same.
         const fieldLabel = configSchema[key]?.label || key;
         const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
         showMessage(`Saved ${fieldLabel}: ${displayValue}`, false);
@@ -59,7 +65,18 @@ async function saveConfig(key, value) {
 
 async function saveStyle(status, key, value) {
     try {
-        await configManager.updateStyle(status, { [key]: value });
+        // FIX: Use the get/set pattern for atom stores instead of setKey.
+        const currentStore = configStore.get();
+        const newStyles = {
+            ...currentStore.styles,
+            [status]: {
+                ...currentStore.styles[status],
+                [key]: value
+            }
+        };
+        configStore.set({ ...currentStore, styles: newStyles });
+
+        // The showMessage logic remains the same.
         const fieldLabel = styleSchema[key]?.label || key;
         const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
         showMessage(`Saved ${status} ${fieldLabel}: ${displayValue}`, false);
@@ -79,16 +96,12 @@ export function initializeGlobalConfig(mainController) {
     toggleGlobalStyles();
 }
 
-export function updateGlobalConfigData(newConfig, newStyles) {
-    config = newConfig;
-    allStyles = newStyles;
-}
-
 export function renderGlobalConfig(mainController) {
     console.log("[GlobalConfigEditor] renderGlobalConfig called.");
     const formContainer = document.getElementById('global-style-form');
     const activeElementId = document.activeElement?.id;
-    if (!formContainer || !config) return; // Guard against running before config is loaded
+    const { config, styles: allStyles } = configStore.get();
+    if (!formContainer || !config || !allStyles) return; // Guard against running before config is loaded
 
     formContainer.innerHTML = '<p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>';
 
@@ -158,6 +171,7 @@ export function renderGlobalConfig(mainController) {
 }
 
 function handleGlobalConfigChange(event, mainController) {
+    const { config, styles: allStyles } = configStore.get();
     const input = event.target;
     const key = input.dataset.key;    
     // If there's no key, it's not a field we manage.
@@ -179,11 +193,9 @@ function handleGlobalConfigChange(event, mainController) {
     }
 
     if (status) {
-        if (!allStyles[status]) allStyles[status] = {};
-        allStyles[status][key] = newValue;
         saveStyle(status, key, newValue);
     } else {
-        config[key] = newValue;
+        // The store is updated via saveConfig, no need to update local state.
         if (key === 'boardImageUrl') mainController.loadBoardImage(newValue);
         saveConfig(key, newValue);
     }

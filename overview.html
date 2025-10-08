@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <script type="importmap">
+    {
+        "imports": {
+            "nanostores": "https://esm.sh/nanostores"
+        }
+    }
+  </script>
   <script src="./js/theme-loader.js"></script>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -85,8 +92,8 @@
   <app-navbar></app-navbar>
 
   <div id="page-disabled" style="display: none;">
-      <h1>Overview Page Not Available</h1>
-      <p>The event administrator has disabled this page.</p>
+      <h1 id="disabled-title">Overview Page Not Available</h1>
+      <p id="disabled-message">The event administrator has disabled this page.</p>
   </div>
   
   <div id="main-content" class="container" style="display: none;">

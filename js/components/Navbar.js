@@ -1,5 +1,13 @@
 import { initAuth, signOut, getAuthState, updateUserDisplayName, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
 import { fb, db } from '../core/firebase-config.js';
+// NEW: Import all stores and their initializers
+import { authStore } from '../stores/authStore.js';
+import { configStore, initConfigListener } from '../stores/configStore.js';
+import { teamsStore, initTeamsListener } from '../stores/teamsStore.js';
+import { initSubmissionsListener } from '../stores/submissionsStore.js';
+import { initTilesListener } from '../stores/tilesStore.js';
+import { initUsersListener } from '../stores/usersStore.js';
+
 
 // NEW: Centralized variable for the responsive breakpoint.
 const MOBILE_BREAKPOINT = '1000px';
@@ -314,6 +322,9 @@ template.innerHTML = /*html*/`
     </div>
 `;
 
+// Static flag to ensure global listeners are only initialized once.
+let areStoresInitialized = false;
+
 class AppNavbar extends HTMLElement {
     constructor() {
         super();
@@ -352,10 +363,7 @@ class AppNavbar extends HTMLElement {
         this.showSignupModalLink = this.shadowRoot.querySelector('#show-signup-modal-link');
         this.showLoginModalLink = this.shadowRoot.querySelector('#show-login-modal-link');
 
-        this.allTeams = {};
-        this.config = {};
         this.authState = getAuthState(); // Get initial state
-
     }
 
     showLoginModal() {
@@ -371,6 +379,19 @@ class AppNavbar extends HTMLElement {
     }
 
     connectedCallback() {
+        // Centralized store initialization. This runs only once.
+        if (!areStoresInitialized) {
+            console.log('[Navbar] Initializing all global data stores...');
+            // The order matters for dependencies: auth -> config -> others
+            initAuth(() => {}); // Kicks off auth process, which populates authStore
+            initConfigListener();
+            initTeamsListener();
+            initTilesListener(); // Depends on auth and config
+            initUsersListener(); // Depends on auth
+            initSubmissionsListener();
+            areStoresInitialized = true;
+        }
+
         this.authButton.addEventListener('click', () => {
             if (this.authState.isLoggedIn) {
                 signOut();
@@ -406,56 +427,41 @@ class AppNavbar extends HTMLElement {
         this.populateThemeSwitcher();
 
         // Listen to data
-        this.unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
-            this.config = doc.data() || {};
-            this.render();
-        });
-
-        this.unsubscribeTeams = fb.onSnapshot(fb.collection(db, 'teams'), (snapshot) => {
-            this.allTeams = {};
-            snapshot.forEach(doc => {
-                this.allTeams[doc.id] = doc.data();
-            });
-            this.render();
-        });
+        this.unsubscribeFromStores = [
+            authStore.subscribe(newAuthState => {
+                console.log('[Navbar] Auth store updated.');
+                this.authState = newAuthState;
+                // Check if we should show the welcome modal on first login
+                const { config } = configStore.get();
+                if (this.authState.isLoggedIn && this.authState.profile && config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
+                    this.showWelcomeModal();
+                }
+                this.updateCurrentThemeSelection();
+                this.render();
+            }),
+            configStore.subscribe(() => {
+                console.log('[Navbar] Config store updated.');
+                this.render();
+            }),
+            teamsStore.subscribe(() => {
+                console.log('[Navbar] Teams store updated.');
+                this.render();
+            })
+        ];
 
         // Handle responsive element placement
         this.mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT})`);
         this.handleResponsiveLayout(this.mediaQuery); // Initial check
         this.mediaQuery.addEventListener('change', this.handleResponsiveLayout.bind(this));
-
-
-        // Listen to auth changes
-        initAuth(newAuthState => {
-            console.log('[Navbar] Auth state received:', { isLoggedIn: newAuthState.isLoggedIn, isTeamCaptain: newAuthState.isTeamCaptain, profile: newAuthState.profile ? { displayName: newAuthState.profile.displayName, team: newAuthState.profile.team } : null });
-            this.authState = newAuthState;
-            // Check if we should show the welcome modal on first login
-            if (this.authState.isLoggedIn && this.authState.profile && this.config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
-                this.showWelcomeModal();
-            }
-            this.updateCurrentThemeSelection();
-            this.render();
-        });
     }
 
     disconnectedCallback() {
-        if (this.unsubscribeConfig) this.unsubscribeConfig();
-        if (this.unsubscribeTeams) this.unsubscribeTeams();
-        // The auth listener from initAuth is global and doesn't need to be unsubscribed here.
+        this.unsubscribeFromStores.forEach(unsub => unsub());
     }
 
     render() {
-        // Re-evaluate captain status whenever data changes, as this component has all the necessary info.
-        // This ensures the UI is correct even if captain status changes while the user is on the page.
-        if (this.authState.isLoggedIn && this.authState.profile) {
-            const userTeamId = this.authState.profile.team;
-            const userTeam = userTeamId ? this.allTeams[userTeamId] : null;
-            const isCaptain = userTeam ? userTeam.captainId === this.authState.user.uid : false;
-            if (this.authState.isTeamCaptain !== isCaptain) {
-                console.log(`[Navbar] Captain status updated from ${this.authState.isTeamCaptain} to ${isCaptain}`);
-                this.authState.isTeamCaptain = isCaptain;
-            }
-        }
+        // The authState now contains the correct captain status directly from auth.js,
+        // which performs the check. No need to recalculate it here.
         this.renderAuthInfo();
         this.renderNavLinks();
         this.updateCurrentThemeSelection();
@@ -475,7 +481,8 @@ class AppNavbar extends HTMLElement {
             if (this.authState.isTeamCaptain) { roles.push('Captain'); }
             console.log('[Navbar] Rendering roles:', roles);
 
-            const teamName = (profile.team && this.allTeams) ? (this.allTeams[profile.team]?.name || profile.team) : '';
+            const allTeams = teamsStore.get();
+            const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
             const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
             const teamInfo = teamName ? ` | Team: ${teamName}` : '';
             this.userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
@@ -492,10 +499,12 @@ class AppNavbar extends HTMLElement {
 
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
+        const { config } = configStore.get();
+
         // NEW: Use root-relative paths to ensure links work from any directory depth.
         const links = [
             { href: '/index.html', text: 'Board', show: true },
-            { href: '/overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
+            { href: '/overview.html', text: 'Scoreboard', show: config.enableOverviewPage === true },
             { href: '/captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
             { href: '/admin.html', text: 'Admin', show: this.authState.isEventMod || this.authState.isAdmin },
             { href: '/setup.html', text: 'Setup', show: this.authState.isAdmin }
@@ -578,6 +587,7 @@ class AppNavbar extends HTMLElement {
         const nameInput = this.shadowRoot.getElementById('welcome-display-name');
         const titleEl = this.welcomeModal.querySelector('h2');
 
+        const { config } = configStore.get();
         const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
 
         if (isUpdate) {
@@ -585,7 +595,7 @@ class AppNavbar extends HTMLElement {
         } else {
             titleEl.textContent = 'Welcome!';
         }
-        messageEl.textContent = (this.config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
+        messageEl.textContent = (config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
         nameInput.value = this.authState.profile.displayName || '';
         this.welcomeModal.style.display = 'flex';
     }

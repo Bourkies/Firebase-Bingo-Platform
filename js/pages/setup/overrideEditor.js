@@ -1,5 +1,5 @@
 /* overrideEditor.js */
-import * as configManager from '../../core/data/configManager.js';
+import { tilesStore } from '../../stores/tilesStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 
 const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
@@ -45,12 +45,13 @@ function getOverridesFromUI() {
 
 function saveOverrides(mainController) {
     const index = mainController.lastSelectedTileIndex;
-    if (index === null || !mainController.tilesData || !mainController.tilesData[index]) return;
+    const tilesData = tilesStore.get();
+    if (index === null || !tilesData || !tilesData[index]) return;
 
     const overrides = getOverridesFromUI();
     const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
     
-    mainController.saveTile(mainController.tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
+    mainController.saveTile(tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
     showMessage('Saved Overrides', false);
     mainController.renderTiles();
 }

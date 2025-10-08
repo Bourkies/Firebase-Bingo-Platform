@@ -1,10 +1,16 @@
 import { db, auth, fb } from './firebase-config.js';
+import { authStore } from '../stores/authStore.js';
 
 let currentUser = null;
 let userProfile = null;
-let authChangeListeners = []; // Use an array for multiple listeners
 let unsubscribeUserProfile = null; // To clean up the profile listener on logout
 let isAuthInitialized = false; // Prevent multiple initializations
+
+// DEPRECATED: This will be removed once all pages are refactored.
+// For now, it ensures backward compatibility with pages still using the old callback system.
+let authChangeListeners = [];
+
+let authStateHasBeenChecked = false;
 
 export function initAuth(callback) {
     if (!authChangeListeners.includes(callback)) {
@@ -16,6 +22,8 @@ export function initAuth(callback) {
         return;
     }
     isAuthInitialized = true;
+
+
     fb.onAuthStateChanged(auth, async (user) => {
         // Clean up any existing profile listener when auth state changes
         if (unsubscribeUserProfile) {
@@ -23,16 +31,17 @@ export function initAuth(callback) {
             unsubscribeUserProfile = null;
         }
 
+        authStateHasBeenChecked = true; // Mark that the initial check has completed.
         if (user) {
             currentUser = user; // Set currentUser immediately
-            // Immediately notify the page that the user is logged in, even before the profile is fetched.
+            // Immediately notify listeners that the user is logged in, even before the profile is fetched.
             notifyListeners();
             // Set up a real-time listener for the user's profile
             listenToUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
         } else {
             currentUser = null;
             userProfile = null;
-            // When logged out, immediately notify the page
+            // When logged out, immediately notify listeners
             notifyListeners();
         }
     });
@@ -207,6 +216,7 @@ function notifyListeners(authState = null) {
     authChangeListeners.forEach(listener => {
         listener(state);
     });
+    authStore.set(state); // NEW: Update the global auth store
 }
 
 export async function signOut() {
@@ -239,5 +249,6 @@ export function getAuthState(isTeamCaptain = false) {
         isAdmin: fullProfile?.isAdmin === true,
         isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
         isTeamCaptain: isTeamCaptain,
+        authChecked: authStateHasBeenChecked // NEW: Signal that the initial auth check is done.
     };
 }
