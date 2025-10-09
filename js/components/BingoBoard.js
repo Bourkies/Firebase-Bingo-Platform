@@ -70,6 +70,8 @@ export class BingoBoard extends LitElement {
         allStyles: { type: Object },
         displayTeam: { type: String },
         isGenericView: { type: Boolean },
+        allTiles: { type: Array }, // NEW: To access full layout data when tiles are censored
+        setupMode: { type: Boolean }, // NEW: To handle setup mode message
     };
 
     constructor() {
@@ -83,6 +85,8 @@ export class BingoBoard extends LitElement {
         this.allStyles = {};
         this.displayTeam = '';
         this.isGenericView = false;
+        this.allTiles = [];
+        this.setupMode = false;
         this.tooltipElement = null;
     }
 
@@ -161,8 +165,16 @@ export class BingoBoard extends LitElement {
 
     render() {
         console.log('[BingoBoard] render: Re-rendering board.');
-        if (!this.config || !this.tiles || this.tiles.length === 0) {
-            console.log('[BingoBoard] render: No config or tiles, rendering empty.');
+
+        // NEW: Handle setup mode directly in the component
+        if (this.setupMode && !this.authState?.isEventMod) {
+            return html`<div class="error-message" style="position: static; z-index: 0;">The event has not started or is currently being set up. Please check back later.</div>`;
+        }
+
+        // REVISED: Only check for config. The tiles array might be temporarily empty during a data refresh (e.g., switching to public_tiles).
+        // The component will automatically re-render when the tiles property is updated with new data.
+        if (!this.config?.pageTitle) {
+            console.log('[BingoBoard] render: No config, rendering empty.');
             return html``;
         }
 
@@ -184,21 +196,36 @@ export class BingoBoard extends LitElement {
                 keyed(tile.docId, html`
                     ${(() => {
                         const status = this.getTileStatus(tile);
+
                         if (status === 'Hidden') return html``;
+
+                        // The `tile` object from `this.tiles` can be from 'tiles' (full data) or 'public_tiles' (censored data).
+                        // We always want to use the layout properties from the full tile object for rendering.
+                        const isCensored = this.config.censorTilesBeforeEvent === true && !this.authState?.isEventMod;
+                        // The `tile` object from the store will now correctly contain layout data even when censored.
+                        // The Name/Description fields will just be missing, which we handle below.
+                        const layoutTile = tile;
+
+                        // The tile object passed to bingo-tile needs all positional data.
+                        // We create a new object to ensure we don't mutate the original tile from the store.
+                        const displayTile = {
+                            ...layoutTile, // Start with full layout data.
+                            Name: isCensored ? 'Censored' : (tile.Name || 'Unnamed Tile'),
+                            Description: isCensored ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.'),
+                            Points: isCensored ? 0 : tile.Points,
+                        };
 
                         return html`
                             <bingo-tile
-                                .tile=${tile}
+                                .tile=${displayTile}
                                 .status=${status}
                                 .config=${this.config}
                                 .allStyles=${this.allStyles}
                                 .authState=${this.authState}
                                 @click=${() => this.handleTileClick(tile, status)}
                                 @mousemove=${(e) => {
-                                    const tileName = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
-                                    const tileDesc = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.');
-                                    const tilePoints = tile.Points ? ` (${tile.Points} pts)` : '';
-                                    this.tooltipElement.innerHTML = `<h4>${tile.id}: ${tileName}${tilePoints}</h4><p>${tileDesc}</p>`;
+                                    const tilePoints = displayTile.Points ? ` (${displayTile.Points} pts)` : '';
+                                    this.tooltipElement.innerHTML = `<h4>${tile.id}: ${displayTile.Name}${tilePoints}</h4><p>${displayTile.Description}</p>`;
                                     this.tooltipElement.style.display = 'block';
                                     this.tooltipElement.style.left = `${e.clientX + 15}px`;
                                     this.tooltipElement.style.top = `${e.clientY + 15}px`;

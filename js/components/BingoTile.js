@@ -162,7 +162,7 @@ export class BingoTile extends LitElement {
         const { config } = this;
         const useStamp = this._getProp('useStampByDefault') === true;
         const stampUrl = this._getProp('stampImageUrl');
-        const tileName = config.censorTilesBeforeEvent && !this.authState?.isEventMod ? 'Censored' : (this.tile.Name || 'Unnamed Tile');
+        const tileName = this.tile.Name || 'Unnamed Tile';
 
         return html`
             ${useStamp && stampUrl ? html`<div class="stamp-image" style="background-image: url('${stampUrl}'); background-position: ${this._getProp('stampPosition') || 'center'}; transform: scale(${this._getProp('stampScale') || '1'}) rotate(${this._getProp('stampRotation') || '0deg'});"></div>` : ''}

@@ -1,4 +1,4 @@
-import { atom } from 'nanostores';
+import { atom, map } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
 import { authStore } from './authStore.js';
 import { configStore } from './configStore.js';
@@ -6,7 +6,11 @@ import { configStore } from './configStore.js';
 // This store will hold the array of all tile documents.
 export const tilesStore = atom([]);
 
-let unsubscribe;
+// NEW: Separate atoms for public and private tiles to manage them independently.
+const privateTiles = atom([]);
+const publicTiles = atom([]);
+
+let unsubscribePrivate, unsubscribePublic;
 
 /**
  * Initializes the listener for the 'tiles' or 'public_tiles' collection.
@@ -19,27 +23,48 @@ export function initTilesListener() {
 }
 
 function handleStateChange() {
-    if (unsubscribe) {
-        unsubscribe();
-        unsubscribe = null;
-    }
+    // Always clean up previous listeners
+    if (unsubscribePrivate) unsubscribePrivate();
+    if (unsubscribePublic) unsubscribePublic();
 
     const authState = authStore.get();
     const { config } = configStore.get();
 
     const isCensored = config?.censorTilesBeforeEvent === true && !authState?.isEventMod;
-    const collectionName = isCensored ? 'public_tiles' : 'tiles';
-    console.log(`[tilesStore] Listening to '${collectionName}' collection (censored: ${isCensored})`);
 
-    const tilesQuery = fb.collection(db, collectionName);
+    if (isCensored) {
+        console.log(`[tilesStore] Censored mode: Listening to 'public_tiles'.`);
+        // In censored mode, we populate the main store with the public tile data.
+        // This contains all necessary layout info. The component will handle the missing name/desc.
+        unsubscribePublic = fb.onSnapshot(fb.collection(db, 'public_tiles'), (snapshot) => {
+            const tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+            tilesStore.set(tiles);
+        }, (error) => {
+            console.error(`[tilesStore] Error listening to public_tiles:`, error);
+            tilesStore.set([]);
+        });
+    } else {
+        console.log(`[tilesStore] Uncensored mode: Listening to 'tiles'.`);
+        // In uncensored mode, we listen to the full 'tiles' collection.
+        // We also clear the publicTiles store as it's not needed.
+        publicTiles.set([]);
+        unsubscribePrivate = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+            const tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
+            tilesStore.set(tiles);
+        }, (error) => {
+            console.error(`[tilesStore] Error listening to tiles:`, error);
+            tilesStore.set([]);
+        });
+    }
+}
 
-    unsubscribe = fb.onSnapshot(tilesQuery, (snapshot) => {
-        const tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-        tilesStore.set(tiles);
-    }, (error) => {
-        console.error(`[tilesStore] Error listening to ${collectionName}:`, error);
-        tilesStore.set([]); // Return empty array on error.
-    });
+/**
+ * A special getter that returns the public tile data if available.
+ * This is used by the BingoBoard to get layout data in censored mode.
+ * @returns {Array} The array of public tiles.
+ */
+export function getPublicTiles() {
+    return publicTiles.get();
 }
 
 // --- NEW: Write Operations ---

@@ -5,7 +5,7 @@ import { authStore } from '../stores/authStore.js';
 import { db, fb } from '../core/firebase-config.js';
 import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
-import { tilesStore } from '../stores/tilesStore.js';
+import { tilesStore, getPublicTiles } from '../stores/tilesStore.js';
 import { submissionsStore } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
@@ -171,6 +171,43 @@ function renderPage() {
     }
     hideGlobalLoader();
 
+    const adminWarningContainer = document.getElementById('admin-warning-container');
+    const boardComponent = document.getElementById('board-container');
+    adminWarningContainer.innerHTML = ''; // Clear previous warnings
+
+    // --- REVISED: Centralized check for Setup Mode at the top ---    
+    // If setup mode is on, we must check the user's status.
+    // CRITICAL: We must wait until `authState.authChecked` is true before evaluating roles.
+    // This prevents a race condition on initial load where an admin might briefly be treated as a non-mod.
+    if (config.setupModeEnabled === true) {
+      // If auth is checked and the user is confirmed to NOT be a mod, show the message and stop.
+      if (authState.authChecked && !authState.isEventMod) {
+        // Hide the admin warning container in case it was visible
+        if (adminWarningContainer) adminWarningContainer.style.display = 'none';
+        // NEW: Pass the setupMode flag directly to renderBoard.
+        // This ensures the property is set consistently on every render.
+        renderBoard({ setupMode: true });
+        // Explicitly hide all other interactive elements
+        document.getElementById('team-selector').style.display = 'none';
+        document.getElementById('tile-search-container').style.display = 'none';
+        document.getElementById('scoreboard-container').style.display = 'none';
+        document.getElementById('color-key-container').style.display = 'none';
+        return; // Exit early, skipping all other render logic.
+      }
+      // If auth is checked and the user IS a mod, show the admin warning.
+      if (authState.authChecked && authState.isEventMod) {
+        if (adminWarningContainer) adminWarningContainer.style.display = 'block';
+        adminWarningContainer.innerHTML = '<p style="text-align:center; font-weight: bold; color: var(--warn-text-color); padding: 1rem; background-color: var(--warn-bg-color); border: 2px solid var(--warn-color); border-radius: 8px; margin-bottom: 1rem;">SETUP MODE IS ON: The board is currently hidden from all non-admin users.</p>';
+      }
+      // If auth is not yet checked, we don't do anything here and let the rest of the render proceed (which will likely just show a loader).
+    }
+
+    // If setup mode is on for an admin, show the warning message.
+    if (config.setupModeEnabled === true && authState.isEventMod) {
+        if (adminWarningContainer) adminWarningContainer.style.display = 'block';
+        adminWarningContainer.innerHTML = '<p style="text-align:center; font-weight: bold; color: var(--warn-text-color); padding: 1rem; background-color: var(--warn-bg-color); border: 2px solid var(--warn-color); border-radius: 8px; margin-bottom: 1rem;">SETUP MODE IS ON: The board is currently hidden from all non-admin users.</p>';
+    }
+
     // Regenerate team colors if teams have changed.
     if (teamsChanged) {
         teamColorMap = generateTeamColors(Object.keys(allTeams));
@@ -195,17 +232,6 @@ function renderPage() {
     // FIX: Show/hide search bar based on current team selection on every render.
     document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
 
-    // NEW: Centralized check for Setup Mode.
-    // If setup mode is on and the user is not a mod, we stop all board/scoreboard rendering here.
-    if (config.setupModeEnabled === true && !authState.isEventMod) {
-        // The renderBoard function will show the "check back later" message.
-        renderBoard();
-        document.getElementById('scoreboard-container').style.display = 'none';
-        document.getElementById('color-key-container').style.display = 'none';
-        return; // Exit early
-    }
-
-    const scoreboardEl = document.getElementById('scoreboard-container');
     const colorKeyEl = document.getElementById('color-key-container');
 
     // Only recalculate data if relevant stores have changed
@@ -214,7 +240,8 @@ function renderPage() {
     }
 
     // If checks pass, proceed with normal rendering.
-    renderBoard(); // This function is now smarter and only passes data
+    renderBoard({ setupMode: config.setupModeEnabled }); // This function is now smarter and only passes data
+    const scoreboardEl = document.getElementById('scoreboard-container');
     if (scoreboardData) {
         scoreboardEl.style.display = scoreboardData.length > 0 ? 'block' : 'none';
         scoreboardEl.scoreboardData = scoreboardData;
@@ -371,9 +398,10 @@ const mainControllerInterface = {
         const allUsers = usersStore.get();
         const authState = authStore.get();
 
+        // SIMPLIFIED: The tilesStore now correctly provides either full or public tiles.
         const { teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config);
 
-        return { config, allTeams, allStyles: styles, tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap };
+        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap };
     },
     openSubmissionModal: (tile, status) => {
         // NEW: When opening the modal, attach a real-time listener to its specific submission document.
