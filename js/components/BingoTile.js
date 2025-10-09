@@ -2,9 +2,16 @@ import { LitElement, html, css } from 'lit';
 import { styleMap } from 'lit/directives/style-map.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { hexToRgba } from '../core/utils.js';
-import { classMap } from 'lit/directives/class-map.js';
+
 export class BingoTile extends LitElement {
     static styles = css`
+        /* REVISED: Use a double drop-shadow to force the glow outside the clip-path shape. */
+        @keyframes pulse-glow {
+            0% { filter: drop-shadow(0 0 0 var(--glow-color, transparent)) drop-shadow(0 0 0px var(--glow-color, transparent)); }
+            70% { filter: drop-shadow(0 0 0 var(--glow-color, transparent)) drop-shadow(0 0 12px var(--glow-color, transparent)); }
+            100% { filter: drop-shadow(0 0 0 var(--glow-color, transparent)) drop-shadow(0 0 0px var(--glow-color, transparent)); }
+        }
+
         :host {
             position: absolute;
             box-sizing: border-box;
@@ -38,6 +45,12 @@ export class BingoTile extends LitElement {
             border-width: var(--tile-hover-border-width, 2px);
             z-index: 2;
         }
+
+        /* NEW: Apply the animation to the host element when it has the 'requires-action' class, but NOT if it's also a legend item. */
+        :host(.requires-action:not(.legend-item)) {
+            animation: pulse-glow 2s infinite;
+        }
+
 
         .stamp-image {
             position: absolute;
@@ -104,6 +117,9 @@ export class BingoTile extends LitElement {
         this.style.setProperty('--tile-border-color', borderColor);
         this.style.setProperty('--tile-hover-border-color', this._getProp('hoverBorderColor') || borderColor);
         this.style.setProperty('--tile-hover-border-width', this._getProp('hoverBorderWidth') || borderWidth);
+        
+        // NEW: Set the glow color to the tile's own background color for the animation.
+        this.style.setProperty('--glow-color', color);
 
         // The styles object should NOT include border properties anymore
         const tileStyles = { backgroundColor: hexToRgba(color, opacity) };
@@ -119,9 +135,10 @@ export class BingoTile extends LitElement {
 
         const shape = (this._getProp('shape') || 'Square').toLowerCase();
         const clipPaths = { 'ellipse': 'ellipse(50% 50% at 50% 50%)', 'circle': 'ellipse(50% 50% at 50% 50%)', 'diamond': 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', 'triangle': 'polygon(50% 0%, 0% 100%, 100% 100%)', 'hexagon': 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)' };
-        if (clipPaths[shape]) {
-            tileStyles.clipPath = clipPaths[shape];
-        }
+        
+        // FIX: Explicitly set clipPath to 'none' for squares to remove old shapes.
+        tileStyles.clipPath = clipPaths[shape] || 'none';
+
         return tileStyles;
     }
 
