@@ -40,11 +40,17 @@ export function initSubmissionsListener() {
 /**
  * Saves or creates a submission. Handles both new drafts and updates.
  * @param {string|null} docId - The document ID to update, or null to create a new one.
- * @param {object} data - The submission data to save.
+ * @param {object} data - The submission data to save. 
+ * @param {boolean} [isNew=false] - Set to true if creating a new document with a specific ID.
  */
-export async function saveSubmission(docId, data) {
+export async function saveSubmission(docId, data, isNew = false) {
     if (docId) {
         const subRef = fb.doc(db, 'submissions', docId);
+        if (isNew) {
+            // Use setDoc to create a new document with a specific ID.
+            return await fb.setDoc(subRef, data);
+        }
+        // Use updateDoc for existing documents.
         return await fb.updateDoc(subRef, data);
     } else {
         const submissionsCollection = fb.collection(db, 'submissions');

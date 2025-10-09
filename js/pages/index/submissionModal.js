@@ -264,7 +264,7 @@ async function handleAcknowledgeFeedback() {
         changes: [{ field: 'RequiresAction', from: true, to: false }, { field: 'IsComplete', from: true, to: false }]
     };
     const dataToUpdate = {
-        RequiresAction: false,
+        RequiresAction: false, // Set to false when acknowledging
         IsComplete: false,
         history: [...(existingSubmission.history || []), historyEntry]
     };
@@ -371,7 +371,15 @@ async function handleFormSubmit(event) {
             }).join('; ');
             historyEntry.changes.push({ field: 'Evidence', from: 'N/A', to: evidenceSummary || 'None' });
             dataToSave.history = [historyEntry];
-            await saveSubmission(null, dataToSave);
+
+            // NEW: Generate a structured document ID in YYMMDD-TEAMID-TILEID format.
+            const now = new Date();
+            const year = now.getUTCFullYear().toString().slice(-2);
+            const month = (now.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = now.getUTCDate().toString().padStart(2, '0');
+            const newDocId = `${year}${month}${day}-${dataToSave.Team}-${dataToSave.id}`;
+
+            await saveSubmission(newDocId, dataToSave, true); // Pass true for isNew
         }
         showMessage('Submission saved!', false);
         mainController.closeSubmissionModal(); // Use the controller interface to close
