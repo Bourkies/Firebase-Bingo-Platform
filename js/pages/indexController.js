@@ -21,6 +21,9 @@ let currentTeam = '';
 let teamColorMap = {};
 let unsubscribeFromSingleSubmission = null;
 
+// NEW: Debounce flag to prevent multiple renders in the same frame
+let isRenderScheduled = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
     document.body.addEventListener('show-message', (e) => showMessage(e.detail.message, e.detail.isError));
@@ -115,8 +118,17 @@ function injectSearchStyles() {
     document.head.appendChild(style);
 }
 
-function onDataChanged(storeName, changedData) {
-    console.log(`[IndexController] onDataChanged triggered by a store update.`);
+function onDataChanged() {
+    if (isRenderScheduled) {
+        return; // A render is already queued, do nothing.
+    }
+    isRenderScheduled = true;
+    requestAnimationFrame(renderPage);
+}
+
+function renderPage() {
+    console.log(`[IndexController] renderPage: Executing debounced render.`);
+    isRenderScheduled = false; // Reset the flag
     
     // Get the latest state from all stores
     const authState = authStore.get();
@@ -169,7 +181,6 @@ function onDataChanged(storeName, changedData) {
     mainControllerInterface.renderColorKey();
     renderScoreboard();
 }
-
 function processAllData(submissions, tiles, allTeams, config) {
     console.log('[IndexController] processAllData called.');
     if (!Array.isArray(submissions) || !Array.isArray(tiles)) {
@@ -228,6 +239,9 @@ function applyGlobalStyles(config) {
 
 function populateTeamSelector(teams = {}, config = {}, authState = {}) {
     const selector = document.getElementById('team-selector');
+    // FIX: Preserve the user's current selection during re-renders.
+    const previouslySelectedTeam = selector.value;
+
     selector.innerHTML = '';
     selector.disabled = false; // Enable by default
     const loadFirstTeam = config.loadFirstTeamByDefault === true;
@@ -273,31 +287,27 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
             selector.appendChild(option);
         });
 
-        // Set the selected value based on auth state or default
-        if (authState.isLoggedIn && authState.profile?.team) {
+        // Set the selected value based on previous selection, auth state, or default.
+        if (previouslySelectedTeam) {
+            selector.value = previouslySelectedTeam;
+        } else if (authState.isLoggedIn && authState.profile?.team) {
             selector.value = authState.profile.team;
         } else if (!selector.value && loadFirstTeam && Object.keys(teams).length > 0) {
             selector.value = Object.keys(teams).sort((a, b) => a.localeCompare(b))[0];
         }
-
     }
 }
 
 function handleTeamChange() {
     console.log('[IndexController] handleTeamChange called.');
     const selector = document.getElementById('team-selector');
-    const isPrivate = config.boardVisibility === 'private';
-    if (isPrivate) {
-        if (authState.isLoggedIn && authState.profile?.team) {
-            currentTeam = authState.profile.team;
-        }
-    } else {
-        currentTeam = selector.value;
-    }
-    renderBoard();
+    currentTeam = selector.value;
 
     // NEW: Show search bar only when a team is selected
     document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
+
+    // Trigger a full re-render to update the board for the new team.
+    onDataChanged();
 }
 
 // This object acts as an interface for the sub-modules to access the main controller's state and methods.
