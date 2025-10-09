@@ -10,11 +10,12 @@ import { submissionsStore } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
 import { calculateScoreboardData } from '../components/Scoreboard.js';
-import { renderColorKey as renderColorKeyComponent } from '../components/TileRenderer.js';
+import { renderColorKey as renderColorKeyComponent, createTileElement } from '../components/TileRenderer.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
+import '../components/BingoBoard.js';
 // Import new sub-modules
-import { initializeBoard, renderBoard, renderScoreboard, getTileStatus } from './index/board.js';
+import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
 // State variables. These will be populated by the stores.
@@ -41,6 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize sub-modules
     initializeBoard(mainControllerInterface);
+    const boardComponent = document.getElementById('board-container');
+    boardComponent.addEventListener('open-submission-modal', (e) => {
+        mainControllerInterface.openSubmissionModal(e.detail.tile, e.detail.status);
+    });
+
     initializeSubmissionModal(mainControllerInterface); // This sets up the base modal listeners
 
     // The Navbar now initializes all stores. We just subscribe to them.
@@ -172,14 +178,13 @@ function renderPage() {
     // If setup mode is on and the user is not a mod, we stop all board/scoreboard rendering here.
     if (config.setupModeEnabled === true && !authState.isEventMod) {
         // The renderBoard function will show the "check back later" message.
-        renderBoard();
+        renderBoard(); // Keep this for the "check back later" message
         // Ensure scoreboard and color key are hidden.
         const scoreboardWrapper = document.querySelector('.scoreboard-wrapper');
         if (scoreboardWrapper) scoreboardWrapper.style.display = 'none';
         document.getElementById('color-key-container').innerHTML = '';
         return; // Exit early
     }
-
     // If checks pass, proceed with normal rendering.
     renderBoard();
     mainControllerInterface.renderColorKey();
@@ -358,7 +363,10 @@ const mainControllerInterface = {
         const { config, styles } = configStore.get();
         renderColorKeyComponent(config, styles, document.getElementById('color-key-container'));
     },
-    getTileStatus: (tile, tileState) => getTileStatus(tile, tileState),
+    getTileStatus: (tile, teamName) => {
+        const boardComponent = document.getElementById('board-container');
+        return boardComponent.getTileStatus(tile, teamName);
+    },
     logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
         if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
 

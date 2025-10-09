@@ -4,7 +4,9 @@
   <script type="importmap">
     {
         "imports": {
-            "nanostores": "https://esm.sh/nanostores"
+            "nanostores": "https://esm.sh/nanostores",
+            "lit": "https://esm.sh/lit",
+            "lit/": "https://esm.sh/lit/"
         }
     }
   </script>
@@ -21,12 +23,6 @@
     h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
     #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
     #board-container {
-      position: relative; width: 100%;
-      background-size: cover; background-position: center;
-      border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); overflow: hidden;
-      display: flex; justify-content: center; align-items: center;
-      background-color: var(--bg-color);
-      background-image: linear-gradient(45deg, var(--surface-color) 25%, transparent 25%), linear-gradient(-45deg, var(--surface-color) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--surface-color) 75%), linear-gradient(-45deg, transparent 75%, var(--surface-color) 75%);
     }
     .tile-overlay:hover {
       border-color: var(--tile-hover-border-color, var(--accent-color));
@@ -254,9 +250,8 @@
   <!-- NEW: Dedicated container for board-level notifications -->
   <div id="board-notification"></div>
 
-  <div id="board-container">
-    <!-- Tiles will be rendered here -->
-  </div>
+  <bingo-board id="board-container"></bingo-board>
+
   <div class="info-container">
     <div id="color-key-container"></div>
     <div id="scoreboard-wrapper" class="scoreboard-wrapper">
