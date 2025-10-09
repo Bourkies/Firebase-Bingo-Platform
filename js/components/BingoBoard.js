@@ -33,6 +33,7 @@ export class BingoBoard extends LitElement {
             z-index: 1;
         }
 
+        /* Tooltip styles remain the same */
         #tile-tooltip {
             display: none;
             position: fixed;
@@ -90,6 +91,12 @@ export class BingoBoard extends LitElement {
         console.log('[BingoBoard] connectedCallback: Component added to DOM.');
         // The tooltip must be in the light DOM to be positioned correctly relative to the viewport.
         this.tooltipElement = document.getElementById('tile-tooltip');
+    }
+
+    updated(changedProperties) {
+        super.updated(changedProperties);
+        const changedProps = Array.from(changedProperties.keys());
+        console.log(`[BingoBoard] updated: Properties changed: ${changedProps.join(', ')}`);
     }
 
     getTileStatus(tile) {
@@ -155,6 +162,7 @@ export class BingoBoard extends LitElement {
     render() {
         console.log('[BingoBoard] render: Re-rendering board.');
         if (!this.config || !this.tiles || this.tiles.length === 0) {
+            console.log('[BingoBoard] render: No config or tiles, rendering empty.');
             return html``;
         }
 
