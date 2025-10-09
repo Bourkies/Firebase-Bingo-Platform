@@ -15,6 +15,7 @@ import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } f
 import '../components/BingoBoard.js';
 import '../components/BingoScoreboard.js';
 import '../components/BingoColorKey.js';
+import '../components/BingoColorKey.js';
 // Import new sub-modules
 import { initializeBoard, renderBoard } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
