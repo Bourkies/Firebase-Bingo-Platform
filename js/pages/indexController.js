@@ -10,17 +10,25 @@ import { submissionsStore } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
 import { calculateScoreboardData } from '../components/Scoreboard.js';
-import { renderColorKey as renderColorKeyComponent, createTileElement } from '../components/TileRenderer.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 import '../components/BingoBoard.js';
+import '../components/BingoScoreboard.js';
+import '../components/BingoColorKey.js';
 // Import new sub-modules
-import { initializeBoard, renderBoard, renderScoreboard } from './index/board.js';
+import { initializeBoard, renderBoard } from './index/board.js';
 import { initializeSubmissionModal, openModal as openSubmissionModal, closeModal as closeSubmissionModal, updateModalContent } from './index/submissionModal.js';
 
 // State variables. These will be populated by the stores.
 let currentTeam = '';
 let teamColorMap = {};
+
+// NEW: State to track previous data for more efficient updates
+let prevSubmissionsCount = -1;
+let prevTilesCount = -1;
+let prevTeamsCount = -1;
+let prevConfig = null;
+
 let unsubscribeFromSingleSubmission = null;
 
 // NEW: Debounce flag to prevent multiple renders in the same frame
@@ -147,6 +155,14 @@ function renderPage() {
     const tiles = tilesStore.get();
     const submissions = submissionsStore.get();
 
+    // --- NEW: More intelligent rendering logic ---
+    const submissionsChanged = submissions.length !== prevSubmissionsCount;
+    const tilesChanged = tiles.length !== prevTilesCount;
+    const teamsChanged = Object.keys(allTeams).length !== prevTeamsCount;
+    const configChanged = JSON.stringify(config) !== JSON.stringify(prevConfig);
+
+    let teamData, scoreboardData; // Will be populated if needed
+
     // Check if essential data is loaded.
     if (!config.pageTitle || Object.keys(allTeams).length === 0) {
         showGlobalLoader();
@@ -155,7 +171,7 @@ function renderPage() {
     hideGlobalLoader();
 
     // Regenerate team colors if teams have changed.
-    if (Object.keys(teamColorMap).length !== Object.keys(allTeams).length) {
+    if (teamsChanged) {
         teamColorMap = generateTeamColors(Object.keys(allTeams));
     }
 
@@ -166,29 +182,55 @@ function renderPage() {
     }
 
     // Update UI elements that depend on the new data
-    applyGlobalStyles(config);
-    document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
-    populateTeamSelector(allTeams, config, authState);
+    if (configChanged) {
+        applyGlobalStyles(config);
+        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
+    }
+    populateTeamSelector(allTeams, config, authState); // Always run to reflect current selection
 
     // Set the current team based on the new state
-    const selector = document.getElementById('team-selector');
-    currentTeam = selector.value;
+    currentTeam = document.getElementById('team-selector').value;
 
     // NEW: Centralized check for Setup Mode.
     // If setup mode is on and the user is not a mod, we stop all board/scoreboard rendering here.
     if (config.setupModeEnabled === true && !authState.isEventMod) {
         // The renderBoard function will show the "check back later" message.
-        renderBoard(); // Keep this for the "check back later" message
-        // Ensure scoreboard and color key are hidden.
-        const scoreboardWrapper = document.querySelector('.scoreboard-wrapper');
-        if (scoreboardWrapper) scoreboardWrapper.style.display = 'none';
-        document.getElementById('color-key-container').innerHTML = '';
+        renderBoard();
+        document.getElementById('scoreboard-container').style.display = 'none';
+        document.getElementById('color-key-container').style.display = 'none';
         return; // Exit early
     }
+
+    const scoreboardEl = document.getElementById('scoreboard-container');
+    const colorKeyEl = document.getElementById('color-key-container');
+
+    // Only recalculate data if relevant stores have changed
+    if (submissionsChanged || tilesChanged || teamsChanged || configChanged) {
+        ({ teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config));
+    }
+
     // If checks pass, proceed with normal rendering.
-    renderBoard();
-    mainControllerInterface.renderColorKey();
-    renderScoreboard();
+    renderBoard(); // This function is now smarter and only passes data
+    if (scoreboardData) {
+        scoreboardEl.style.display = scoreboardData.length > 0 ? 'block' : 'none';
+        scoreboardEl.scoreboardData = scoreboardData;
+        scoreboardEl.allTeams = allTeams;
+        scoreboardEl.config = config;
+        scoreboardEl.authState = authState;
+        scoreboardEl.teamColorMap = teamColorMap;
+    }
+
+    if (configChanged) {
+        colorKeyEl.style.display = 'flex';
+        colorKeyEl.config = config;
+        colorKeyEl.allStyles = styles;
+    }
+
+    // Update previous state trackers
+    prevSubmissionsCount = submissions.length;
+    prevTilesCount = tiles.length;
+    prevTeamsCount = Object.keys(allTeams).length;
+    prevConfig = JSON.parse(JSON.stringify(config)); // Deep copy
 }
 function processAllData(submissions, tiles, allTeams, config) {
     console.log('[IndexController] processAllData called.');
@@ -358,10 +400,6 @@ const mainControllerInterface = {
         if (unsubscribeFromSingleSubmission) unsubscribeFromSingleSubmission();
         unsubscribeFromSingleSubmission = null;
         closeSubmissionModal(); // Call the original close function from the module
-    },
-    renderColorKey: () => { // This now renders both the scoreboard and color key
-        const { config, styles } = configStore.get();
-        renderColorKeyComponent(config, styles, document.getElementById('color-key-container'));
     },
     getTileStatus: (tile, teamName) => {
         const boardComponent = document.getElementById('board-container');

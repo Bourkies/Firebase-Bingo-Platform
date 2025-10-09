@@ -1,4 +1,5 @@
 import { LitElement, html, css, unsafeCSS } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
 import './BingoTile.js'; // Import the new tile component
 import { showMessage } from '../core/utils.js';
 
@@ -171,30 +172,34 @@ export class BingoBoard extends LitElement {
         }
 
         return html`
-            ${this.tiles.map(tile => {
-                const status = this.getTileStatus(tile);
-                if (status === 'Hidden') return html``;
+            ${this.tiles.map(tile => 
+                keyed(tile.docId, html`
+                    ${(() => {
+                        const status = this.getTileStatus(tile);
+                        if (status === 'Hidden') return html``;
 
-                return html`
-                    <bingo-tile
-                        .tile=${tile}
-                        .status=${status}
-                        .config=${this.config}
-                        .allStyles=${this.allStyles}
-                        .authState=${this.authState}
-                        @click=${() => this.handleTileClick(tile, status)}
-                        @mousemove=${(e) => {
-                            const tileName = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
-                            const tileDesc = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.');
-                            const tilePoints = tile.Points ? ` (${tile.Points} pts)` : '';
-                            this.tooltipElement.innerHTML = `<h4>${tile.id}: ${tileName}${tilePoints}</h4><p>${tileDesc}</p>`;
-                            this.tooltipElement.style.display = 'block';
-                            this.tooltipElement.style.left = `${e.clientX + 15}px`;
-                            this.tooltipElement.style.top = `${e.clientY + 15}px`;
-                        }}
-                        @mouseout=${() => { this.tooltipElement.style.display = 'none'; }}
-                    ></bingo-tile>`;
-            })}
+                        return html`
+                            <bingo-tile
+                                .tile=${tile}
+                                .status=${status}
+                                .config=${this.config}
+                                .allStyles=${this.allStyles}
+                                .authState=${this.authState}
+                                @click=${() => this.handleTileClick(tile, status)}
+                                @mousemove=${(e) => {
+                                    const tileName = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'Censored' : (tile.Name || 'Unnamed Tile');
+                                    const tileDesc = this.config.censorTilesBeforeEvent && !this.authState.isEventMod ? 'This tile is hidden until the event begins.' : (tile.Description || 'No description.');
+                                    const tilePoints = tile.Points ? ` (${tile.Points} pts)` : '';
+                                    this.tooltipElement.innerHTML = `<h4>${tile.id}: ${tileName}${tilePoints}</h4><p>${tileDesc}</p>`;
+                                    this.tooltipElement.style.display = 'block';
+                                    this.tooltipElement.style.left = `${e.clientX + 15}px`;
+                                    this.tooltipElement.style.top = `${e.clientY + 15}px`;
+                                }}
+                                @mouseout=${() => { this.tooltipElement.style.display = 'none'; }}
+                            ></bingo-tile>`;
+                    })()}
+                `)
+            )}
         `;
     }
 }

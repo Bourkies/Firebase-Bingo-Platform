@@ -1,5 +1,3 @@
-import { renderScoreboard as renderScoreboardComponent } from '../../components/Scoreboard.js';
-
 let mainController;
 
 export function initializeBoard(controller) {
@@ -26,9 +24,7 @@ export function renderBoard() {
         if (!authState.isEventMod) {
             // For non-admins, show a simple message and hide the board completely.
             boardComponent.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">The event has not started or is currently being set up. Please check back later.</p>';
-            // Also hide the scoreboard and color key.
-            const scoreboardWrapper = document.querySelector('.scoreboard-wrapper');
-            if (scoreboardWrapper) scoreboardWrapper.style.display = 'none';
+            // The controller now handles hiding the scoreboard and color key components.
             const colorKeyContainer = document.getElementById('color-key-container');
             if (colorKeyContainer) colorKeyContainer.innerHTML = '';
             return; // Stop all further rendering for non-admins.
@@ -114,13 +110,4 @@ export function isGenericView() {
     if (isPrivate && !isLoggedInWithTeam) return true;
     if (isPublic && !currentTeam) return true;
     return false;
-}
-
-export function renderScoreboard() {
-    console.log('[Board] renderScoreboard called.');
-    const { scoreboardData, config, allTeams, authState, teamColorMap } = mainController.getState();
-
-    // Render Scoreboard - This single line now handles everything.
-    const scoreboardTbody = document.getElementById('scoreboard-container'); // This ID now refers to the tbody
-    renderScoreboardComponent(scoreboardTbody, scoreboardData, allTeams, config, authState, teamColorMap, 'Index Page');
 }
