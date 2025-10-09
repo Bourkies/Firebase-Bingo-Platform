@@ -191,6 +191,9 @@ function renderPage() {
     // Set the current team based on the new state
     currentTeam = document.getElementById('team-selector').value;
 
+    // FIX: Show/hide search bar based on current team selection on every render.
+    document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
+
     // NEW: Centralized check for Setup Mode.
     // If setup mode is on and the user is not a mod, we stop all board/scoreboard rendering here.
     if (config.setupModeEnabled === true && !authState.isEventMod) {
@@ -352,10 +355,6 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
 function handleTeamChange() {
     console.log('[IndexController] handleTeamChange called.');
     const selector = document.getElementById('team-selector');
-    currentTeam = selector.value;
-
-    // NEW: Show search bar only when a team is selected
-    document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
 
     // Trigger a full re-render to update the board for the new team.
     onDataChanged();
@@ -506,11 +505,20 @@ function handleSearchInput(event) {
 
     const currentTeamData = teamData[currentTeam] || { tileStates: {} };
 
-    const filteredTiles = tiles.filter(tile => 
-        (tile.id?.toLowerCase().includes(searchTerm)) ||
-        (tile.Name?.toLowerCase().includes(searchTerm)) ||
-        (tile.Description?.toLowerCase().includes(searchTerm))
-    ).slice(0, 10); // Limit to 10 results
+    const filteredTiles = tiles.filter(tile => {
+        // Get the status for the current tile
+        const statusString = mainControllerInterface.getTileStatus(tile, currentTeam);
+        const statusDisplayName = getStatusDisplayName(statusString).toLowerCase();
+
+        // Check if the search term matches any of the tile's properties or its status
+        const idMatch = tile.id?.toLowerCase().includes(searchTerm);
+        const nameMatch = tile.Name?.toLowerCase().includes(searchTerm);
+        const descMatch = tile.Description?.toLowerCase().includes(searchTerm);
+        const statusMatch = statusDisplayName.includes(searchTerm);
+
+        return idMatch || nameMatch || descMatch || statusMatch;
+    }
+    ); // No limit on results
 
     if (filteredTiles.length === 0) {
         resultsContainer.innerHTML = '<div class="search-result-item locked">No tiles found.</div>';
@@ -524,21 +532,22 @@ function handleSearchInput(event) {
         const statusString = mainControllerInterface.getTileStatus(tile, currentTeam);
         const { status, statusClass } = getStatusWithClass(statusString);
         console.log(`[Search] Tile: ${tile.id}, Status: ${status}`); // Logging requested by user
-
-        // REVISED: Prioritize specific status color from styles, fallback to theme color for both dot and text.
-        let finalStatusColor = `var(--status-${statusClass}-color)`; // Default to theme color
+        
+        // REVERTED: Logic to derive a solid color from the style config for the status dot.
+        let statusDotColor = `var(--status-${statusClass}-color)`; // Default to theme color
+        let statusTextColor = statusDotColor; // Text color starts the same
         const statusStyle = allStyles[status];
         if (statusStyle && statusStyle.color) {
             const rgbaMatch = statusStyle.color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
             const alpha = rgbaMatch ? parseFloat(rgbaMatch[4]) : 1;
 
             if (alpha > 0) {
-                // If a specific color is set and not transparent, use it.
+                statusTextColor = statusStyle.color; // Use the full color (potentially with alpha) for text
                 // For the dot, we want a solid color, so we strip the alpha.
                 if (rgbaMatch) {
-                    finalStatusColor = `rgb(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]})`;
+                    statusDotColor = `rgb(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]})`;
                 } else {
-                    finalStatusColor = statusStyle.color; // Assumes hex or named color
+                    statusDotColor = statusStyle.color; // Assumes hex or named color
                 }
             }
         }
@@ -551,12 +560,12 @@ function handleSearchInput(event) {
 
         return `
             <div class="search-result-item ${isLocked ? 'locked' : ''}" data-tile-id="${tile.id}" data-status="${status}">
-                <div class="search-result-status" style="background-color: ${finalStatusColor};"></div>
+                <div class="search-result-status" style="background-color: ${statusDotColor};"></div>
                 <div class="search-result-info">
                     <span class="search-result-name">${tileName}${tilePoints}</span>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span class="search-result-id">ID: ${tile.id}</span>
-                        <span class="search-result-status-text" style="color: ${finalStatusColor};">${displayName}</span>
+                        <span class="search-result-status-text" style="color: ${statusTextColor};">${displayName}</span>
                     </div>
                     <span class="search-result-desc">${tileDesc}</span>
                 </div>

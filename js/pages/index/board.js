@@ -40,37 +40,53 @@ export function renderBoard() {
     const isLoggedIn = authState.isLoggedIn;
     const hasTeam = !!authState.profile?.team;
 
-    // --- User Feedback & Access Control ---
-    if (isPrivate && isCensored) {
-        if (!isLoggedIn) {
-            boardComponent.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">You must be logged in and assigned to a team to view the board.</p>';
+    // --- REFACTORED: User Feedback & Access Control ---
+    const messageConfig = {
+        private: {
+            censored: {
+                loggedIn: {
+                    withTeam: null, // Render board
+                    withoutTeam: { type: 'block', content: 'You must be assigned to a team to view the board. Please contact an administrator or your team captain.' }
+                },
+                loggedOut: { type: 'block', content: 'You must be logged in and assigned to a team to view the board.' }
+            },
+            notCensored: {
+                loggedIn: {
+                    withTeam: null, // Render board
+                    withoutTeam: { type: 'notify', content: 'You are not yet assigned to a team. Please contact an administrator.' }
+                },
+                loggedOut: { type: 'notify', content: 'This is a private event. Please log in to see team progress.' }
+            }
+        },
+        public: {
+            censored: {
+                any: { type: 'notify', content: 'The event has not started. Tile details are hidden.' }
+            },
+            notCensored: {
+                loggedIn: {
+                    withTeam: null, // Render board
+                    withoutTeam: { type: 'notify', content: 'You are not assigned to a team. Please select a team to see its progress.' }
+                },
+                loggedOut: { type: 'notify', content: 'You are not logged in. Please log in to see team progress.' }
+            }
+        }
+    };
+
+    const visibility = isPrivate ? 'private' : 'public';
+    const censorship = isCensored ? 'censored' : 'notCensored';
+    const loginStatus = isLoggedIn ? 'loggedIn' : 'loggedOut';
+    const teamStatus = hasTeam ? 'withTeam' : 'withoutTeam';
+
+    let message = messageConfig[visibility][censorship][loginStatus]?.[teamStatus] ?? messageConfig[visibility][censorship].any;
+
+    if (message) {
+        const messageHtml = `<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">${message.content}</p>`;
+        if (message.type === 'block') {
+            boardComponent.innerHTML = messageHtml;
             return;
+        } else if (message.type === 'notify') {
+            notificationContainer.innerHTML = messageHtml;
         }
-        if (!hasTeam) {
-            boardComponent.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">You must be assigned to a team to view the board. Please contact an administrator or your team captain.</p>';
-            return;
-        }
-    } else if (isPrivate && !isCensored) {
-        // The board is visible, but we show a helpful message above it.
-        let message = '';
-        if (!isLoggedIn) { // This case shows the generic board, so we guide them to log in.
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">This is a private event. Please log in to see team progress.</p>';
-        } else if (!hasTeam) { // Logged in, but no team. Guide them to select one.
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not yet assigned to a team. Please contact an administrator.</p>';
-        }
-        notificationContainer.innerHTML = message;
-    } else if (!isPrivate && isCensored) {
-        notificationContainer.innerHTML = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">The event has not started. Tile details are hidden.</p>';
-        // Don't return, we still want to render the censored board.
-    } else if (!isPrivate && !isCensored) {
-        // NEW: Handle public, non-censored board states.
-        let message = '';
-        if (!isLoggedIn) { // Public board, but guide them to log in for full functionality.
-            message = '<p style="text-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not logged in. Please log in to see team progress.</p>';
-        } else if (!hasTeam) { // Logged in, but no team. Guide them to select one.
-            message = '<p style-align:center; color: var(--secondary-text); padding: 1rem; background-color: var(--surface-color); border-radius: 8px; margin-bottom: 1rem;">You are not assigned to a team. Please select a team to see its progress.</p>';
-        }
-        notificationContainer.innerHTML = message;
     }
 
 
