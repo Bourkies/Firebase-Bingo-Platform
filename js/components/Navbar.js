@@ -1,5 +1,5 @@
+import { LitElement, html, css, unsafeCSS } from 'lit';
 import { initAuth, signOut, getAuthState, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
-import { fb, db } from '../core/firebase-config.js';
 // NEW: Import all stores and their initializers
 import { authStore } from '../stores/authStore.js';
 import { configStore, initConfigListener } from '../stores/configStore.js';
@@ -12,9 +12,11 @@ import { initUsersListener, updateUserDisplayName } from '../stores/usersStore.j
 // NEW: Centralized variable for the responsive breakpoint.
 const MOBILE_BREAKPOINT = '1000px';
 
-const template = document.createElement('template');
-template.innerHTML = /*html*/`
-    <style>
+// Static flag to ensure global listeners are only initialized once.
+let areStoresInitialized = false;
+
+class AppNavbar extends LitElement {
+    static styles = css`
         :host {
             width: 100%;
             max-width: 1400px;
@@ -28,7 +30,7 @@ template.innerHTML = /*html*/`
             margin-bottom: 1.5rem;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: center; 
             box-sizing: border-box;
             position: relative; /* For positioning the mobile menu */
         } 
@@ -120,7 +122,7 @@ template.innerHTML = /*html*/`
             transition: all 0.3s linear;
         }
         /* Responsive Styles */
-        @media (max-width: ${MOBILE_BREAKPOINT}) {
+        @media (max-width: ${unsafeCSS(MOBILE_BREAKPOINT)}) {
             .nav-links-mobile {
                 display: none;
                 flex-direction: column;
@@ -223,162 +225,49 @@ template.innerHTML = /*html*/`
             border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; text-align: left;
             color: var(--secondary-text);
         }
-        .anon-warning strong { color: #ffc107; }
-        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); }
-    </style>
-    <div class="navbar">
-        <!-- Desktop Links -->
-        <div class="nav-links-desktop">
-            <!-- Links will be populated by JS -->
-        </div>
-        <button id="hamburger-btn" class="hamburger">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-        <!-- Mobile Links (initially hidden) -->
-        <div class="nav-links-mobile">
-            <div id="mobile-actions-container" style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem; margin-top: 1rem; border-top: 1px solid var(--border-color); align-items: flex-start;">
-                <!-- Mobile-specific actions will be moved here by JS -->
-            </div>
-        </div>
-        <div id="auth-container" class="nav-actions">
-            <span id="user-info"></span>
-            <select id="theme-switcher"></select>
-            <button id="change-name-btn" style="display: none;">Change Name</button>
-            <button id="auth-button">Login</button>
-        </div>
-    </div>
+        .anon-warning strong { color: #ffc107; } 
+        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); } 
+    `;
 
-    <!-- Name Change Modal -->
-    <div id="welcome-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Welcome!</h2>
-            <p id="welcome-modal-message">Please set your display name for the event. This will be shown on leaderboards and submissions.</p>
-            <form id="welcome-form">
-                <label for="welcome-display-name">Display Name</label>
-                <input type="text" id="welcome-display-name" required>
-                <button type="submit">Save and Continue</button>
-            </form>
-        </div>
-    </div>
+    static properties = {
+        authState: { state: true },
+        config: { state: true },
+        allTeams: { state: true },
+        isWelcomeModalOpen: { state: true },
+        isLoginModalOpen: { state: true },
+        isSignupModalOpen: { state: true },
+        isMobileMenuOpen: { state: true },
+        isMobileView: { state: true },
+        availableThemes: { state: true },
+    };
 
-    <!-- Login Modal -->
-    <div id="login-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Sign In</h2>
-
-            <p class="login-method-description"><strong>Recommended:</strong> No personal information is shared.</p>
-            <span class="login-method-warning">Note: This method does not support password or account recovery.</span>
-            <form id="email-login-form" class="email-login-form">
-                <input type="text" id="login-username" placeholder="Username" required autocomplete="username">
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit" id="email-signin-btn">Sign In</button>
-            </form>
-            <p class="modal-switch" style="margin-top: 0.75rem;">Don't have an account? <a href="#" id="show-signup-modal-link">Sign Up</a></p>
-
-            <div class="form-divider">
-                <span>OR</span>
-            </div>
-
-            <div class="login-options">
-                <div class="google-login-container">
-                    <button id="login-google">
-                        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
-                        Sign in with Google
-                    </button>
-                    <div class="google-info-block">Your email address will be visible to event administrators for account identification.</div>
-                </div>
-                <button id="login-anon">
-                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,13.42 19.53,14.74 18.75,15.85L15.85,18.75C14.74,19.53 13.42,20 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"></path></svg>
-                    Sign in Anonymously
-                </button>
-            </div>
-            <div class="anon-warning">
-                <strong>Warning:</strong> Anonymous sign-in has limitations:
-                <ul>
-                    <li>Your progress is tied to <strong>this browser on this device only</strong>. If you log out or clear your cache, you will <strong>not</strong> be able to log back into this anonymous account.</li>
-                    <li>You cannot be assigned as a team captain, mod, or admin.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sign Up Modal -->
-    <div id="signup-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Create Account</h2>
-            <p>Create an account to save your progress and join a team.</p>
-            <form id="email-signup-form" class="email-login-form">
-                <input type="text" id="signup-username" placeholder="Username" required autocomplete="username">
-                <input type="password" id="signup-password" placeholder="Password (min. 6 characters)" required>
-                <button type="submit" id="email-signup-btn">Create Account</button>
-            </form>
-            <p class="modal-switch">Already have an account? <a href="#" id="show-login-modal-link">Sign In</a></p>
-        </div>
-    </div>
-`;
-
-// Static flag to ensure global listeners are only initialized once.
-let areStoresInitialized = false;
-
-class AppNavbar extends HTMLElement {
     constructor() {
         super();
-        this.attachShadow({ mode: 'open' });
-        this.shadowRoot.appendChild(template.content.cloneNode(true));
-
-        this.authButton = this.shadowRoot.querySelector('#auth-button');
-        this.userInfo = this.shadowRoot.querySelector('#user-info');
-        this.navLinksDesktop = this.shadowRoot.querySelector('.nav-links-desktop');
-        this.navLinksMobile = this.shadowRoot.querySelector('.nav-links-mobile');
-        this.changeNameBtn = this.shadowRoot.querySelector('#change-name-btn');
-        this.authContainer = this.shadowRoot.querySelector('#auth-container');
-        this.mobileActionsContainer = this.shadowRoot.querySelector('#mobile-actions-container');
-        this.authButton = this.shadowRoot.querySelector('#auth-button');
-
-        this.hamburgerBtn = this.shadowRoot.querySelector('#hamburger-btn');
-
-        this.themeSwitcher = this.shadowRoot.querySelector('#theme-switcher');
-
-        // Modal elements
-        this.welcomeModal = this.shadowRoot.querySelector('#welcome-modal');
-        this.welcomeForm = this.shadowRoot.querySelector('#welcome-form');
-        this.closeWelcomeModalBtn = this.shadowRoot.querySelector('#welcome-modal .close-button');
-
-        // Login Modal elements
-        this.loginModal = this.shadowRoot.querySelector('#login-modal');
-        this.closeLoginModalBtn = this.shadowRoot.querySelector('#login-modal .close-button');
-        this.loginGoogleBtn = this.shadowRoot.querySelector('#login-google');
-        this.loginAnonBtn = this.shadowRoot.querySelector('#login-anon');
-        this.emailLoginForm = this.shadowRoot.querySelector('#email-login-form'); // The sign-in form
-
-        // Sign Up Modal elements
-        this.signupModal = this.shadowRoot.querySelector('#signup-modal');
-        this.closeSignupModalBtn = this.shadowRoot.querySelector('#signup-modal .close-button');
-        this.emailSignupForm = this.shadowRoot.querySelector('#email-signup-form');
-        this.showSignupModalLink = this.shadowRoot.querySelector('#show-signup-modal-link');
-        this.showLoginModalLink = this.shadowRoot.querySelector('#show-login-modal-link');
-
         this.authState = getAuthState(); // Get initial state
+        this.config = {};
+        this.allTeams = {};
+        this.isWelcomeModalOpen = false;
+        this.isLoginModalOpen = false;
+        this.isSignupModalOpen = false;
+        this.isMobileMenuOpen = false;
+        this.isMobileView = false;
+        this.availableThemes = [];
     }
 
     showLoginModal() {
-        this.loginModal.style.display = 'flex';
+        this.isLoginModalOpen = true;
     }
 
     hideLoginModal() {
-        this.loginModal.style.display = 'none';
+        this.isLoginModalOpen = false;
     }
 
     hideSignupModal() {
-        this.signupModal.style.display = 'none';
+        this.isSignupModalOpen = false;
     }
 
     connectedCallback() {
+        super.connectedCallback();
         // Centralized store initialization. This runs only once.
         if (!areStoresInitialized) {
             console.log('[Navbar] Initializing all global data stores...');
@@ -392,62 +281,23 @@ class AppNavbar extends HTMLElement {
             areStoresInitialized = true;
         }
 
-        this.authButton.addEventListener('click', () => {
-            if (this.authState.isLoggedIn) {
-                signOut();
-            } else {
-                this.showLoginModal();
-            }
-        });
-
-        this.changeNameBtn.addEventListener('click', () => this.showWelcomeModal(true));
-        this.closeWelcomeModalBtn.addEventListener('click', () => this.welcomeModal.style.display = 'none');
-        this.welcomeForm.addEventListener('submit', (e) => this.handleWelcomeFormSubmit(e));
-
-        this.closeLoginModalBtn.addEventListener('click', () => this.hideLoginModal());
-        this.loginGoogleBtn.addEventListener('click', () => { signInWithGoogle(); this.hideLoginModal(); });
-        this.loginAnonBtn.addEventListener('click', () => { signInAnonymously(); this.hideLoginModal(); });
-        this.emailLoginForm.addEventListener('submit', (e) => this.handleEmailLogin(e, 'signin'));
-
-        // New listeners for sign-up modal and switching between modals
-        this.closeSignupModalBtn.addEventListener('click', () => this.hideSignupModal());
-        this.emailSignupForm.addEventListener('submit', (e) => this.handleEmailLogin(e, 'signup'));
-        this.showSignupModalLink.addEventListener('click', (e) => {
-            e.preventDefault(); this.hideLoginModal(); this.signupModal.style.display = 'flex';
-        });
-        this.showLoginModalLink.addEventListener('click', (e) => {
-            e.preventDefault(); this.hideSignupModal(); this.showLoginModal();
-        });
-
-        this.hamburgerBtn.addEventListener('click', () => {
-            this.navLinksMobile.classList.toggle('active');
-        });
-
-        this.themeSwitcher.addEventListener('change', (e) => this.setTheme(e.target.value));
         this.populateThemeSwitcher();
 
         // Listen to data
         this.unsubscribeFromStores = [
             authStore.subscribe(newAuthState => {
-                console.log('[Navbar] Auth store updated.');
                 this.authState = newAuthState;
-                // Check if we should show the welcome modal on first login
-                const { config } = configStore.get();
-                if (this.authState.isLoggedIn && this.authState.profile && config.promptForDisplayNameOnLogin === true && this.authState.profile.hasSetDisplayName !== true) {
-                    this.showWelcomeModal();
-                }
-                this.updateCurrentThemeSelection();
-                this.render();
-            }),
-            configStore.subscribe(() => {
-                console.log('[Navbar] Config store updated.');
-                this.render();
+                this.onDataChanged();
             }),
             teamsStore.subscribe(() => {
-                console.log('[Navbar] Teams store updated.');
-                this.render();
+                this.allTeams = teamsStore.get();
+                this.onDataChanged();
             })
         ];
+        this.unsubscribeFromStores.push(configStore.subscribe(() => {
+            console.log('[Navbar] Config store updated.');
+            this.config = configStore.get().config;
+        }));
 
         // Handle responsive element placement
         this.mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT})`);
@@ -456,41 +306,54 @@ class AppNavbar extends HTMLElement {
     }
 
     disconnectedCallback() {
+        super.disconnectedCallback();
         this.unsubscribeFromStores.forEach(unsub => unsub());
+        this.mediaQuery.removeEventListener('change', this.handleResponsiveLayout.bind(this));
     }
 
-    render() {
-        // The authState now contains the correct captain status directly from auth.js,
-        // which performs the check. No need to recalculate it here.
-        this.renderAuthInfo();
-        this.renderNavLinks();
-        this.updateCurrentThemeSelection();
+    onDataChanged() {
+        // This function is now the single point of reaction to data changes.
+        // We request a re-render, and recalculate captain status inside it.
+        this.recalculateCaptainStatus();
+        this.requestUpdate(); // Tell Lit to re-render the component.
+    }
+
+    recalculateCaptainStatus() {
+        if (!this.authState?.isLoggedIn || Object.keys(this.allTeams).length === 0) {
+            return; // Not enough info to check
+        }
+
+        const user = this.authState.user;
+        const profile = this.authState.profile;
+        const teamId = profile?.team;
+
+        let isCaptain = false;
+        if (teamId && this.allTeams[teamId]) {
+            isCaptain = this.allTeams[teamId].captainId === user.uid;
+        }
+
+        // Update the authStore only if the status has changed
+        if (this.authState.isTeamCaptain !== isCaptain) {
+            authStore.setKey('isTeamCaptain', isCaptain);
+        }
     }
 
     renderAuthInfo() {
+        let userInfoText = '';
         if (this.authState.isLoggedIn) {
-            this.authButton.textContent = 'Logout';
-
-            // Show/hide change name button
             const profile = this.authState.profile || {};
-            const canChangeName = !profile.isAnonymous && !profile.isNameLocked;
-            this.changeNameBtn.style.display = canChangeName ? 'inline-block' : 'none';
             const roles = [];
             if (profile.isAdmin) { roles.push('Admin'); }
             if (profile.isEventMod) { roles.push('Event Mod'); }
             if (this.authState.isTeamCaptain) { roles.push('Captain'); }
             console.log('[Navbar] Rendering roles:', roles);
 
-            const allTeams = teamsStore.get();
-            const teamName = (profile.team && allTeams) ? (allTeams[profile.team]?.name || profile.team) : '';
+            const teamName = (profile.team && this.allTeams) ? (this.allTeams[profile.team]?.name || profile.team) : '';
             const roleString = roles.length > 0 ? `(${roles.join(', ')})` : '';
             const teamInfo = teamName ? ` | Team: ${teamName}` : '';
-            this.userInfo.textContent = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
-        } else {
-            this.authButton.textContent = 'Login';
-            this.changeNameBtn.style.display = 'none';
-            this.userInfo.textContent = '';
+            userInfoText = `${profile.displayName || 'User'} ${roleString} ${teamInfo}`;
         }
+        return html`<span id="user-info">${userInfoText}</span>`;
     }
 
     renderNavLinks() {
@@ -499,15 +362,13 @@ class AppNavbar extends HTMLElement {
 
         console.log(`[Navbar] Rendering nav links. isTeamCaptain: ${this.authState.isTeamCaptain}`);
 
-        const { config } = configStore.get();
-
         // NEW: Use root-relative paths to ensure links work from any directory depth.
         const links = [
             { href: '/index.html', text: 'Board', show: true },
-            { href: '/overview.html', text: 'Scoreboard', show: config.enableOverviewPage === true },
+            { href: '/overview.html', text: 'Scoreboard', show: this.config.enableOverviewPage === true },
             { href: '/captain.html', text: 'Team Management', show: this.authState.isTeamCaptain },
             { href: '/admin.html', text: 'Admin', show: this.authState.isEventMod || this.authState.isAdmin },
-            { href: '/setup.html', text: 'Setup', show: this.authState.isAdmin }
+            { href: '/setup.html', text: 'Setup', show: this.authState.isAdmin },
         ];
 
         const linksHtml = links
@@ -519,33 +380,27 @@ class AppNavbar extends HTMLElement {
                 return `<a href="${link.href}" class="${isActive ? 'active' : ''}">${link.text}</a>`;
             })
             .join('');
-        
-        this.navLinksDesktop.innerHTML = linksHtml;
-        // Clear mobile links but preserve the actions container
-        this.navLinksMobile.querySelectorAll('a').forEach(a => a.remove());
-        this.navLinksMobile.insertAdjacentHTML('afterbegin', linksHtml);
+        // This is not ideal for Lit, but since it's just a string of links, it's acceptable.
+        // A better way would be to use `map` inside the template.
+        const linksTemplate = links.filter(link => link.show).map(link => {
+            const isActive = currentPagePath.endsWith(link.href) || (currentPagePath === '/' && link.href === '/index.html');
+            return html`<a href="${link.href}" class="${isActive ? 'active' : ''}">${link.text}</a>`;
+        });
+        return linksTemplate;
     }
 
     handleResponsiveLayout(event) {
-        if (event.matches) { // Mobile view
-            // Move elements to the mobile menu
-            this.mobileActionsContainer.appendChild(this.changeNameBtn);
-            this.mobileActionsContainer.appendChild(this.themeSwitcher);
-        } else { // Desktop view
-            // Move elements back to the main auth container, before the auth button
-            this.authContainer.insertBefore(this.themeSwitcher, this.authButton);
-            this.authContainer.insertBefore(this.changeNameBtn, this.authButton);
-        }
+        this.isMobileView = event.matches;
     }
 
     populateThemeSwitcher() {
         const availableThemes = [];
         // Find the theme.css stylesheet
-        const styleSheet = Array.from(document.styleSheets).find(
+        const styleSheet = Array.from(this.getRootNode().styleSheets || document.styleSheets).find(
             sheet => sheet.href && sheet.href.endsWith('theme.css')
         );
 
-        if (styleSheet) {
+        if (styleSheet?.cssRules) {
             try {
                 for (const rule of styleSheet.cssRules) {
                     if (rule.selectorText === ':root') {
@@ -561,12 +416,12 @@ class AppNavbar extends HTMLElement {
                 }
             } catch (e) { console.error("Could not parse stylesheet rules. This may be a CORS issue in local development.", e); }
         }
-        this.themeSwitcher.innerHTML = availableThemes.map(theme => `<option value="${theme.value}">${theme.text}</option>`).join('');
+        this.availableThemes = availableThemes;
     }
 
     updateCurrentThemeSelection() {
-        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-        this.themeSwitcher.value = currentTheme;
+        const themeSwitcher = this.shadowRoot?.getElementById('theme-switcher');
+        if (themeSwitcher) themeSwitcher.value = document.documentElement.getAttribute('data-theme') || 'dark';
     }
 
     setTheme(theme) {
@@ -581,35 +436,27 @@ class AppNavbar extends HTMLElement {
         document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
     }
 
-
     showWelcomeModal(isUpdate = false) {
-        const messageEl = this.shadowRoot.getElementById('welcome-modal-message');
-        const nameInput = this.shadowRoot.getElementById('welcome-display-name');
-        const titleEl = this.welcomeModal.querySelector('h2');
-
-        const { config } = configStore.get();
-        const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
-
-        if (isUpdate) {
-            titleEl.textContent = 'Update Display Name';
-        } else {
-            titleEl.textContent = 'Welcome!';
-        }
-        messageEl.textContent = (config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
-        nameInput.value = this.authState.profile.displayName || '';
-        this.welcomeModal.style.display = 'flex';
+        this.isWelcomeModalOpen = true;
+        // We can pass the `isUpdate` flag if needed, but for now, just opening is enough.
+        // The renderWelcomeModal method will handle the content.
+        // To make it reactive, we'd add an `isWelcomeUpdate` property.
     }
 
     async handleWelcomeFormSubmit(event) {
         event.preventDefault();
         const submitBtn = event.target.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        const newName = this.shadowRoot.getElementById('welcome-display-name').value.trim();
+
+        const form = event.target;
+        const formData = new FormData(form);
+        const newName = formData.get('welcome-display-name').trim();
+
         if (!newName || !this.authState.isLoggedIn) return;
 
         try {
             await updateUserDisplayName(newName);
-            this.welcomeModal.style.display = 'none';
+            this.isWelcomeModalOpen = false;
             // Dispatch a success message event for the page to handle
             this.dispatchEvent(new CustomEvent('show-message', {
                 bubbles: true, composed: true, detail: { message: 'Display name updated!', isError: false }
@@ -624,15 +471,10 @@ class AppNavbar extends HTMLElement {
 
     async handleEmailLogin(event, action) {
         event.preventDefault();
-        let username, password, success = false;
-
-        if (action === 'signin') {
-            username = this.shadowRoot.getElementById('login-username').value;
-            password = this.shadowRoot.getElementById('login-password').value;
-        } else if (action === 'signup') {
-            username = this.shadowRoot.getElementById('signup-username').value;
-            password = this.shadowRoot.getElementById('signup-password').value;
-        }
+        const form = event.target;
+        const formData = new FormData(form);
+        const username = formData.get('username');
+        const password = formData.get('password');
 
         if (!username || !password) {
             alert('Please enter both username and password.');
@@ -642,6 +484,7 @@ class AppNavbar extends HTMLElement {
         // Construct the email from the username
         const email = `${username.trim()}@fir-bingo-app.com`;
 
+        let success = false;
         if (action === 'signin') {
             success = await signInWithEmail(email, password);
         } else if (action === 'signup') {
@@ -652,6 +495,135 @@ class AppNavbar extends HTMLElement {
             this.hideLoginModal();
             this.hideSignupModal();
         }
+    }
+
+    renderWelcomeModal() {
+        if (!this.isWelcomeModalOpen) return html``;
+
+        const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
+        const message = (this.config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
+
+        return html`
+            <div id="welcome-modal" class="modal" style="display: flex;">
+                <div class="modal-content">
+                    <span class="close-button" @click=${() => { this.isWelcomeModalOpen = false; }}>&times;</span>
+                    <h2>Welcome!</h2>
+                    <p>${message}</p>
+                    <form id="welcome-form" @submit=${this.handleWelcomeFormSubmit}>
+                        <label for="welcome-display-name">Display Name</label>
+                        <input type="text" id="welcome-display-name" name="welcome-display-name" .value=${this.authState.profile.displayName || ''} required>
+                        <button type="submit">Save and Continue</button>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+
+    renderLoginModal() {
+        if (!this.isLoginModalOpen) return html``;
+        return html`
+            <div id="login-modal" class="modal" style="display: flex;">
+                <div class="modal-content">
+                    <span class="close-button" @click=${this.hideLoginModal}>&times;</span>
+                    <h2>Sign In</h2>
+
+                    <p class="login-method-description"><strong>Recommended:</strong> No personal information is shared.</p>
+                    <span class="login-method-warning">Note: This method does not support password or account recovery.</span>
+                    <form id="email-login-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signin')}>
+                        <input type="text" name="username" placeholder="Username" required autocomplete="username">
+                        <input type="password" name="password" placeholder="Password" required>
+                        <button type="submit">Sign In</button>
+                    </form>
+                    <p class="modal-switch" style="margin-top: 0.75rem;">Don't have an account? <a href="#" @click=${(e) => { e.preventDefault(); this.hideLoginModal(); this.isSignupModalOpen = true; }}>Sign Up</a></p>
+
+                    <div class="form-divider"><span>OR</span></div>
+
+                    <div class="login-options">
+                        <div class="google-login-container">
+                            <button id="login-google" @click=${() => { signInWithGoogle(); this.hideLoginModal(); }}>
+                                <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
+                                Sign in with Google
+                            </button>
+                            <div class="google-info-block">Your email address will be visible to event administrators for account identification.</div>
+                        </div>
+                        <button id="login-anon" @click=${() => { signInAnonymously(); this.hideLoginModal(); }}>
+                            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,13.42 19.53,14.74 18.75,15.85L15.85,18.75C14.74,19.53 13.42,20 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"></path></svg>
+                            Sign in Anonymously
+                        </button>
+                    </div>
+                    <div class="anon-warning">
+                        <strong>Warning:</strong> Anonymous sign-in has limitations:
+                        <ul>
+                            <li>Your progress is tied to <strong>this browser on this device only</strong>. If you log out or clear your cache, you will <strong>not</strong> be able to log back into this anonymous account.</li>
+                            <li>You cannot be assigned as a team captain, mod, or admin.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderSignupModal() {
+        if (!this.isSignupModalOpen) return html``;
+        return html`
+            <div id="signup-modal" class="modal" style="display: flex;">
+                <div class="modal-content">
+                    <span class="close-button" @click=${this.hideSignupModal}>&times;</span>
+                    <h2>Create Account</h2>
+                    <p>Create an account to save your progress and join a team.</p>
+                    <form id="email-signup-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signup')}>
+                        <input type="text" name="username" placeholder="Username" required autocomplete="username">
+                        <input type="password" name="password" placeholder="Password (min. 6 characters)" required>
+                        <button type="submit">Create Account</button>
+                    </form>
+                    <p class="modal-switch">Already have an account? <a href="#" @click=${(e) => { e.preventDefault(); this.hideSignupModal(); this.showLoginModal(); }}>Sign In</a></p>
+                </div>
+            </div>
+        `;
+    }
+
+    render() {
+        const canChangeName = this.authState.isLoggedIn && !this.authState.profile?.isAnonymous && !this.authState.profile?.isNameLocked;
+
+        const desktopActions = html`
+            <select id="theme-switcher" @change=${(e) => this.setTheme(e.target.value)}>
+                ${this.availableThemes.map(theme => html`<option value="${theme.value}">${theme.text}</option>`)}
+            </select>
+            ${canChangeName ? html`<button id="change-name-btn" @click=${() => this.showWelcomeModal(true)}>Change Name</button>` : ''}
+        `;
+
+        return html`
+            <div class="navbar">
+                <!-- Desktop Links -->
+                <div class="nav-links-desktop">
+                    ${this.renderNavLinks()}
+                </div>
+
+                <button id="hamburger-btn" class="hamburger" @click=${() => { this.isMobileMenuOpen = !this.isMobileMenuOpen; }}>
+                    <span></span><span></span><span></span>
+                </button>
+
+                <!-- Mobile Links (conditionally rendered) -->
+                <div class="nav-links-mobile ${this.isMobileMenuOpen ? 'active' : ''}">
+                    ${this.renderNavLinks()}
+                    <div id="mobile-actions-container" style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem; margin-top: 1rem; border-top: 1px solid var(--border-color); align-items: flex-start;">
+                        ${desktopActions}
+                    </div>
+                </div>
+
+                <div id="auth-container" class="nav-actions">
+                    ${this.renderAuthInfo()}
+                    ${!this.isMobileView ? desktopActions : ''}
+                    <button id="auth-button" @click=${() => { this.authState.isLoggedIn ? signOut() : this.showLoginModal(); }}>
+                        ${this.authState.isLoggedIn ? 'Logout' : 'Login'}
+                    </button>
+                </div>
+            </div>
+
+            ${this.renderWelcomeModal()}
+            ${this.renderLoginModal()}
+            ${this.renderSignupModal()}
+        `;
     }
 }
 
