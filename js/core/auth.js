@@ -1,5 +1,6 @@
 import { db, auth, fb } from './firebase-config.js';
 import { authStore } from '../stores/authStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
 
 let currentUser = null;
 let userProfile = null;
@@ -154,7 +155,6 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
         console.log('[Auth] User profile data:', { displayName: userProfile.displayName, team: userProfile.team, isAdmin: userProfile.isAdmin });
 
         // After the profile is fetched or updated, notify the page controller.
-        // The captain status will now be calculated by the Navbar, which listens to both auth and team stores.
         notifyListeners();
     }, (error) => {
         console.error("Error listening to user profile:", error);
@@ -212,7 +212,7 @@ export function getAuthState() {
         profile: fullProfile,
         isAdmin: fullProfile?.isAdmin === true,
         isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
-        isTeamCaptain: currentStoreState.isTeamCaptain, // The navbar is now the source of truth for this.
+        isTeamCaptain: currentStoreState.isTeamCaptain, // The value is now derived in app-init.js
         teamChanged: oldTeam !== undefined && oldTeam !== newTeam,
         authChecked: authStateHasBeenChecked // NEW: Signal that the initial auth check is done.
     };

@@ -1,19 +1,13 @@
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { initAuth, signOut, getAuthState, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
-// NEW: Import all stores and their initializers
+import { signOut, getAuthState, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
+// Import stores and their write operations
 import { authStore } from '../stores/authStore.js';
-import { configStore, initConfigListener } from '../stores/configStore.js';
-import { teamsStore, initTeamsListener } from '../stores/teamsStore.js';
-import { initSubmissionsListener } from '../stores/submissionsStore.js'; 
-import { initTilesListener } from '../stores/tilesStore.js';
-import { initUsersListener, updateUserDisplayName } from '../stores/usersStore.js';
-
+import { configStore } from '../stores/configStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
+import { updateUserDisplayName } from '../stores/usersStore.js';
 
 // NEW: Centralized variable for the responsive breakpoint.
 const MOBILE_BREAKPOINT = '1000px';
-
-// Static flag to ensure global listeners are only initialized once.
-let areStoresInitialized = false;
 
 class AppNavbar extends LitElement {
     static styles = css`
@@ -268,30 +262,15 @@ class AppNavbar extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        // Centralized store initialization. This runs only once.
-        if (!areStoresInitialized) {
-            console.log('[Navbar] Initializing all global data stores...');
-            // The order matters for dependencies: auth -> config -> others
-            initAuth(() => {}); // Kicks off auth process, which populates authStore
-            initConfigListener();
-            initTeamsListener();
-            initTilesListener(); // Depends on auth and config
-            initUsersListener(); // Depends on auth
-            initSubmissionsListener();
-            areStoresInitialized = true;
-        }
-
         this.populateThemeSwitcher();
 
         // Listen to data
         this.unsubscribeFromStores = [
             authStore.subscribe(newAuthState => {
                 this.authState = newAuthState;
-                this.onDataChanged();
             }),
             teamsStore.subscribe(() => {
                 this.allTeams = teamsStore.get();
-                this.onDataChanged();
             })
         ];
         this.unsubscribeFromStores.push(configStore.subscribe(() => {
@@ -309,33 +288,6 @@ class AppNavbar extends LitElement {
         super.disconnectedCallback();
         this.unsubscribeFromStores.forEach(unsub => unsub());
         this.mediaQuery.removeEventListener('change', this.handleResponsiveLayout.bind(this));
-    }
-
-    onDataChanged() {
-        // This function is now the single point of reaction to data changes.
-        // We request a re-render, and recalculate captain status inside it.
-        this.recalculateCaptainStatus();
-        this.requestUpdate(); // Tell Lit to re-render the component.
-    }
-
-    recalculateCaptainStatus() {
-        if (!this.authState?.isLoggedIn || Object.keys(this.allTeams).length === 0) {
-            return; // Not enough info to check
-        }
-
-        const user = this.authState.user;
-        const profile = this.authState.profile;
-        const teamId = profile?.team;
-
-        let isCaptain = false;
-        if (teamId && this.allTeams[teamId]) {
-            isCaptain = this.allTeams[teamId].captainId === user.uid;
-        }
-
-        // Update the authStore only if the status has changed
-        if (this.authState.isTeamCaptain !== isCaptain) {
-            authStore.setKey('isTeamCaptain', isCaptain);
-        }
     }
 
     renderAuthInfo() {
