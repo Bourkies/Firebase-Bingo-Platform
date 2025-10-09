@@ -432,3 +432,58 @@ This plan will integrate the following free, open-source libraries that work wit
         - **Destination:** `js/stores/submissionsStore.js`
         - **Calling Files to Update:** `js/pages/index/submissionModal.js`, `js/pages/adminController.js`, `js/pages/importSubmissionsController.js` 
   - [x] **5.1.14:** Delete the old `js/core/data/` directory once all its logic has been successfully moved and tested.
+
+- [ ] **5.2:** UI Modernization with Lit & Shoelace
+  - [ ] **5.2.1: Foundational Setup & Theming**
+    - **Task:** Add CDN import paths for `lit` and `@shoelace-style/shoelace` to the `importmap` in all HTML files.
+
+    - **Task:** Add the base Shoelace stylesheet link to all HTML files to provide core component styles without a theme.
+
+    - **Task:** Create a new, dedicated theme file at `css/shoelace-theme.css` to define all themes for Shoelace components from scratch using its CSS variables, keeping it separate from the old `theme.css`.
+
+    - **Task:** As each page is refactored, add a link to the new `shoelace-theme.css` stylesheet in its `<head>` to activate the Shoelace theme only on converted pages.
+
+
+  - [ ] **5.2.2: Convert Navbar to a Lit Component**
+    - **Task:** Refactor `js/components/Navbar.js` from a vanilla `HTMLElement` to a `LitElement`.
+    - **Task:** Replace all manual DOM creation and `innerHTML` manipulation with Lit's declarative `render()` method.
+    - **Task:** Replace the manually styled modals (Login, Sign Up, Welcome) with the Shoelace `sl-dialog` component for accessible, animated modals.
+    - **Task:** Replace all standard button, input, and select elements with their Shoelace counterparts (e.g., `sl-button`, `sl-input`, `sl-select`).
+    - **Task:** Use Lit's `@property` decorator to manage internal state (like which modal is open) and to receive data from Nano Stores. The store `subscribe` callbacks will now update these properties, triggering automatic, efficient re-renders.
+
+  - [ ] **5.2.3: Update Test Page (`navbar_test.html`)**
+    - **Task:** Update the `importmap` and add the Shoelace stylesheet as per step 5.2.1.
+    - **Task:** Replace the main content container with Shoelace `sl-card` components to verify that components are rendering and theming correctly.
+    - **Validation:** Confirm that the data displayed in the cards still updates in real-time when auth state changes. This proves the new Lit navbar is correctly interacting with the global stores.
+
+  - [ ] **5.2.4: Standard Refactoring Process for Pages**
+    - **Instruction 1 (HTML Setup):** In the target HTML file, add the stylesheet link for the new Shoelace theme in the `<head>`: `<link rel="stylesheet" href="./css/shoelace-theme.css">`.
+    - **Instruction 2 (Modals):** Replace any custom modal `div`s with the `<sl-dialog>` component. Update the controller logic to show/hide the dialog using its `.show()` and `.hide()` methods.
+    - **Instruction 3 (Forms):** Replace all standard form elements with their Shoelace counterparts. This includes:
+        - `<input>` -> `<sl-input>`, `<sl-checkbox>`, `<sl-radio-group>`, `<sl-range>`, `<sl-color-picker>`
+        - `<select>` -> `<sl-select>`
+        - `<textarea>` -> `<sl-textarea>`
+        - `<button>` -> `<sl-button>`
+    - **Instruction 4 (Structure):** Replace other structural elements where appropriate for a better user experience and more consistent UI.
+        - Custom tab implementations -> `<sl-tab-group>`
+        - Custom accordions/expandable sections -> `<sl-details>`
+        - Generic content containers -> `<sl-card>`
+    - **Instruction 5 (Targeted Reactivity):** Refactor page controllers to perform targeted updates instead of full page re-renders. Instead of a single `onDataChanged` function that re-renders everything, subscribe to individual stores and update only the relevant components.
+        - **Example:** The submission modal on the Player Page should subscribe to the `usersStore`. When a user is added to the current team, only the player-selection part of the modal should re-render, not the entire board. This is achieved by passing store data into Lit component properties, which automatically handle efficient updates.
+
+  - [ ] **5.2.5: Page Refactoring Checklist**
+    - **Apply the standard process from 5.2.4 to the following pages and their associated controllers/sub-modules.**
+    - [ ] **Player Page (`index.html`)**
+      - **Files:** `index.html`, `js/pages/indexController.js`, `js/pages/index/submissionModal.js`
+    - [ ] **Admin Page (`admin.html`)**
+      - **Files:** `admin.html`, `js/pages/adminController.js`
+    - [ ] **Setup Page (`setup.html`)**
+      - **Files:** `setup.html`, `js/pages/setupController.js`, `js/pages/setup/globalConfigEditor.js`, `js/pages/setup/tileEditor.js`
+    - [ ] **Users & Teams Page (`users.html`)**
+      - **Files:** `users.html`, `js/pages/usersController.js`
+    - [ ] **Permissions Page (`permissions.html`)**
+      - **Files:** `permissions.html`, `js/pages/permissionsController.js`
+    - [ ] **Captain Page (`captain.html`)**
+      - **Files:** `captain.html`, `js/pages/captainController.js`
+    - [ ] **Import Pages (`import_*.html`)**
+      - **Files:** `import_tiles.html`, `import_config.html`, `import_submissions.html` and their controllers.
