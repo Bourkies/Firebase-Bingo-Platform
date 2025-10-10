@@ -433,16 +433,16 @@ This plan will integrate the following free, open-source libraries that work wit
   - [x] **5.1.14:** Delete the old `js/core/data/` directory once all its logic has been successfully moved and tested.
 
 - [ ] **5.2:** UI Modernization with Lit
-  - [ ] **5.2.1: Foundational Setup**
+  - [x] **5.2.1: Foundational Setup**
     - **Task:** Add the CDN import path for `lit` to the `importmap` in all HTML files.
 
-  - [ ] **5.2.2: Convert Navbar to a Lit Component**
+  - [x] **5.2.2: Convert Navbar to a Lit Component**
     - **Task:** Refactor `js/components/Navbar.js` from a vanilla `HTMLElement` to a `LitElement`.
     - **Task:** Replace all manual DOM creation and `innerHTML` manipulation with Lit's declarative `render()` method. The component will encapsulate its own HTML structure and styling.
     - **Task:** The existing modals (Login, Sign Up, Welcome) will be refactored into the Lit `render()` method, maintaining their current custom styling.
     - **Task:** Use Lit's `@property` decorator to manage internal state (like which modal is open) and to receive data from Nano Stores. The store `subscribe` callbacks will now update these properties, triggering automatic, efficient re-renders.
 
-  - [ ] **5.2.3: Update Test Page (`navbar_test.html`)**
+  - [x] **5.2.3: Update Test Page (`navbar_test.html`)**
     - **Task:** Update the `importmap` as per step 5.2.1.
     - **Task:** Keep the main content container as-is, using standard HTML elements styled by the project's CSS.
     - **Validation:** Confirm that the data displayed in the cards still updates in real-time when auth state changes. This proves the new Lit navbar is correctly interacting with the global stores.
@@ -455,7 +455,7 @@ This plan will integrate the following free, open-source libraries that work wit
 
   - [ ] **5.2.5: Page Refactoring Checklist**
     - **Apply the standard process from 5.2.4 to the following high-impact pages.**
-    - [ ] **Player Page (`index.html`)**
+    - [x] **Player Page (`index.html`)**
       - **Files:** `index.html`, `js/pages/indexController.js`, `js/pages/index/submissionModal.js`
       - **Task:** Convert the main board rendering logic into a `<bingo-board>` Lit component.
       - **Task:** Convert the submission modal logic into a `<submission-modal>` Lit component.
