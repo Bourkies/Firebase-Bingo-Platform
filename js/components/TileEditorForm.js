@@ -187,49 +187,78 @@ export class TileEditorForm extends LitElement {
         }
     }
 
-    handleInputChange(event) {
-        if (!this.tileData) return;
+    // Debounce function to delay execution
+    debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
+    // Memoize the debounced function so it maintains its state
+    debouncedSave = this.debounce((docId, data) => {
+        this.dispatchEvent(new CustomEvent('tile-update', {
+            detail: { docId, data }
+        }));
+    }, 500);
+
+    handlePreviewUpdate(event) {
+        if (!this.tileData) return;
         const input = event.target;
         const key = input.dataset.key;
         if (!key) return;
 
-        // Check if the input is part of the main form, not sub-fieldsets
-        if (input.closest('#details-form') && !input.closest('.overrides-fieldset') && !input.closest('.prereq-fieldset')) {
-            let newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
-            if (input.dataset.unit) newValue += input.dataset.unit;
-
-            // FIX: Convert numeric string values from range sliders back to numbers before saving.
-            const numericKeys = ['Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Points'];
-            if (numericKeys.includes(key) && typeof newValue === 'string') {
-                newValue = parseFloat(newValue) || 0;
-            }
-
-            // Dispatch an event to notify the controller to save the data
-            this.dispatchEvent(new CustomEvent('tile-update', {
-                detail: {
-                    docId: this.tileData.docId,
-                    data: { [key]: newValue }
-                }
-            }));
-
-            // Also update the local tileData to reflect the change immediately
-            // This is important for things like the ID validation
-            this.tileData = { ...this.tileData, [key]: newValue };
-
-            const visualKeys = ['id', 'Name', 'Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
+        // Only trigger live preview for sliders and number inputs
+        if (input.type === 'range') {
+            const visualKeys = ['Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
             if (visualKeys.includes(key)) {
-                this.dispatchEvent(new CustomEvent('render-tiles'));
+                // Also update the sibling number input for visual consistency
+                const numberInput = this.shadowRoot.querySelector(`input[type="number"][data-key="${key}"]`);
+                if (numberInput) numberInput.value = input.value;
+
+                this.dispatchEvent(new CustomEvent('render-tiles-preview', {
+                    detail: { docId: this.tileData.docId, key, value: parseFloat(input.value) }
+                }));
             }
-            if (key === 'id') {
-                this.validateTileId();
+        } else if (input.type === 'number') {
+            // When typing in the number input, just update the local value.
+            // The 'change' event will handle saving and syncing the slider.
+            const rangeInput = this.shadowRoot.querySelector(`input[type="range"][data-key="${key}"]`);
+            if (rangeInput) {
+                // This is just a preview, don't trigger a save yet.
+                rangeInput.value = input.value;
             }
         }
     }
 
+    handleServerUpdate(event) {
+        if (!this.tileData) return;
+        const input = event.target;
+        const key = input.dataset.key;
+        if (!key || !input.closest('#details-form') || input.closest('.overrides-fieldset') || input.closest('.prereq-fieldset')) return;
+
+        // NEW: Sync slider and number input on change
+        if (input.type === 'number') {
+            const rangeInput = this.shadowRoot.querySelector(`input[type="range"][data-key="${key}"]`);
+            if (rangeInput) rangeInput.value = input.value;
+            this.handlePreviewUpdate({ target: rangeInput }); // Manually trigger a preview update
+        }
+
+        let newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
+        if (input.dataset.unit) newValue += input.dataset.unit;
+
+        const numericKeys = ['Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Points'];
+        if (numericKeys.includes(key) && typeof newValue === 'string') {
+            newValue = parseFloat(newValue) || 0;
+        }
+
+        this.debouncedSave(this.tileData.docId, { [key]: newValue });
+    }
+
     render() {
         return html`
-            <form id="details-form" @input=${this.handleInputChange}></form>
+            <form id="details-form" @input=${this.handlePreviewUpdate} @change=${this.handleServerUpdate}></form>
         `;
     }
 }

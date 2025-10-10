@@ -3,7 +3,7 @@ import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.j
 import '../components/BingoTile.js'; // Import the tile component
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
-import { configStore } from '../stores/configStore.js'; 
+import { configStore, updateConfig, updateStyle } from '../stores/configStore.js'; 
 import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
 
 // Import setup sub-modules
@@ -139,10 +139,39 @@ function onDataChanged() {
     // that were previously done once.
     if (!document.body.dataset.initialized) {
         document.body.dataset.initialized = 'true';
+
+        // NEW: Add listeners for Lit component events
+        const tileEditor = document.getElementById('tile-editor-form-component');
+        tileEditor.addEventListener('tile-update', (e) => saveTile(e.detail.docId, e.detail.data));
+        tileEditor.addEventListener('render-tiles', () => renderTiles());
+        tileEditor.addEventListener('render-tiles-preview', handleTilePreviewUpdate);
+
+        const globalConfigEditor = document.getElementById('global-config-form-component');
+        globalConfigEditor.addEventListener('config-change', handleGlobalConfigChange);
+        globalConfigEditor.addEventListener('config-preview-change', (e) => {
+            handleGlobalConfigChange(e); // Can use the same handler for preview
+            renderTiles(); // Re-render all tiles for style previews
+        });
+
         createStylePreviewButtons();
         applyTileLockState();
         loadBoardImage(config.boardImageUrl || '');
     }
+}
+
+function handleGlobalConfigChange(event) {
+    const { status, key, value } = event.detail;
+    if (!key) return;
+
+    if (status) {
+        updateStyle(status, { [key]: value });
+    } else {
+        if (key === 'boardImageUrl') loadBoardImage(value);
+        updateConfig({ [key]: value });
+    }
+    // The store listener will trigger a re-render if necessary,
+    // but for live style previews, we want an immediate re-render.
+    if (event.type === 'config-preview-change') renderTiles();
 }
 
 function renderTiles() {
@@ -172,6 +201,23 @@ function renderTiles() {
     renderPrereqLines(prereqVisMode);
 }
 
+function handleTilePreviewUpdate(event) {
+    const { docId, key, value } = event.detail;
+    const tilesData = tilesStore.get();
+    const tileIndex = tilesData.findIndex(t => t.docId === docId);
+    if (tileIndex === -1) return;
+
+    // Find the specific tile element on the board and update it
+    const tileEl = boardContent.querySelector(`bingo-tile[data-index="${tileIndex}"]`);
+    if (tileEl) {
+        // FIX: Create a *new* tile object to ensure Lit's property change detection works.
+        // Mutating the existing object in the store's array is not enough.
+        const newTileData = { ...tileEl.tile, [key]: value };
+        tileEl.tile = newTileData;
+        // Also update the master array so other interactions have the latest data.
+        tilesData[tileIndex] = newTileData;
+    }
+}
 function applyTransform() {
     boardContent.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
 }

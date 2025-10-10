@@ -27,10 +27,6 @@ export function initializeTileEditor(controller) {
         }
     });
 
-    // Listen for events from the Lit component
-    editorComponent?.addEventListener('tile-update', (e) => handleEditorInputChange(e));
-    editorComponent?.addEventListener('render-tiles', () => mainController.renderTiles());
-
     addNewTileBtn?.addEventListener('click', addNewTile);
     deleteTileBtn?.addEventListener('click', deleteSelectedTile);
 }
@@ -107,14 +103,6 @@ async function addNewTile() {
     } catch (err) {
         showMessage(`Failed to create tile: ${err.message}`, true);
     }
-}
-
-function handleEditorInputChange(event) {
-    const { docId, data } = event.detail;
-    if (!docId || !data) return;
-
-    // The Lit component told us what changed, so we just save it.
-    mainController.saveTile(docId, data);
 }
 
 async function deleteSelectedTile() {

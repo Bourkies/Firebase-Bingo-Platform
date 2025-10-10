@@ -148,23 +148,40 @@ export class GlobalConfigForm extends LitElement {
         formContainer.appendChild(stylesFieldset);
     }
 
-    handleFormChange(event) {
+    // Debounce function to delay execution
+    debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Memoize the debounced function
+    debouncedSave = this.debounce((detail) => {
+        this.dispatchEvent(new CustomEvent('config-change', { detail }));
+    }, 500);
+
+    handleFormUpdate(event) {
         const input = event.target;
         const key = input.dataset.key;
         if (!key) return;
 
         const status = input.dataset.status;
         let newValue = input.type === 'checkbox' ? input.checked : input.value;
-        if (input.dataset.unit) newValue += input.dataset.unit;
 
-        this.dispatchEvent(new CustomEvent('config-change', {
-            detail: { status, key, value: newValue }
-        }));
+        // For sliders/number inputs, trigger live preview on 'input'
+        if (event.type === 'input' && (input.type === 'range' || input.type === 'number')) {
+            this.dispatchEvent(new CustomEvent('config-preview-change', { detail: { status, key, value: newValue } }));
+        } else if (event.type === 'change') { // For everything else, save to server on 'change'
+            if (input.dataset.unit) newValue += input.dataset.unit;
+            this.debouncedSave({ status, key, value: newValue });
+        }
     }
 
     render() {
         return html`
-            <div id="form-container" @input=${this.handleFormChange} style="display: ${this.isVisible ? 'block' : 'none'}"></div>
+            <div id="form-container" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate} style="display: ${this.isVisible ? 'block' : 'none'}"></div>
         `;
     }
 }
