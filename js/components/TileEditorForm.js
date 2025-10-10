@@ -187,80 +187,80 @@ export class TileEditorForm extends LitElement {
         }
     }
 
-    // Debounce function to delay execution
-    debounce(func, wait) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
-    // Memoize the debounced function so it maintains its state
-    debouncedSave = this.debounce((docId, data) => {
-        this.dispatchEvent(new CustomEvent('tile-update', {
-            detail: { docId, data }
-        }));
-    }, 500);
-
-    handlePreviewUpdate(event) {
+    /**
+     * This single handler manages both live previews and debounced saves.
+     * It's triggered by both 'input' and 'change' events.
+     */
+    handleFormUpdate(event) {
         if (!this.tileData) return;
         const input = event.target;
         const key = input.dataset.key;
         if (!key) return;
 
-        // Only trigger live preview for sliders and number inputs
+        // --- Live Preview & Sync ---
+        // Sync slider and number input
         if (input.type === 'range') {
-            const visualKeys = ['Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
-            if (visualKeys.includes(key)) {
-                // Also update the sibling number input for visual consistency
-                const numberInput = this.shadowRoot.querySelector(`input[type="number"][data-key="${key}"]`);
-                if (numberInput) numberInput.value = input.value;
-
-                this.dispatchEvent(new CustomEvent('render-tiles-preview', {
-                    detail: { docId: this.tileData.docId, key, value: parseFloat(input.value) }
-                }));
-            }
-        } else if (input.type === 'number') {
-            // When typing in the number input, just update the local value.
-            // The 'change' event will handle saving and syncing the slider.
-            const rangeInput = this.shadowRoot.querySelector(`input[type="range"][data-key="${key}"]`);
-            if (rangeInput) {
-                // This is just a preview, don't trigger a save yet.
-                rangeInput.value = input.value;
-            }
-        }
-    }
-
-    handleServerUpdate(event) {
-        if (!this.tileData) return;
-        const input = event.target;
-        const key = input.dataset.key;
-        if (!key || !input.closest('#details-form') || input.closest('.overrides-fieldset') || input.closest('.prereq-fieldset')) return;
-
-        // NEW: Sync slider and number input on change
-        if (input.type === 'number') {
+            const numberInput = this.shadowRoot.querySelector(`input[type="number"][data-key="${key}"]`);
+            if (numberInput) numberInput.value = input.value;
+        } else if (input.type === 'number' && input.validity.valid) {
             const rangeInput = this.shadowRoot.querySelector(`input[type="range"][data-key="${key}"]`);
             if (rangeInput) rangeInput.value = input.value;
-            this.handlePreviewUpdate({ target: rangeInput }); // Manually trigger a preview update
         }
 
-        let newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
-        if (input.dataset.unit) newValue += input.dataset.unit;
+        // Dispatch preview event for visual updates on the board
+        const visualKeys = ['Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
+        if (visualKeys.includes(key) && input.validity.valid) {
+            this.dispatchEvent(new CustomEvent('render-tiles-preview', {
+                detail: { docId: this.tileData.docId, key, value: input.value }
+            }));
+        }
+
+        // --- Debounced Save ---
+        // This will be called on both 'input' and 'change' events.
+        // The debounce ensures we don't spam the server while typing or sliding.
+        // The final 'change' event will simply reset the debounce timer and save the final value.
+        if (!key || !input.closest('#details-form') || input.closest('.overrides-fieldset') || input.closest('.prereq-fieldset')) return;
 
         const numericKeys = ['Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Points'];
-        if (numericKeys.includes(key) && typeof newValue === 'string') {
-            newValue = parseFloat(newValue) || 0;
-        }
-
-        this.debouncedSave(this.tileData.docId, { [key]: newValue });
+        debouncedSave(this, this.tileData.docId, {
+            key: key,
+            value: input.type === 'checkbox' ? input.checked : input.value,
+            isNumeric: numericKeys.includes(key),
+            unit: input.dataset.unit
+        });
     }
 
     render() {
         return html`
-            <form id="details-form" @input=${this.handlePreviewUpdate} @change=${this.handleServerUpdate}></form>
+            <form id="details-form" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate}></form>
         `;
     }
 }
 
 customElements.define('tile-editor-form', TileEditorForm);
+
+// --- REVISED: Debounced save logic is now outside the class method ---
+const debouncedSave = debounce((component, docId, detail) => {
+    let finalValue = detail.value;
+    // On save, we parse the final value to a number if needed.
+    // This happens after the user has stopped typing/interacting.
+    if (detail.isNumeric && typeof finalValue === 'string' && finalValue.trim() !== '') {
+        finalValue = parseFloat(finalValue) || 0;
+    }
+    // Add unit AFTER parsing, if applicable.
+    if (detail.unit) {
+        finalValue = `${finalValue}${detail.unit}`;
+    }
+    component.dispatchEvent(new CustomEvent('tile-update', {
+        detail: { docId, data: { [detail.key]: finalValue } }
+    }));
+}, 500);
+
+// Debounce function to delay execution
+function debounce(func, wait) {
+    let timeout;
+    return (component, ...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(component, ...args), wait);
+    };
+}

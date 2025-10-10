@@ -148,20 +148,6 @@ export class GlobalConfigForm extends LitElement {
         formContainer.appendChild(stylesFieldset);
     }
 
-    // Debounce function to delay execution
-    debounce(func, wait) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
-    // Memoize the debounced function
-    debouncedSave = this.debounce((detail) => {
-        this.dispatchEvent(new CustomEvent('config-change', { detail }));
-    }, 500);
-
     handleFormUpdate(event) {
         const input = event.target;
         const key = input.dataset.key;
@@ -170,13 +156,29 @@ export class GlobalConfigForm extends LitElement {
         const status = input.dataset.status;
         let newValue = input.type === 'checkbox' ? input.checked : input.value;
 
-        // For sliders/number inputs, trigger live preview on 'input'
-        if (event.type === 'input' && (input.type === 'range' || input.type === 'number')) {
-            this.dispatchEvent(new CustomEvent('config-preview-change', { detail: { status, key, value: newValue } }));
-        } else if (event.type === 'change') { // For everything else, save to server on 'change'
-            if (input.dataset.unit) newValue += input.dataset.unit;
-            this.debouncedSave({ status, key, value: newValue });
+        // --- Live Preview & Sync ---
+        // Sync number input and slider
+        if (input.type === 'range') {
+            const numberInput = this.shadowRoot.querySelector(`input[type="number"][data-key="${key}"][data-status="${status || ''}"]`);
+            if (numberInput) numberInput.value = newValue;
+        } else if (input.type === 'number' && input.validity.valid) { // Only sync if the number is valid
+            const rangeInput = this.shadowRoot.querySelector(`input[type="range"][data-key="${key}"][data-status="${status || ''}"]`);
+            if (rangeInput) rangeInput.value = newValue;
         }
+
+        // Dispatch preview event for real-time updates on the board
+        this.dispatchEvent(new CustomEvent('config-preview-change', { detail: { status, key, value: newValue } }));
+
+        // --- Debounced Save ---
+        // This will be called on both 'input' and 'change' events.
+        // The debounce ensures we don't spam the server.
+        debouncedSave(this, {
+            status,
+            key,
+            value: newValue,
+            isNumeric: input.type === 'number',
+            unit: input.dataset.unit
+        });
     }
 
     render() {
@@ -185,5 +187,3 @@ export class GlobalConfigForm extends LitElement {
         `;
     }
 }
-
-customElements.define('global-config-form', GlobalConfigForm);

@@ -212,7 +212,7 @@ function handleTilePreviewUpdate(event) {
     if (tileEl) {
         // FIX: Create a *new* tile object to ensure Lit's property change detection works.
         // Mutating the existing object in the store's array is not enough.
-        const newTileData = { ...tileEl.tile, [key]: value };
+        const newTileData = { ...tileEl.tile, [key]: parseFloat(value) || 0 };
         tileEl.tile = newTileData;
         // Also update the master array so other interactions have the latest data.
         tilesData[tileIndex] = newTileData;
