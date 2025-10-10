@@ -615,10 +615,7 @@
                 <button id="toggle-global-styles-btn" title="Toggle Visibility">-</button>
                 <a href="./import_Config.html" class="button-like-link" target="_blank" rel="noopener noreferrer" style="margin-left: auto; margin-top: 0;">Import/Export Config</a>
             </div>
-            <div id="global-style-form">
-                <p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>
-                <!-- Fieldsets will be generated here by renderGlobalConfig -->
-            </div>
+            <global-config-form id="global-config-form-component"></global-config-form>
         </div>
         <div id="tile-editor-box" class="details-panel">
             <div class="details-header">
@@ -629,7 +626,7 @@
                 <a href="./import_tiles.html" class="button-like-link" target="_blank" rel="noopener noreferrer">Import/Export Tiles</a>
                 <button id="delete-all-tiles-btn">Delete All Tiles</button>
             </div>
-            <form id="details-form"></form>
+            <tile-editor-form id="tile-editor-form-component"></tile-editor-form>
         </div>
     </div>
     </div>

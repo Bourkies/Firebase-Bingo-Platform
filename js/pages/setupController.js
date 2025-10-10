@@ -1,19 +1,17 @@
 import '../components/Navbar.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
-
+import '../components/BingoTile.js'; // Import the tile component
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
 import { configStore } from '../stores/configStore.js'; 
 import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
-
-import { createTileElement } from '../components/TileRenderer.js';
 
 // Import setup sub-modules
 import { initializeTileEditor, populateTileSelector, updateEditorPanelContent } from './setup/tileEditor.js';
 import { initializePrereqEditor, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
 import { initializeOverrideEditor, populateOverridesUI } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
-
+ 
 export let lastSelectedTileIndex = null; // Export for sub-modules
 let currentPreviewStatus = null;
 let isTilesLocked = true;
@@ -50,11 +48,11 @@ const resetZoomBtn = document.getElementById('reset-zoom');
 // Main controller interface passed to sub-modules
 const mainControllerInterface = {
     get lastSelectedTileIndex() { return lastSelectedTileIndex; },
-    get tilesData() { return tilesStore.get(); },
+    get allTiles() { return tilesStore.get(); },
     get config() { return configStore.get().config; },
     get allStyles() { return configStore.get().styles; },
     updateEditorPanel, renderTiles,
-    flashField, loadBoardImage,
+    flashField, loadBoardImage, saveTile,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -149,37 +147,25 @@ function onDataChanged() {
 
 function renderTiles() {
     console.log("[SetupController] renderTiles called.");
-    boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
+    // FIX: Target the new <bingo-tile> component tag to clear the board.
+    boardContent.querySelectorAll('bingo-tile').forEach(el => el.remove());
     const tilesData = tilesStore.get();
     const { config, styles } = configStore.get();
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
 
     tilesData.forEach((tile, index) => {
-        const status = currentPreviewStatus || 'Unlocked';
-        const tileEl = createTileElement(tile, status, config, styles, {
-            baseClass: 'draggable-tile',
-            isHighlighted: lastSelectedTileIndex === index,
-            hasConflict: duplicateIds.has(tile.id)
-        });
-
+        const tileEl = document.createElement('bingo-tile');
+        tileEl.tile = tile;
+        tileEl.status = currentPreviewStatus || 'Unlocked';
+        tileEl.config = config;
+        tileEl.allStyles = styles;
+        tileEl.isSetupTile = true; // For setup-specific styles/behavior
+        tileEl.isHighlighted = lastSelectedTileIndex === index;
+        tileEl.hasConflict = duplicateIds.has(tile.id);
+        // NEW: Pass the showId flag to the component's property.
+        tileEl.showId = showTileIds;
         tileEl.dataset.index = index;
-
-        // Render like the index page: show tile NAME based on config.
-        if (config.showTileNames === true && !tileEl.querySelector('.stamp-image')) {
-            const tileNameSpan = document.createElement('span');
-            tileNameSpan.textContent = tile.Name || tile.id; // Fallback to ID if name is missing
-            tileEl.appendChild(tileNameSpan);
-        }
-
-        // NEW: Add a separate, styled element for the tile ID if the toggle is on.
-        if (showTileIds) {
-            const idOverlay = document.createElement('div');
-            idOverlay.className = 'tile-id-overlay';
-            idOverlay.textContent = tile.id;
-            idOverlay.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 4px; z-index: 10; pointer-events: none;';
-            tileEl.appendChild(idOverlay);
-        }
 
         boardContent.appendChild(tileEl);
     });
@@ -206,7 +192,7 @@ resetZoomBtn.addEventListener('click', () => {
 
 interact(boardContainer)
     .draggable({
-        listeners: {
+        listeners: { 
             move(event) {
                 pan.x += event.dx;
                 pan.y += event.dy;
@@ -216,10 +202,11 @@ interact(boardContainer)
         allowFrom: '#board-content'
     });
 
-interact('.draggable-tile')
+interact('bingo-tile')
     .draggable({
         listeners: {
             move(event) {
+                const tilesData = tilesStore.get();
                 const target = event.target;
                 const index = target.dataset.index;
                 if (!tilesData[index]) return;
@@ -251,7 +238,8 @@ interact('.draggable-tile')
     .resizable({
         edges: { left: true, right: true, bottom: true, top: true },
         listeners: {
-            move(event) {
+            move(event) { 
+                const tilesData = tilesStore.get();
                 const target = event.target;
                 const index = target.dataset.index;
                 if (!tilesData[index]) return;
@@ -293,10 +281,10 @@ interact('.draggable-tile')
 function applyTileLockState() {
     const lockBtn = document.getElementById('lock-tiles-btn');
     if (isTilesLocked) {
-        interact('.draggable-tile').draggable(false).resizable(false);
+        interact('bingo-tile').draggable(false).resizable(false);
         lockBtn.textContent = 'Locked';
     } else {
-        interact('.draggable-tile').draggable(true).resizable(true);
+        interact('bingo-tile').draggable(true).resizable(true);
         lockBtn.textContent = 'Unlocked';
     }
 }
@@ -319,7 +307,6 @@ function updateEditorPanel(index) {
 }
 
 function getDuplicateIds(tiles) {
-    const tilesData = tilesStore.get();
     if (!tiles) return new Set();
     const ids = tiles.map(t => t.id).filter(id => id);
     const duplicates = ids.filter((item, index) => ids.indexOf(item) !== index);
@@ -330,7 +317,7 @@ boardContent.addEventListener('click', (event) => {
     if (event.target.classList.contains('interact-resizing') || event.target.classList.contains('interact-dragging')) {
         return;
     }
-    const tileEl = event.target.closest('.draggable-tile');
+    const tileEl = event.target.closest('bingo-tile');
     if (tileEl) {
         const tilesData = tilesStore.get();
         const index = parseInt(tileEl.dataset.index, 10);

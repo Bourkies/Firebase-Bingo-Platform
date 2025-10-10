@@ -70,6 +70,16 @@ export class BingoTile extends LitElement {
             align-items: center;
             justify-content: center;
         }
+
+        /* NEW: Style for the ID overlay on the setup page */
+        .tile-id-overlay {
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 12px; font-weight: bold; color: white;
+            background: rgba(0,0,0,0.7); padding: 2px 5px;
+            border-radius: 4px; z-index: 10;
+            pointer-events: none;
+        }
     `;
 
     static properties = {
@@ -79,6 +89,12 @@ export class BingoTile extends LitElement {
         allStyles: { type: Object },
         authState: { type: Object },
         isLegendItem: { type: Boolean, attribute: 'is-legend-item' },
+        // NEW: Properties for setup page functionality
+        isSetupTile: { type: Boolean },
+        isHighlighted: { type: Boolean },
+        hasConflict: { type: Boolean },
+        isSetupPreview: { type: Boolean },
+        showId: { type: Boolean },
     };
 
     constructor() {
@@ -121,6 +137,17 @@ export class BingoTile extends LitElement {
         // NEW: Set the glow color to the tile's own background color for the animation.
         this.style.setProperty('--glow-color', color);
 
+        // NEW: Handle setup-specific outlines for highlighting and conflicts
+        if (this.isHighlighted) {
+            this.style.borderColor = '#00d9f5'; // Highlight color
+            this.style.zIndex = '2';
+        }
+        if (this.hasConflict) {
+            this.style.outline = '3px solid var(--error-color)';
+            this.style.outlineOffset = '2px';
+        } else {
+            this.style.outline = 'none';
+        }
         // The styles object should NOT include border properties anymore
         const tileStyles = { backgroundColor: hexToRgba(color, opacity) };
 
@@ -131,6 +158,13 @@ export class BingoTile extends LitElement {
             tileStyles.width = `${tile['Width (%)'] || 10}%`;
             tileStyles.height = `${tile['Height (%)'] || 10}%`;
             tileStyles.transform = `rotate(${tile.Rotation || 0}deg)`;
+        }
+        // NEW: Handle setup preview tile styles
+        if (this.isSetupPreview) {
+            tileStyles.position = 'relative';
+            tileStyles.width = '80px';
+            tileStyles.height = '80px';
+            tileStyles.cursor = 'default';
         }
 
         const shape = (this._getProp('shape') || 'Square').toLowerCase();
@@ -163,10 +197,12 @@ export class BingoTile extends LitElement {
         const useStamp = this._getProp('useStampByDefault') === true;
         const stampUrl = this._getProp('stampImageUrl');
         const tileName = this.tile.Name || 'Unnamed Tile';
+        const showName = (this.isSetupPreview && !stampUrl) || (config.showTileNames === true && !stampUrl);
 
         return html`
             ${useStamp && stampUrl ? html`<div class="stamp-image" style="background-image: url('${stampUrl}'); background-position: ${this._getProp('stampPosition') || 'center'}; transform: scale(${this._getProp('stampScale') || '1'}) rotate(${this._getProp('stampRotation') || '0deg'});"></div>` : ''}
-            ${(config.showTileNames === true || !config.boardImageUrl) && !stampUrl ? html`<div class="tile-content"><span>${tileName}</span></div>` : ''}
+            ${showName ? html`<div class="tile-content"><span>${this.isSetupPreview ? this.status : tileName}</span></div>` : ''}
+            ${this.showId ? html`<div class="tile-id-overlay">${this.tile.id}</div>` : ''}
         `;
     }
 }

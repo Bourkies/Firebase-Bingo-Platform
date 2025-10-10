@@ -1,0 +1,211 @@
+import { LitElement, html, css } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
+import { createFormFields } from './FormBuilder.js';
+import { createPrereqFieldset, populatePrereqUI } from '../pages/setup/prereqEditor.js';
+import { createOverrideFieldset, populateOverridesUI, handleRawJsonOverrideChange, addOverrideRow } from '../pages/setup/overrideEditor.js';
+
+const TILE_FIELD_DESCRIPTIONS = {
+    'docId': 'The internal, unique, non-editable Firestore document ID.',
+    'id': 'The user-facing "Tile ID" used for display and prerequisites (e.g., "B1"). Must be unique across all tiles.',
+    'Name': 'The display name of the tile, shown on the board and in a modal.',
+    'Description': 'A longer description of the tile task, shown in the submission modal.',
+    'Prerequisites': 'The requirements to unlock this tile. Use the UI below to define AND/OR logic. Raw format: a comma-separated list for a single AND group (e.g., "A1,A2"), or a JSON array for complex OR groups (e.g., [["A1","A2"],["B1"]]).',
+    'Points': 'The number of points this tile is worth when completed.',
+    'Rotation': 'The rotation of the tile on the board in degrees.',
+    'Top (%)': 'The position of the tile\'s top edge as a percentage of the board\'s height.',
+    'Left (%)': 'The position of the tile\'s left edge as a percentage of the board\'s width.',
+    'Width (%)': 'The width of the tile as a percentage of the board\'s width.',
+    'Height (%)': 'The height of the tile as a percentage of the board\'s height.'
+};
+
+const tileEditorSchema = {
+    docId: { label: 'Document ID', type: 'text', disabled: true, description: TILE_FIELD_DESCRIPTIONS.docId },
+    id: { label: 'Tile ID', type: 'text', description: TILE_FIELD_DESCRIPTIONS.id },
+    Name: { label: 'Name', type: 'text', description: TILE_FIELD_DESCRIPTIONS.Name },
+    Points: { label: 'Points', type: 'text', description: TILE_FIELD_DESCRIPTIONS.Points },
+    Description: { label: 'Description', type: 'textarea', description: TILE_FIELD_DESCRIPTIONS.Description },
+    'Left (%)': { label: 'Left (%)', type: 'range', min: 0, max: 100, step: 0.01, description: TILE_FIELD_DESCRIPTIONS['Left (%)'] },
+    'Top (%)': { label: 'Top (%)', type: 'range', min: 0, max: 100, step: 0.01, description: TILE_FIELD_DESCRIPTIONS['Top (%)'] },
+    'Width (%)': { label: 'Width (%)', type: 'range', min: 0, max: 100, step: 0.01, description: TILE_FIELD_DESCRIPTIONS['Width (%)'] },
+    'Height (%)': { label: 'Height (%)', type: 'range', min: 0, max: 100, step: 0.01, description: TILE_FIELD_DESCRIPTIONS['Height (%)'] },
+    Rotation: { label: 'Rotation', type: 'range', min: 0, max: 360, step: 1, unit: 'deg', description: TILE_FIELD_DESCRIPTIONS.Rotation },
+};
+
+export class TileEditorForm extends LitElement {
+    static styles = css`
+        /* Styles are inherited from setup.html, but we can add component-specific ones here if needed */
+        :host {
+            display: block;
+        }
+        #details-form {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 15px;
+        }
+        /* Assign fields to grid columns/rows */
+        .form-field[data-key="docId"]        { grid-column: span 2; }
+        .form-field[data-key="id"]           { grid-column: span 2; }
+        .form-field[data-key="Name"]         { grid-column: span 3; }
+        .form-field[data-key="Points"]       { grid-column: span 3; }
+        .form-field[data-key="Description"]  { grid-column: 1 / -1; }
+        .form-field[data-key="Left (%)"]     { grid-column: span 2; }
+        .form-field[data-key="Top (%)"]      { grid-column: span 2; }
+        .form-field[data-key="Width (%)"]    { grid-column: span 2; }
+        .form-field[data-key="Height (%)"]   { grid-column: span 2; }
+        .form-field[data-key="Rotation"]     { grid-column: span 2; }
+        .prereq-fieldset, .overrides-fieldset { grid-column: 1 / -1; }
+    `;
+
+    static properties = {
+        tileData: { type: Object },
+        allTiles: { type: Array },
+        mainController: { type: Object }
+    };
+
+    constructor() {
+        super();
+        this.tileData = null;
+        this.allTiles = [];
+        this.mainController = {};
+    }
+
+    updated(changedProperties) {
+        // FIX: Only re-render the entire form if the selected tile has changed (i.e., its docId is different).
+        // This prevents the form from resetting itself due to its own updates coming back from the server.
+        if (changedProperties.has('tileData') &&
+            (this.tileData?.docId !== changedProperties.get('tileData')?.docId)
+        ) {
+            this.renderFormContents();
+        }
+    }
+
+    renderFormContents() {
+        const form = this.shadowRoot.getElementById('details-form');
+        if (!form) return;
+        form.innerHTML = ''; // Clear previous content
+
+        if (!this.tileData) {
+            // Render a placeholder or message when no tile is selected
+            form.innerHTML = `<p style="grid-column: 1 / -1; text-align: center; color: var(--secondary-text);">No tile selected. Select a tile on the board or from the dropdown to edit its details.</p>`;
+            return;
+        }
+
+        // --- Render Main Tile Fields ---
+        const TILE_EDITOR_FIELDS = ['docId', 'id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation'];
+        createFormFields(form, tileEditorSchema, this.tileData, TILE_EDITOR_FIELDS, {
+            flashField: (el) => this.mainController.flashField(el)
+        });
+
+        // --- Render Prerequisites ---
+        const prereqFieldset = createPrereqFieldset(this.mainController);
+        form.appendChild(prereqFieldset);
+        populatePrereqUI(this.tileData['Prerequisites'] || '', this.mainController);
+
+        // --- Render Overrides ---
+        const overridesFieldset = createOverrideFieldset(this.mainController);
+        form.appendChild(overridesFieldset);
+        
+        // Attach listeners to the newly created elements inside the overrides fieldset
+        const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
+        if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', this.mainController));
+
+        const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
+        if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, this.mainController));
+
+        let overrides = {};
+        try {
+            if (this.tileData['Overrides (JSON)']) {
+                overrides = JSON.parse(this.tileData['Overrides (JSON)']);
+            }
+        } catch (e) { /* Ignore invalid JSON */ }
+
+        if (rawJsonTextarea) {
+            rawJsonTextarea.value = this.tileData['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
+            rawJsonTextarea.style.borderColor = '';
+        }
+        populateOverridesUI(overrides, this.mainController);
+
+        this.validateTileId();
+    }
+
+    getDuplicateIds() {
+        if (!this.allTiles) return new Set();
+        const ids = this.allTiles.map(t => t.id).filter(id => id);
+        const duplicates = ids.filter((item, index) => ids.indexOf(item) !== index);
+        return new Set(duplicates);
+    }
+
+    validateTileId() {
+        if (!this.tileData) return;
+
+        const duplicateIds = this.getDuplicateIds(this.allTiles.filter(t => t.docId !== this.tileData.docId));
+        const idInput = this.shadowRoot.querySelector('#details-form input[name="id"]');
+        if (!idInput) return;
+
+        const parentField = idInput.closest('.form-field');
+        if (!parentField) return;
+
+        let validationMessage = parentField.querySelector('.validation-msg');
+        if (!validationMessage) {
+            validationMessage = document.createElement('span');
+            validationMessage.className = 'validation-msg';
+            parentField.appendChild(validationMessage);
+        }
+
+        if (duplicateIds.has(this.tileData.id)) {
+            idInput.style.borderColor = 'var(--error-color)';
+            validationMessage.textContent = 'This Tile ID is not unique!';
+        } else {
+            idInput.style.borderColor = '';
+            validationMessage.textContent = '';
+        }
+    }
+
+    handleInputChange(event) {
+        if (!this.tileData) return;
+
+        const input = event.target;
+        const key = input.dataset.key;
+        if (!key) return;
+
+        // Check if the input is part of the main form, not sub-fieldsets
+        if (input.closest('#details-form') && !input.closest('.overrides-fieldset') && !input.closest('.prereq-fieldset')) {
+            let newValue = input.type === 'checkbox' ? input.checked : (input.value || '');
+            if (input.dataset.unit) newValue += input.dataset.unit;
+
+            // FIX: Convert numeric string values from range sliders back to numbers before saving.
+            const numericKeys = ['Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation', 'Points'];
+            if (numericKeys.includes(key) && typeof newValue === 'string') {
+                newValue = parseFloat(newValue) || 0;
+            }
+
+            // Dispatch an event to notify the controller to save the data
+            this.dispatchEvent(new CustomEvent('tile-update', {
+                detail: {
+                    docId: this.tileData.docId,
+                    data: { [key]: newValue }
+                }
+            }));
+
+            // Also update the local tileData to reflect the change immediately
+            // This is important for things like the ID validation
+            this.tileData = { ...this.tileData, [key]: newValue };
+
+            const visualKeys = ['id', 'Name', 'Rotation', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)'];
+            if (visualKeys.includes(key)) {
+                this.dispatchEvent(new CustomEvent('render-tiles'));
+            }
+            if (key === 'id') {
+                this.validateTileId();
+            }
+        }
+    }
+
+    render() {
+        return html`
+            <form id="details-form" @input=${this.handleInputChange}></form>
+        `;
+    }
+}
+
+customElements.define('tile-editor-form', TileEditorForm);

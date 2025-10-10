@@ -102,8 +102,8 @@ function updatePrereqJson(mainController) {
         prereqValue = JSON.stringify(orGroups);
     }
     if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
-        // FIX: Pass mainController as the third argument to match the function signature in setupController.
-        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController); 
+        // FIX: The saveTile function only takes two arguments.
+        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }); 
     }
     mainController.renderTiles(); // Re-render tiles which will in turn call renderPrereqLines
 }
