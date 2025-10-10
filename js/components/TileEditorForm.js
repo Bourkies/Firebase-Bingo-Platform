@@ -123,20 +123,20 @@ export class TileEditorForm extends LitElement {
         });
 
         // --- Render Prerequisites ---
-        const prereqFieldset = createPrereqFieldset(this.mainController);
+        const prereqFieldset = createPrereqFieldset(this.mainController, this.shadowRoot);
         form.appendChild(prereqFieldset);
-        populatePrereqUI(this.tileData['Prerequisites'] || '', this.mainController);
+        populatePrereqUI(this.tileData['Prerequisites'] || '', this.mainController, this.shadowRoot);
 
         // --- Render Overrides ---
-        const overridesFieldset = createOverrideFieldset(this.mainController);
+        const overridesFieldset = createOverrideFieldset(this.mainController, this.shadowRoot);
         form.appendChild(overridesFieldset);
         
         // Attach listeners to the newly created elements inside the overrides fieldset
         const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
-        if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', this.mainController));
+        if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', this.mainController, this.shadowRoot));
 
         const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
-        if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, this.mainController));
+        if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, this.mainController, this.shadowRoot));
 
         let overrides = {};
         try {
@@ -149,7 +149,7 @@ export class TileEditorForm extends LitElement {
             rawJsonTextarea.value = this.tileData['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
             rawJsonTextarea.style.borderColor = '';
         }
-        populateOverridesUI(overrides, this.mainController);
+        populateOverridesUI(overrides, this.mainController, this.shadowRoot);
 
         this.validateTileId();
     }

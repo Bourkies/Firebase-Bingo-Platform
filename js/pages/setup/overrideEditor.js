@@ -21,16 +21,18 @@ export function initializeOverrideEditor(mainController) {
     // The main logic is now in updateOverridesJsonFromCurrentTile, triggered by events.
 }
 
-function getOverridesFromUI() {
+function getOverridesFromUI(shadowRoot) {
     const overrides = {};
-    document.querySelectorAll('#overrides-container .override-item').forEach(item => {
+    // FIX: Query within the provided shadowRoot.
+    shadowRoot.querySelectorAll('#overrides-container .override-item').forEach(item => {
         const status = item.querySelector('.override-status-select').value;
         const key = item.querySelector('.override-key').value;
         const valueEl = item.querySelector('.override-value');
-
-        if (!status || !key || !valueEl || valueEl.value === '') return;
-
         let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
+
+        // FIX: Only skip rows that are completely empty. If a status or key is selected, include it.
+        if (!status && !key && value === '') return;
+
         if (valueEl.dataset.unit && value !== '') value += valueEl.dataset.unit;
         if (valueEl.tagName === 'SELECT' && value === '') return;
 
@@ -43,40 +45,47 @@ function getOverridesFromUI() {
     return overrides;
 }
 
-function saveOverrides(mainController) {
+function saveOverrides(mainController, shadowRoot) {
     const index = mainController.lastSelectedTileIndex;
     const tilesData = tilesStore.get();
     if (index === null || !tilesData || !tilesData[index]) return;
 
-    const overrides = getOverridesFromUI();
-    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
-    
-    mainController.saveTile(tilesData[index].docId, { 'Overrides (JSON)': newOverridesJson }, mainController);
-    showMessage('Saved Overrides', false);
+    const overrides = getOverridesFromUI(shadowRoot);
+    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';    
+
+    // FIX: Update the textarea value directly and only save to DB on a 'change' event, not every UI update.
+    const rawJsonTextarea = shadowRoot.getElementById('overrides-json-textarea');
+    if (rawJsonTextarea) {
+        rawJsonTextarea.value = newOverridesJson;
+    }
+    // The actual save to DB is now handled by the 'change' event on the textarea itself.
+    // This prevents saving incomplete data while the user is building an override.
     mainController.renderTiles();
 }
 
-export function populateOverridesUI(overrides, mainController) {
+export function populateOverridesUI(overrides, mainController, shadowRoot) {
     console.log("[OverrideEditor] populateOverridesUI called.");
-    if (!document.getElementById('overrides-container')) return;
-    const container = document.getElementById('overrides-container');
+    // FIX: Query within the provided shadowRoot.
+    const container = shadowRoot.getElementById('overrides-container');
+    if (!container) return;
     container.innerHTML = '';
     if (typeof overrides !== 'object' || overrides === null) return;
-    mainController.flashField(document.getElementById('overrides-json-textarea'));
+    mainController.flashField(shadowRoot.getElementById('overrides-json-textarea'));
 
     for (const [status, properties] of Object.entries(overrides)) {
         if (typeof properties === 'object' && properties !== null) {
             for (const [key, value] of Object.entries(properties)) {
-                addOverrideRow(status, key, value, mainController);
+                addOverrideRow(status, key, value, mainController, shadowRoot);
             }
         }
     }
 }
 
-export function addOverrideRow(status = '', key = '', value = '', mainController) {
+export function addOverrideRow(status = '', key = '', value = '', mainController, shadowRoot) {
     console.log(`[OverrideEditor] addOverrideRow called for ${status}, ${key}`);
-    if (!document.getElementById('overrides-container')) return;
-    const container = document.getElementById('overrides-container');
+    // FIX: Query within the provided shadowRoot.
+    const container = shadowRoot.getElementById('overrides-container');
+    if (!container) return;
     const item = document.createElement('div');
     item.className = 'override-item';
 
@@ -110,16 +119,16 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     container.appendChild(item);
 
     // REFACTOR: Use 'change' event to trigger saves.
-    const updateCallback = () => updateOverridesJsonFromCurrentTile(mainController);
+    const updateCallback = () => updateOverridesJsonFromCurrentTile(mainController, shadowRoot);
     // FIX: Re-add listener. The getOverridesFromUI function now correctly guards against incomplete rows.
     statusSelect.addEventListener('change', updateCallback);
     keySelect.addEventListener('change', () => {
-        populateValueContainer(valueContainer, keySelect.value, '');
-        // A value change will trigger the updateCallback.
+        populateValueContainer(valueContainer, keySelect.value, '', mainController, shadowRoot);
+        updateCallback(); // Trigger update when property changes
     });
-    valueContainer.addEventListener('change', updateCallback); // This is the ONLY event that should trigger a save.
+    valueContainer.addEventListener('change', updateCallback);
 
-    populateValueContainer(valueContainer, key, value);
+    populateValueContainer(valueContainer, key, value, mainController, shadowRoot);
  
     removeBtn.addEventListener('click', () => {
         item.remove();
@@ -127,7 +136,7 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     });
 }
 
-function populateValueContainer(container, propertyName, value) {
+function populateValueContainer(container, propertyName, value, mainController, shadowRoot) {
     container.innerHTML = '';
 
     const isColor = propertyName.toLowerCase().includes('color');
@@ -161,10 +170,11 @@ function populateValueContainer(container, propertyName, value) {
         textInput.addEventListener('change', (e) => {
             colorInput.value = e.target.value;
         });
-        // Use 'input' for color picker for live feedback
+        // Use 'input' for color picker for live feedback, but 'change' to trigger the save.
         colorInput.addEventListener('input', (e) => {
             textInput.value = e.target.value;
-        }); // The parent container's 'change' event will handle the save.
+        });
+        colorInput.addEventListener('change', () => updateOverridesJsonFromCurrentTile(mainController, shadowRoot));
         textInput.addEventListener('input', (e) => {
             let potentialColor = e.target.value;
             if (/^[0-9A-F]{6}$/i.test(potentialColor) || /^[0-9A-F]{3}$/i.test(potentialColor)) {
@@ -248,34 +258,40 @@ function populateValueContainer(container, propertyName, value) {
     container.innerHTML = inputHtml;
 }
 
-export function handleRawJsonOverrideChange(event, mainController) {
+export function handleRawJsonOverrideChange(event, mainController, shadowRoot) {
     console.log("[OverrideEditor] handleRawJsonOverrideChange called.");
     const textarea = event.target;
     if (!mainController) return;
     try {
         const jsonString = textarea.value;
         if (jsonString.trim() === '') {
-            populateOverridesUI({}, mainController);
-            updateOverridesJsonFromCurrentTile(mainController);
+            populateOverridesUI({}, mainController, shadowRoot);
+            updateOverridesJsonFromCurrentTile(mainController, shadowRoot);
             textarea.style.borderColor = '';
             return;
         }
         const parsedOverrides = JSON.parse(jsonString);
-        populateOverridesUI(parsedOverrides, mainController);
-        updateOverridesJsonFromCurrentTile(mainController);
+        populateOverridesUI(parsedOverrides, mainController, shadowRoot);
+        updateOverridesJsonFromCurrentTile(mainController, shadowRoot);
         textarea.style.borderColor = '';
     } catch (e) {
         textarea.style.borderColor = '#e57373';
     }
 }
 
-export function updateOverridesJsonFromCurrentTile(mainController) {
+export function updateOverridesJsonFromCurrentTile(mainController, shadowRoot) {
     // FIX: Guard against missing controller
-    if (!mainController) return;    
-    saveOverrides(mainController);
+    if (!mainController) return;
+    // This function now just updates the UI and textarea. The actual save is triggered
+    // by the 'change' event on the textarea itself.
+    const overrides = getOverridesFromUI(shadowRoot);
+    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
+    const rawJsonTextarea = shadowRoot.getElementById('overrides-json-textarea');
+    if (rawJsonTextarea) rawJsonTextarea.value = newOverridesJson;
+    mainController.renderTiles();
 }
 
-export function createOverrideFieldset(mainController) {
+export function createOverrideFieldset(mainController, shadowRoot) {
     console.log("[OverrideEditor] createOverrideFieldset called.");
     const fieldset = Object.assign(document.createElement('fieldset'), {
         className: 'overrides-fieldset',
@@ -295,9 +311,9 @@ export function createOverrideFieldset(mainController) {
     const content = Object.assign(document.createElement('div'), { className: 'fieldset-content' });
     content.innerHTML = `
         <div id="overrides-container" style="grid-column: 1 / -1;"></div>
-        <button type="button" id="add-override-btn" disabled>+ Add Override</button>
+        <button type="button" id="add-override-btn">+ Add Override</button>
         <div class="form-field" style="grid-column: 1 / -1;">
-            <label for="overrides-json-textarea">Raw JSON</label>
+            <label for="overrides-json-textarea">Raw JSON (Saving happens on change/blur)</label>
             <textarea id="overrides-json-textarea" placeholder="You can also edit the raw JSON for the overrides here."></textarea>
         </div>
     `;
