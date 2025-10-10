@@ -259,67 +259,6 @@
             margin-top: 0;
             background-color: var(--success-color);
         }
-        #tile-selector-dropdown {
-            flex-grow: 1;
-            background-color: var(--bg-color);
-            color: var(--primary-text);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 8px;
-            max-width: 400px;
-        }
-        #delete-tile-btn {
-            margin-top: 0;
-            background-color: var(--error-color);
-        }
-        #delete-all-tiles-btn {
-            margin-top: 0;
-            background-color: var(--error-color);
-        }
-        #toggle-global-styles-btn {
-            margin-top: 0;
-            padding: 5px 10px;
-            font-size: 18px;
-        }
-        #details-form {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
-        }
-        .form-field {
-            display: flex;
-            flex-direction: column;
-        }
-        .form-field label {
-            margin-bottom: 5px;
-            font-size: 14px;
-            color: var(--secondary-text);
-        }
-        .form-field input, .form-field textarea, .form-field select {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-            background-color: var(--bg-color);
-            color: var(--primary-text);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-        }
-        .form-field textarea {
-            resize: vertical;
-            min-height: 80px;
-            font-family: monospace;
-        }
-        .form-field input:disabled, .form-field textarea:disabled, .form-field select:disabled {
-            background-color: var(--bg-color);
-            cursor: not-allowed;
-            color: var(--secondary-text);
-        }
-        .overrides-fieldset {
-            grid-column: 1 / -1; /* Span all columns */
-            border: 1px solid #444;
-            border-radius: 4px;
-            padding: 10px 15px;
-        }
         .overrides-fieldset.minimized .fieldset-content {
             display: none;
         }
@@ -337,92 +276,6 @@
         }
         .overrides-fieldset legend {
             color: var(--accent-color);
-        }
-        #overrides-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .override-item {
-            display: grid;
-            grid-template-columns: 150px 1fr 1fr 40px;
-            gap: 10px;
-            align-items: center;
-        }
-        #overrides-json-textarea {
-            width: 100%;
-            min-height: 100px;
-            font-family: monospace;
-            background-color: var(--bg-color);
-            color: var(--primary-text);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            resize: vertical;
-            box-sizing: border-box;
-            margin-bottom: 10px;
-        }
-        #add-override-btn {
-            background-color: var(--accent-color);
-            width: fit-content;
-        }
-        #add-override-btn:disabled {
-            background-color: var(--disabled-bg-color);
-            cursor: not-allowed;
-        }
-        #style-preview-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-            justify-content: center;
-        }
-        .remove-override-btn {
-            background-color: var(--error-color);
-            padding: 8px;
-        }
-        .override-item input,
-        .override-item select {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-            background-color: var(--bg-color);
-            color: var(--primary-text);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-        }
-        .form-field-compound {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .form-field-compound input[type="color"] {
-            padding: 0;
-            height: 38px;
-            width: 38px;
-            flex-shrink: 0;
-            border: none; /* Looks better without a border next to the text input */
-        }
-        .form-field-compound input[type="range"] {
-            flex-grow: 1;
-        }
-        .color-text-input {
-            font-family: monospace;
-            flex-grow: 1;
-        }
-        .form-field-compound input[type="text"] {
-            /* Give text inputs in compound fields a fixed width */
-            width: 80px;
-        }
-        .button-like-label {
-            background-color: var(--accent-color);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            text-align: center;
-            white-space: nowrap;
-            transition: background-color 0.2s;
         }
         #teams-container {
             display: flex;
@@ -449,18 +302,6 @@
             margin-top: 10px;
             width: fit-content;
         }
-        .remove-team-btn {
-            background-color: var(--error-color);
-        }
-        .team-item-header {
-            display: grid;
-            grid-template-columns: 100px 1fr 1fr 80px;
-            gap: 10px;
-            padding-bottom: 8px;
-            font-weight: bold;
-            color: var(--secondary-text);
-            border-bottom: 1px solid var(--border-color);
-        }
         /* New layout for the tile details form */
         #details-form {
             display: grid;
@@ -484,13 +325,6 @@
 
         .form-field[data-key="Prerequisites"] { grid-column: 1 / -1; } /* Full width */
         
-
-        .team-item {
-            display: grid;
-            grid-template-columns: 100px 1fr 1fr 80px;
-            gap: 10px;
-            align-items: center;
-        }
         .team-id-display {
             background-color: var(--bg-color);
             padding: 8px;
@@ -498,27 +332,6 @@
             font-family: monospace;
             color: var(--secondary-text);
             text-align: center;
-        }
-        .prereq-or-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            border: 1px solid var(--border-color);
-            padding: 10px;
-            border-radius: 4px;
-            background-color: var(--bg-color);
-        }
-        #prereq-ui-container {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-        }
-        #prereq-editor-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
         }
         #prereq-editor-container .fieldset-content {
             display: flex;
@@ -531,14 +344,7 @@
             /* Revert to standard button size */
             align-self: flex-start;
         }
-        .prereq-and-input {
-            flex-grow: 1;
-        }
         .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
-        .image-upload-preview {
-            max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px;
-            border: 1px solid var(--border-color); background-color: var(--bg-color); border-radius: 4px;
-        }
         .prereq-or-label {
             font-weight: bold;
             color: var(--accent-color);
@@ -548,17 +354,6 @@
             border-radius: 8px; text-align: center; width: 80%; word-wrap: break-word;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 10;
-        }
-        .tooltip-icon {
-            margin-left: 8px; color: var(--secondary-text); cursor: help; font-size: 0.8em;
-            font-weight: normal; border-bottom: 1px dotted var(--secondary-text); display: inline-block;
-        }
-        .stamp-fieldset legend label {
-            margin-bottom: 0; /* Override default form-field margin */
-        }
-        .prereq-validation-msg, .validation-msg {
-            font-size: 0.8em; color: var(--error-color); margin-top: 4px;
-            display: block; min-height: 1.2em;
         }
 
     </style>

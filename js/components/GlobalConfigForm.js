@@ -50,6 +50,20 @@ export class GlobalConfigForm extends LitElement {
         .stamp-fieldset legend { color: var(--accent-color); }
         .preview-container { display: flex; justify-content: center; align-items: center; margin-bottom: 1rem; padding: 1rem; background-color: #1a1a1a; border-radius: 6px; }
     `;
+    // FIX: Consolidate all styles into a single declaration and add missing global styles.
+    static styles = [GlobalConfigForm.styles, css`
+        .image-upload-preview { max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px; border: 1px solid var(--border-color); background-color: var(--bg-color); border-radius: 4px; }
+
+        /* Generic input styles that were previously global */
+        input, textarea, select { width: 100%; padding: 8px; box-sizing: border-box; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 4px; }
+        textarea { resize: vertical; min-height: 80px; }
+        .form-field { display: flex; flex-direction: column; }
+        .form-field label { margin-bottom: 5px; font-size: 14px; color: var(--secondary-text); }
+        .form-field-compound { display: flex; align-items: center; gap: 10px; }
+        .form-field-compound input[type="color"] { padding: 0; height: 38px; width: 38px; flex-shrink: 0; border: none; }
+        .color-text-input { font-family: monospace; flex-grow: 1; }
+        .tooltip-icon { margin-left: 8px; color: var(--secondary-text); cursor: help; font-size: 0.8em; font-weight: normal; border-bottom: 1px dotted var(--secondary-text); display: inline-block; }
+    `];
 
     static properties = {
         config: { type: Object },

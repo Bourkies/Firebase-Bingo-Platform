@@ -55,6 +55,32 @@ export class TileEditorForm extends LitElement {
         .form-field[data-key="Rotation"]     { grid-column: span 2; }
         .prereq-fieldset, .overrides-fieldset { grid-column: 1 / -1; }
     `;
+    // FIX: Consolidate all styles into a single declaration and add missing styles for child components.
+    static styles = [TileEditorForm.styles, css`
+        .tooltip-icon { margin-left: 8px; color: var(--secondary-text); cursor: help; font-size: 0.8em; font-weight: normal; border-bottom: 1px dotted var(--secondary-text); display: inline-block; }
+        .validation-msg { font-size: 0.8em; color: var(--error-color); margin-top: 4px; display: block; min-height: 1.2em; }
+
+        /* Styles for vanilla JS components injected into the shadow DOM */
+        .overrides-fieldset, .prereq-fieldset { border: 1px solid #444; border-radius: 4px; padding: 10px 15px; }
+        .overrides-fieldset legend, .prereq-fieldset legend { color: var(--accent-color); }
+        #prereq-ui-container { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; }
+        .prereq-or-group { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; background-color: var(--bg-color); }
+        .prereq-or-label { font-weight: bold; color: var(--accent-color); }
+        .prereq-and-input { flex-grow: 1; }
+        #overrides-container { display: flex; flex-direction: column; gap: 10px; }
+        .override-item { display: grid; grid-template-columns: 150px 1fr 1fr 40px; gap: 10px; align-items: center; }
+        .remove-override-btn { background-color: var(--error-color); padding: 8px; }
+        .form-field-compound { display: flex; align-items: center; gap: 10px; }
+        .form-field-compound input[type="color"] { padding: 0; height: 38px; width: 38px; flex-shrink: 0; border: none; }
+        .color-text-input { font-family: monospace; flex-grow: 1; }
+
+        /* Generic input styles that were previously global */
+        input, textarea, select { width: 100%; padding: 8px; box-sizing: border-box; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 4px; }
+        textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+        button { background-color: var(--accent-color); color: var(--accent-text-color); border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; transition: background-color 0.2s; }
+        button:hover { background-color: var(--accent-color-darker); }
+        button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; opacity: 0.7; }
+    `];
 
     static properties = {
         tileData: { type: Object },
