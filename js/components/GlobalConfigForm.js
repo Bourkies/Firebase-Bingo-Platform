@@ -74,6 +74,7 @@ export class GlobalConfigForm extends LitElement {
 
     constructor() {
         super();
+        console.log('[GlobalConfigForm] constructor: Component instance created.');
         this.config = {};
         this.allStyles = {};
         this.mainController = {};
@@ -81,22 +82,29 @@ export class GlobalConfigForm extends LitElement {
     }
 
     firstUpdated() {
+        console.log('[GlobalConfigForm] firstUpdated: Component first rendered, calling renderFormContents.');
         this.renderFormContents();
     }
 
     updated(changedProperties) {
+        console.log(`[GlobalConfigForm] updated: Properties changed: ${Array.from(changedProperties.keys()).join(', ')}`);
         // FIX: Only re-render the form if it's being populated for the first time.
         // This prevents the form from resetting itself due to its own updates coming back from the server.
         const wasUnpopulated = !changedProperties.get('config') || Object.keys(changedProperties.get('config')).length === 0;
         const isPopulated = this.config && Object.keys(this.config).length > 0;
         if (wasUnpopulated && isPopulated) {
+            console.log('[GlobalConfigForm] updated: Config data received for the first time, re-rendering form contents.');
             this.renderFormContents();
         }
     }
 
     renderFormContents() {
+        console.log('[GlobalConfigForm] renderFormContents: Starting to build form from schema.');
         const formContainer = this.shadowRoot.getElementById('form-container');
-        if (!formContainer || !this.config || !this.allStyles) return;
+        if (!formContainer || !this.config || !this.allStyles) {
+            console.warn('[GlobalConfigForm] renderFormContents: Aborting render, missing container or data.', { hasContainer: !!formContainer, hasConfig: !!this.config, hasStyles: !!this.allStyles });
+            return;
+        }
 
         formContainer.innerHTML = '<p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>';
 
@@ -149,6 +157,7 @@ export class GlobalConfigForm extends LitElement {
     }
 
     handleFormUpdate(event) {
+        console.log(`[GlobalConfigForm] handleFormUpdate: Event type '${event.type}' on target:`, event.target);
         const input = event.target;
         const key = input.dataset.key;
         if (!key) return;
@@ -182,6 +191,7 @@ export class GlobalConfigForm extends LitElement {
     }
 
     render() {
+        console.log(`[GlobalConfigForm] render: Rendering component. isVisible: ${this.isVisible}`);
         return html`
             <div id="form-container" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate} style="display: ${this.isVisible ? 'block' : 'none'}"></div>
         `;
