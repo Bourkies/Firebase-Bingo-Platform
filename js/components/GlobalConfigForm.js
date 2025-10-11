@@ -197,3 +197,30 @@ export class GlobalConfigForm extends LitElement {
         `;
     }
 }
+
+customElements.define('global-config-form', GlobalConfigForm);
+
+// --- Debounced save logic ---
+const debouncedSave = debounce((component, detail) => {
+    let finalValue = detail.value;
+    // On save, we parse the final value to a number if needed.
+    if (detail.isNumeric && typeof finalValue === 'string' && finalValue.trim() !== '') {
+        finalValue = parseFloat(finalValue) || 0;
+    }
+    // Add unit AFTER parsing, if applicable.
+    if (detail.unit) {
+        finalValue = `${finalValue}${detail.unit}`;
+    }
+    component.dispatchEvent(new CustomEvent('config-change', {
+        detail: { status: detail.status, key: detail.key, value: finalValue }
+    }));
+}, 500);
+
+// Debounce function to delay execution
+function debounce(func, wait) {
+    let timeout;
+    return (component, ...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(component, ...args), wait);
+    };
+}
