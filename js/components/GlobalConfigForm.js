@@ -4,7 +4,7 @@ import './BingoTile.js';
 
 const configSchema = {
     pageTitle: { label: 'Page Title', type: 'text', description: 'The title displayed at the top of the bingo page and in the browser tab.' },
-    boardImageUrl: { label: 'Board Background Image', type: 'image', description: 'A direct web URL to the bingo board background image.' },
+    boardImageUrl: { label: 'Board Background Image', type: 'text', description: 'A direct web URL to the bingo board background image.' },
     maxPageWidth: { label: 'Max Page Width', type: 'text', description: 'The maximum width for the page content. Use px or % (e.g., 1400px or 90%).' },
     showTileNames: { label: 'Show Tile Names', type: 'boolean', description: 'Set to TRUE to display tile names on the board by default, especially if no background image is used.' },
     unlockOnVerifiedOnly: { label: 'Unlock on Verified Only', type: 'boolean', description: 'Set to TRUE to require a tile to be "Verified" by an admin before its prerequisites are met for other tiles.' },
@@ -23,7 +23,7 @@ const configSchema = {
 const styleSchema = {
     shape: { label: 'Tile Shape', type: 'select', options: ['Square', 'Ellipse', 'Circle', 'Diamond', 'Triangle', 'Hexagon'], description: 'The overall shape of the tiles.' },
     fill: { label: 'Tile Fill', type: 'colorAndOpacity', description: 'The background color and opacity for the tile.' },
-    border: { label: 'Border', type: 'widthAndColor', keys: { width: 'borderWidth', color: 'borderColor' }, unit: 'px', description: 'The tile\'s border width and color.' },
+    border: { label: 'Border', type: 'widthAndColor', keys: { width: 'borderWidth', color: 'borderColor' }, unit: 'px', description: 'The tile\'s border width and color.' }, // FIX: Re-add missing field
     hoverBorder: { label: 'Hover Border', type: 'widthAndColor', keys: { width: 'hoverBorderWidth', color: 'hoverBorderColor' }, unit: 'px', description: 'The border width and color on hover.' },
     useStampByDefault: { label: 'Use Stamp', type: 'boolean', description: 'Toggles the use of a stamp image for this status. When enabled, the settings below will apply.' },
     stampImageUrl: { label: 'Stamp Image', type: 'image', description: 'URL for the stamp image to display on tiles.' },
@@ -50,16 +50,15 @@ export class GlobalConfigForm extends LitElement {
         .stamp-fieldset legend { color: var(--accent-color); }
         .preview-container { display: flex; justify-content: center; align-items: center; margin-bottom: 1rem; padding: 1rem; background-color: #1a1a1a; border-radius: 6px; }
     `;
-    // FIX: Consolidate all styles into a single declaration and add missing global styles.
     static styles = [GlobalConfigForm.styles, css`
         .image-upload-preview { max-width: 100px; max-height: 50px; object-fit: contain; margin-top: 5px; border: 1px solid var(--border-color); background-color: var(--bg-color); border-radius: 4px; }
 
-        /* Generic input styles that were previously global */
+        /* Generic input styles */
         input, textarea, select { width: 100%; padding: 8px; box-sizing: border-box; background-color: var(--bg-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 4px; }
         textarea { resize: vertical; min-height: 80px; }
         .form-field { display: flex; flex-direction: column; }
         .form-field label { margin-bottom: 5px; font-size: 14px; color: var(--secondary-text); }
-        .form-field-compound { display: flex; align-items: center; gap: 10px; }
+        .form-field-compound { display: flex; align-items: center; gap: 10px; width: 100%; }
         .form-field-compound input[type="color"] { padding: 0; height: 38px; width: 38px; flex-shrink: 0; border: none; }
         .color-text-input { font-family: monospace; flex-grow: 1; }
         .tooltip-icon { margin-left: 8px; color: var(--secondary-text); cursor: help; font-size: 0.8em; font-weight: normal; border-bottom: 1px dotted var(--secondary-text); display: inline-block; }
@@ -68,7 +67,6 @@ export class GlobalConfigForm extends LitElement {
     static properties = {
         config: { type: Object },
         allStyles: { type: Object },
-        mainController: { type: Object },
         isVisible: { type: Boolean, reflect: true }
     };
 
@@ -77,83 +75,7 @@ export class GlobalConfigForm extends LitElement {
         console.log('[GlobalConfigForm] constructor: Component instance created.');
         this.config = {};
         this.allStyles = {};
-        this.mainController = {};
         this.isVisible = true;
-    }
-
-    firstUpdated() {
-        console.log('[GlobalConfigForm] firstUpdated: Component first rendered, calling renderFormContents.');
-        this.renderFormContents();
-    }
-
-    updated(changedProperties) {
-        console.log(`[GlobalConfigForm] updated: Properties changed: ${Array.from(changedProperties.keys()).join(', ')}`);
-        // FIX: Only re-render the form if it's being populated for the first time.
-        // This prevents the form from resetting itself due to its own updates coming back from the server.
-        const wasUnpopulated = !changedProperties.get('config') || Object.keys(changedProperties.get('config')).length === 0;
-        const isPopulated = this.config && Object.keys(this.config).length > 0;
-        if (wasUnpopulated && isPopulated) {
-            console.log('[GlobalConfigForm] updated: Config data received for the first time, re-rendering form contents.');
-            this.renderFormContents();
-        }
-    }
-
-    renderFormContents() {
-        console.log('[GlobalConfigForm] renderFormContents: Starting to build form from schema.');
-        const formContainer = this.shadowRoot.getElementById('form-container');
-        if (!formContainer || !this.config || !this.allStyles) {
-            console.warn('[GlobalConfigForm] renderFormContents: Aborting render, missing container or data.', { hasContainer: !!formContainer, hasConfig: !!this.config, hasStyles: !!this.allStyles });
-            return;
-        }
-
-        formContainer.innerHTML = '<p>Edit the global configuration below. Image fields support direct uploads. Changes will be reflected on the board live.</p>';
-
-        for (const [groupName, properties] of Object.entries(configGroups)) {
-            const fieldset = document.createElement('fieldset');
-            fieldset.className = 'overrides-fieldset';
-            fieldset.append(Object.assign(document.createElement('legend'), { textContent: groupName }));
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'config-grid';
-            fieldset.appendChild(contentDiv);
-            createFormFields(contentDiv, configSchema, this.config, properties, {
-                flashField: (el) => this.mainController.flashField(el)
-            });
-            formContainer.appendChild(fieldset);
-        }
-
-        const stylesFieldset = document.createElement('fieldset');
-        stylesFieldset.className = 'overrides-fieldset';
-        stylesFieldset.append(Object.assign(document.createElement('legend'), { textContent: 'Tile Status Styles' }));
-        const stylesContent = document.createElement('div');
-        stylesContent.className = 'config-grid';
-        stylesFieldset.appendChild(stylesContent);
-
-        STATUSES.forEach(status => {
-            const statusData = this.allStyles[status] || {};
-            const statusFieldset = document.createElement('fieldset');
-            statusFieldset.className = 'stamp-fieldset';
-            statusFieldset.append(Object.assign(document.createElement('legend'), { textContent: status }));
-            
-            const previewContainer = document.createElement('div');
-            previewContainer.className = 'preview-container';
-            const mockTile = { id: 'Preview' };
-            const tileEl = document.createElement('bingo-tile');
-            tileEl.tile = mockTile;
-            tileEl.status = status;
-            tileEl.config = this.config;
-            tileEl.allStyles = this.allStyles;
-            tileEl.isSetupPreview = true;
-            previewContainer.appendChild(tileEl);
-            statusFieldset.appendChild(previewContainer);
-
-            const statusContent = document.createElement('div');
-            statusContent.className = 'config-grid';
-            statusFieldset.appendChild(statusContent);
-            createFormFields(statusContent, styleSchema, statusData, Object.keys(styleSchema), { status });
-            stylesContent.appendChild(statusFieldset);
-        });
-
-        formContainer.appendChild(stylesFieldset);
     }
 
     handleFormUpdate(event) {
@@ -192,15 +114,59 @@ export class GlobalConfigForm extends LitElement {
 
     render() {
         console.log(`[GlobalConfigForm] render: Rendering component. isVisible: ${this.isVisible}`);
+        if (!this.isVisible || !this.config || Object.keys(this.config).length === 0) {
+            return html`<div style="display: ${this.isVisible ? 'block' : 'none'}"></div>`;
+        }
+
         return html`
-            <div id="form-container" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate} style="display: ${this.isVisible ? 'block' : 'none'}"></div>
+            <div id="form-container" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate} style="display: ${this.isVisible ? 'block' : 'none'}">
+                <p>Edit the global configuration below. Changes will be reflected on the board live.</p>
+
+                <!-- Render Config Groups -->
+                ${Object.entries(configGroups).map(([groupName, properties]) => html`
+                    <fieldset class="overrides-fieldset">
+                        <legend>${groupName}</legend>
+                        <div class="config-grid">
+                            ${createFormFields(configSchema, this.config, properties)}
+                        </div>
+                    </fieldset>
+                `)}
+
+                <!-- Render Style Groups -->
+                <fieldset class="overrides-fieldset">
+                    <legend>Tile Status Styles</legend>
+                    <div class="config-grid">
+                        ${STATUSES.map(status => {
+                            const statusData = this.allStyles[status] || {};
+                            const mockTile = { id: 'Preview' };
+                            return html`
+                                <fieldset class="stamp-fieldset">
+                                    <legend>${status}</legend>
+                                    <div class="preview-container">
+                                        <bingo-tile
+                                            .tile=${mockTile}
+                                            .status=${status}
+                                            .config=${this.config}
+                                            .allStyles=${this.allStyles}
+                                            .isSetupPreview=${true}
+                                        ></bingo-tile>
+                                    </div>
+                                    <div class="config-grid">
+                                        ${createFormFields(styleSchema, statusData, Object.keys(styleSchema), { status })}
+                                    </div>
+                                </fieldset>
+                            `;
+                        })}
+                    </div>
+                </fieldset>
+            </div>
         `;
     }
 }
 
 customElements.define('global-config-form', GlobalConfigForm);
 
-// --- Debounced save logic ---
+// --- REVISED: Debounced save logic ---
 const debouncedSave = debounce((component, detail) => {
     let finalValue = detail.value;
     // On save, we parse the final value to a number if needed.

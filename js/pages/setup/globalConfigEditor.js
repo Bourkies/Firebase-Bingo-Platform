@@ -1,7 +1,6 @@
 /* globalconfigEditor.js */
 import '../../components/GlobalConfigForm.js'; // NEW: Import the Lit component
-import { configStore, updateConfig, updateStyle } from '../../stores/configStore.js';
-import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
+import { configStore } from '../../stores/configStore.js';
 
 export function initializeGlobalConfig(controller) {
     const toggleGlobalStylesBtn = document.getElementById('toggle-global-styles-btn');
@@ -19,10 +18,9 @@ export function renderGlobalConfig(mainController) {
     const { config, styles: allStyles } = configStore.get();
     if (!formComponent || !config || !allStyles) return;
 
-    // Pass data to the Lit component
+    // Pass data to the Lit component's properties
     formComponent.config = config;
     formComponent.allStyles = allStyles;
-    formComponent.mainController = mainController;
 }
 
 function toggleGlobalStyles() {
