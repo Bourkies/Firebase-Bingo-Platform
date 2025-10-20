@@ -114,7 +114,7 @@ function populateFilters() {
         <option value="unassigned">Unassigned</option>
     `;
 
-    Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([id, data]) => {
+    Object.entries(allTeams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, data]) => {
         teamFilter.innerHTML += `<option value="${id}">${data.name}</option>`;
     });
 
@@ -249,8 +249,7 @@ function renderTeamManagement() {
     const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
     const unassignedUsersHTML = unassignedUsers.length > 0 ? unassignedUsers.map(u => `
         <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}"><span>${u.displayName}</span><button class="add-member-btn" data-uid="${u.uid}">Add</button></li>`).join('') : '<li class="no-results-message">No unassigned users available.</li>';
-
-    const sortedTeams = Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name));
+    const sortedTeams = Object.entries(allTeams).sort((a, b) => a[0].localeCompare(b[0]));
 
     // Create options for captain selection, excluding users already captaining another team.
     const existingCaptainIds = new Set(Object.values(allTeams).map(t => t.captainId).filter(Boolean));
