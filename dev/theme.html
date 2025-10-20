@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script type="importmap">
+        {
+            "imports": {
+                "nanostores": "https://esm.sh/nanostores",
+                "lit": "https://esm.sh/lit",
+                "lit/": "https://esm.sh/lit/"
+            }
+        }
+    </script>
     <script src="../js/theme-loader.js"></script> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -279,7 +288,8 @@
 
     <script type="module">
         import '../js/components/Navbar.js';
-        import * as configManager from '../js/core/data/configManager.js';
+        // NEW: Import the store and its initializer
+        import { configStore, initConfigListener } from '../js/stores/configStore.js';
 
         document.addEventListener('DOMContentLoaded', () => {
 
@@ -405,12 +415,14 @@
             }
 
             // Fetch config to get the current board image URL
-            configManager.listenToConfigAndStyles(configData => {
-                if (configData && configData.config && configData.config.boardImageUrl) {
-                    setBoardPreviewImage(configData.config.boardImageUrl);
-                    document.getElementById('board-image-url-input').value = configData.config.boardImageUrl;
+            // NEW: Use the store instead of the old manager
+            initConfigListener(); // Start the listener
+            configStore.subscribe(storeData => {
+                if (storeData && storeData.config && storeData.config.boardImageUrl) {
+                    setBoardPreviewImage(storeData.config.boardImageUrl);
+                    document.getElementById('board-image-url-input').value = storeData.config.boardImageUrl;
                 }
-            });
+            })
 
             // Initialize pickers and generate CSS
             function initialize() {

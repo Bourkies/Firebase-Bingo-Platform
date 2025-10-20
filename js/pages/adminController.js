@@ -1,13 +1,24 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
-import { initAuth, getAuthState } from '../core/auth.js';
+// NEW: Import stores instead of old managers for reading data
+import { authStore } from '../stores/authStore.js';
+import { teamsStore } from '../stores/teamsStore.js'; 
+import { tilesStore } from '../stores/tilesStore.js';
+import { submissionsStore, updateSubmission } from '../stores/submissionsStore.js';
+import { usersStore } from '../stores/usersStore.js';
 
-let allUsers = {}, allTeams = {}, allTiles = {}, allSubmissions = [];
-let unsubscribeUsers, unsubscribeConfig, unsubscribeTeams, unsubscribeTiles, unsubscribeSubmissions;
 let currentOpenSubmissionId = null; // NEW: To track the currently open modal
 
 document.addEventListener('DOMContentLoaded', () => {
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+    tilesStore.subscribe(onDataChanged);
+    submissionsStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
+
+    // Setup event listeners for filters and modal
     document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
     document.getElementById('search-filter').addEventListener('input', renderSubmissionsTable);
     document.querySelectorAll('#submissions-filters input[type="checkbox"]').forEach(cb => {
@@ -19,125 +30,85 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
 
-    // Initialize authentication. The onAuthStateChanged callback will handle data initialization.
-    initAuth(onAuthStateChanged);
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
-async function onAuthStateChanged(authState) {
+function onDataChanged() {
+    const authState = authStore.get();
+
+    // --- Visibility / Access Control ---
+    const adminView = document.getElementById('admin-view');
+    const accessDenied = document.getElementById('access-denied');
+
+    if (!authState.authChecked) {
+        showGlobalLoader();
+        adminView.style.display = 'none';
+        accessDenied.style.display = 'none';
+        return;
+    }
+
     if (authState.isEventMod) {
-        document.getElementById('access-denied').style.display = 'none'; // This is where the authState is passed
+        accessDenied.style.display = 'none';
         document.getElementById('admin-view').style.display = 'flex';
-        // The navbar component now handles showing/hiding its own links.
-        // The links below are for the admin dashboard content, not the navbar.
         document.getElementById('user-assignment-link').style.display = authState.isEventMod ? 'inline-block' : 'none';
         document.getElementById('user-permissions-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
         document.getElementById('submissions-import-link').style.display = authState.isAdmin ? 'inline-block' : 'none';
     } else {
-        document.getElementById('access-denied').style.display = 'block';
-        document.getElementById('admin-view').style.display = 'none';
+        hideGlobalLoader();
+        adminView.style.display = 'none';
+        accessDenied.style.display = 'block';
         if (authState.isLoggedIn) {
             document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Event Mod or Admin) to view this page.';
         }
-        hideGlobalLoader();
+        return;
     }
-    // Initialize or re-initialize the app's data listeners whenever auth state changes.
-    // This handles both initial load and login/logout events.
-    initializeApp(authState);
-}
 
-function initializeApp(authState) {
-    // Detach old listeners if they exist
-    if (unsubscribeConfig) unsubscribeConfig();
-    if (unsubscribeTeams) unsubscribeTeams();
-    if (unsubscribeTiles) unsubscribeTiles();    
-    if (unsubscribeSubmissions) unsubscribeSubmissions();
-    if (unsubscribeUsers) unsubscribeUsers();
-    let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, users: false };
-    const checkAllLoaded = () => { // FIX: Added allUsers to check
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            hideGlobalLoader();
+    // --- Data Loading Check ---
+    const allTeams = teamsStore.get();
+    const tiles = tilesStore.get();
+    const submissions = submissionsStore.get();
+
+    if (Object.keys(allTeams).length === 0 || tiles.length === 0) {
+        showGlobalLoader();
+        return;
+    }
+
+    hideGlobalLoader();
+
+    // --- Render Page ---
+    populateFilters();
+    renderSubmissionsTable();
+
+    // If a modal is open, check for updates and re-render it.
+    if (currentOpenSubmissionId) {
+        const updatedSub = submissions.find(s => s.docId === currentOpenSubmissionId);
+        if (updatedSub) {
+            openSubmissionModal(updatedSub, true); // Pass the updated submission object directly
         }
-    };
-
-    // Listener for config
-    unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
-        console.log("Admin: Config updated in real-time.");
-        const config = doc.data() || {};
-        document.title = (config.pageTitle || 'Bingo') + ' | Admin Dashboard';
-        // The navbar component now handles showing/hiding its own links.
-        
-        if (authState.isEventMod) {
-            populateFilters();
-        }
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error listening to config:", error); hideGlobalLoader(); });
-
-    // Listener for tiles
-    unsubscribeTiles = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
-        console.log("Admin: Tiles updated in real-time.");
-        // Key by docId, value is the tile data object
-        const newTiles = {};
-        snapshot.forEach(doc => { newTiles[doc.id] = { ...doc.data(), docId: doc.id }; });
-        allTiles = newTiles;
-        
-        if (authState.isEventMod) renderSubmissionsTable();
-        if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error listening to tiles:", error); hideGlobalLoader(); });
-
-    // FIX: Add listener for teams to populate filters
-    const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
-    unsubscribeTeams = fb.onSnapshot(teamsQuery, (snapshot) => {
-        console.log("Admin: Teams updated in real-time.");
-        allTeams = {};
-        snapshot.docs.forEach(doc => { allTeams[doc.id] = doc.data(); });
-        if (authState.isEventMod) {
-            populateFilters();
-        }
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error listening to teams:", error); hideGlobalLoader(); });
-
-    // Listener for users
-    unsubscribeUsers = fb.onSnapshot(fb.collection(db, 'users'), (snapshot) => {
-        console.log("Admin: Users updated in real-time.");
-        allUsers = {};
-        snapshot.docs.forEach(doc => { allUsers[doc.id] = doc.data(); });
-        if (authState.isEventMod) renderSubmissionsTable();
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, (error) => { console.error("Error listening to users:", error); hideGlobalLoader(); });
-
-
-    // Listener for submissions
-    if (authState.isEventMod) {
-        document.getElementById('submissions-card').style.display = 'block';
-        const submissionsQuery = fb.query(fb.collection(db, 'submissions'), fb.orderBy('Timestamp', 'desc'));
-        unsubscribeSubmissions = fb.onSnapshot(submissionsQuery, (snapshot) => {
-            console.log("Admin: Submissions updated in real-time.");
-            allSubmissions = snapshot.docs.map(doc => ({...doc.data(), docId: doc.id}));
-            // NEW: If a modal is open, check for updates and re-render it.
-            if (currentOpenSubmissionId) {
-                const updatedSub = allSubmissions.find(s => s.docId === currentOpenSubmissionId);
-                if (updatedSub) {
-                    openSubmissionModal(updatedSub, true); // Pass the updated submission object directly
-                }
-            }
-            renderSubmissionsTable();
-            if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
-        });
-    } else {
-        document.getElementById('submissions-card').style.display = 'none';
     }
 }
 
 function populateFilters() {
+    const allTeams = teamsStore.get();
     const teamFilter = document.getElementById('team-filter');
+    const currentValue = teamFilter.value;
     teamFilter.innerHTML = '<option value="all">All Teams</option>';
     Object.entries(allTeams).forEach(([id, data]) => {
         teamFilter.innerHTML += `<option value="${id}">${data.name}</option>`;
     });
+    teamFilter.value = currentValue;
 }
 
 function renderSubmissionsTable() {
+    const allTeams = teamsStore.get();
+    const tiles = tilesStore.get();
+    const allUsers = usersStore.get();
+    const allSubmissions = submissionsStore.get();
+
     const tbody = document.querySelector('#submissions-table tbody');
+    tbody.innerHTML = '';
+
     // Get filter values
     const selectedTeam = document.getElementById('team-filter').value;
     const searchTerm = document.getElementById('search-filter').value.toLowerCase();
@@ -148,10 +119,8 @@ function renderSubmissionsTable() {
     const useUtcTime = document.getElementById('utc-time-toggle').checked;
 
     // Create a map of user-facing IDs to tile data for quick lookups
-    const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
-        if (tile.id) acc[tile.id] = tile;
-        return acc;
-    }, {});
+    const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
+    const usersById = new Map(allUsers.map(u => [u.uid, u.displayName]));
 
     const filteredSubmissions = allSubmissions.filter(sub => {
         if (sub.IsArchived) return false;
@@ -170,14 +139,11 @@ function renderSubmissionsTable() {
 
         // Search filter
         if (searchTerm) {
-            const tileName = (tilesByVisibleId[sub.id]?.Name || '').toLowerCase();
+            const tileName = (tilesByVisibleId.get(sub.id)?.Name || '').toLowerCase();
             const teamName = (allTeams[sub.Team]?.name || '').toLowerCase();
             
             // NEW: Search through looked-up player names
-            const playerNames = (sub.PlayerIDs || [])
-                .map(uid => allUsers[uid]?.displayName || '')
-                .join(' ')
-                .toLowerCase();
+            const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || '').join(' ').toLowerCase();
             const additionalNames = (sub.AdditionalPlayerNames || '').toLowerCase();
 
             const tileId = (sub.id || '').toLowerCase();
@@ -188,17 +154,20 @@ function renderSubmissionsTable() {
         return true; // If all filters pass
     });
 
+    if (filteredSubmissions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';
+        return;
+    }
+
     tbody.innerHTML = filteredSubmissions.map(sub => {
         const status = getSubmissionStatus(sub);
-        const tileName = tilesByVisibleId[sub.id]?.Name || sub.id; // Use the new map
+        const tileName = tilesByVisibleId.get(sub.id)?.Name || sub.id;
         const teamName = allTeams[sub.Team]?.name || sub.Team;
-        const date = sub.CompletionTimestamp?.toDate() || sub.Timestamp?.toDate(); // Prefer completion time
+        const date = sub.CompletionTimestamp || sub.Timestamp; // Already a Date object
         const timestamp = formatCustomDateTime(date, useUtcTime);
 
         // NEW: Generate player name string from IDs
-        const playerNames = (sub.PlayerIDs || [])
-            .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
-            .join(', ');
+        const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
         const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
 
 
@@ -227,7 +196,7 @@ function getSubmissionStatus(sub) {
 }
 
 function formatCustomDateTime(date, useUTC = false) {
-    if (!date || !(date instanceof Date)) return 'N/A';
+    if (!date) return 'N/A'; // Already a Date object
 
     const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
     const month = String((useUTC ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, '0');
@@ -240,35 +209,34 @@ function formatCustomDateTime(date, useUTC = false) {
 }
 
 function openSubmissionModal(submissionOrId, isUpdate = false) {
+    const allSubmissions = submissionsStore.get();
+    const allTeams = teamsStore.get();
+    const tiles = tilesStore.get();
+    const allUsers = usersStore.get();
+
     // If we're opening from a click, we get an ID. If from a live update, we get the object.
-    const sub = typeof submissionOrId === 'string'
-        ? allSubmissions.find(s => s.docId === submissionOrId)
-        : submissionOrId;
+    const sub = typeof submissionOrId === 'string' ? allSubmissions.find(s => s.docId === submissionOrId) : submissionOrId;
     if (!sub) return;
 
     // NEW: Track the open submission
     currentOpenSubmissionId = sub.docId;
 
     // Create a map of user-facing IDs to tile data for quick lookups
-    const tilesByVisibleId = Object.values(allTiles).reduce((acc, tile) => {
-        if (tile.id) acc[tile.id] = tile;
-        return acc;
-    }, {});
+    const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
+    const usersById = new Map(allUsers.map(u => [u.uid, u.displayName]));
 
     document.getElementById('modal-submission-id').value = sub.docId;
     const teamName = allTeams[sub.Team]?.name || sub.Team;
-    document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId[sub.id]?.Name || 'Unknown Tile'}`;
+    document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId.get(sub.id)?.Name || 'Unknown Tile'}`;
     document.getElementById('modal-team').textContent = teamName;
 
     // NEW: Generate player name string from IDs
-    const playerNames = (sub.PlayerIDs || [])
-        .map(uid => allUsers[uid]?.displayName || `[${uid.substring(0,5)}]`)
-        .join(', ');
+    const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
     const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';
 
-    const completionTimestamp = sub.CompletionTimestamp?.toDate();
+    const completionTimestamp = sub.CompletionTimestamp; // Already a Date object
     document.getElementById('modal-timestamp-local').textContent = formatCustomDateTime(completionTimestamp, false);
     document.getElementById('modal-timestamp-utc').textContent = formatCustomDateTime(completionTimestamp, true);
 
@@ -320,9 +288,9 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     if (sub.history && Array.isArray(sub.history)) {
         historyDetails.style.display = 'block';
         // Sort history from newest to oldest
-        const sortedHistory = [...sub.history].sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+        const sortedHistory = [...sub.history].sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
         sortedHistory.forEach(entry => {
-            const date = entry.timestamp?.toDate();
+            const date = entry.timestamp; // Already a Date object
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
             // Always show changes if they exist, including for creation events.
             const changesText = (entry.changes && entry.changes.length > 0)
@@ -347,11 +315,12 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
 async function handleSubmissionUpdate(event) {
     event.preventDefault();
     showGlobalLoader();
+    const allSubmissions = submissionsStore.get();
     const submissionId = document.getElementById('modal-submission-id').value;
     const existingSub = allSubmissions.find(s => s.docId === submissionId);
     if (!existingSub) return;
 
-    const authState = getAuthState(); // We need the current admin's info
+    const authState = authStore.get(); // We need the current admin's info
     const newVerified = document.getElementById('modal-verified').checked;
     const newRequiresAction = document.getElementById('modal-requires-action').checked;
 
@@ -385,13 +354,10 @@ async function handleSubmissionUpdate(event) {
     if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
     if (newRequiresAction) dataToUpdate.IsComplete = false;
 
-    const subRef = fb.doc(db, 'submissions', submissionId);
     try {
-        // Only add history if there were actual changes
-        if (historyEntry.changes.length > 0) {
-            dataToUpdate.history = fb.arrayUnion(historyEntry);
-        }
-        await fb.updateDoc(subRef, dataToUpdate);
+        const history = historyEntry.changes.length > 0 ? historyEntry : null;
+        await updateSubmission(submissionId, dataToUpdate, history);
+        
         document.getElementById('submission-modal').style.display = 'none';
         currentOpenSubmissionId = null; // NEW: Clear tracking on successful update
     } catch (error) {

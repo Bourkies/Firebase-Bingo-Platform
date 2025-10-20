@@ -25,7 +25,6 @@ The repository has been refactored into a modular structure that separates conce
 *   **`js/core/`**: Central, shared logic.
     *   `auth.js`: Manages user authentication.
     *   `utils.js`: Shared helper functions (e.g., `showMessage`).
-    *   `data/`: Modules for managing specific Firestore collections (e.g., `tileManager.js`, `userManager.js`).
     *   `firebase-config.js`: **(Requires your keys)** Contains the Firebase project configuration.
     *   `firebase-config.example.js`: A template for the configuration file.
 *   **`js/components/`**: Reusable UI elements.
@@ -261,7 +260,7 @@ This page is for managing user roles and verifying submissions. Access is restri
 This project follows a modular architecture. Here are the key conventions:
 
 *   **Core Services (`js/core/`)**: Any logic that is shared across multiple pages and is not a UI component belongs here. Data management is further broken down by collection in `js/core/data/`.
-*   **UI Components (`js/components/`)**: Reusable pieces of the user interface, like the navbar or tile renderer.
+*   **UI Components (`js/components/`)**: Reusable pieces of the user interface, like the navbar or tile renderer. 
 *   **Page Controllers (`js/pages/`)**: Each `.html` file has a corresponding controller in this directory. The controller is responsible for all logic unique to that page, such as initializing components and attaching event listeners.
 
 ### Adding a New Page

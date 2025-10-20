@@ -1,28 +1,23 @@
 import '../components/Navbar.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
-
-// Import the new data managers
-import * as configManager from '../core/data/configManager.js';
-import * as tileManager from '../core/data/tileManager.js';
-import { initAuth } from '../core/auth.js';
-import { createTileElement } from '../components/TileRenderer.js';
+import '../components/BingoTile.js'; // Import the tile component
+// NEW: Import stores for reading data
+import { authStore } from '../stores/authStore.js';
+import { configStore, updateConfig, updateStyle } from '../stores/configStore.js'; 
+import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
 
 // Import setup sub-modules
-import { initializeTileEditor, updateTileEditorData, populateTileSelector, updateEditorPanelContent, createEditorForm } from './setup/tileEditor.js';
-import { initializePrereqEditor, updatePrereqEditorData, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
-import { initializeOverrideEditor, updateOverridesJsonFromCurrentTile as updateOverridesCallback, populateOverridesUI } from './setup/overrideEditor.js';
-import { initializeGlobalConfig, updateGlobalConfigData, renderGlobalConfig } from './setup/globalConfigEditor.js';
-
-let tilesData = [];
-let config = {};
-let allStyles = {};
+import { initializeTileEditor, populateTileSelector, updateEditorPanelContent } from './setup/tileEditor.js';
+import { initializePrereqEditor, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
+import { initializeOverrideEditor, populateOverridesUI } from './setup/overrideEditor.js';
+import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
+ 
 export let lastSelectedTileIndex = null; // Export for sub-modules
 let currentPreviewStatus = null;
 let isTilesLocked = true;
 let showTileIds = true; // State for the new toggle
 let prereqVisMode = 'hide'; // State for the new prereq button
 
-let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 
 let currentScale = 1;
@@ -50,164 +45,179 @@ const zoomSlider = document.getElementById('zoom-slider');
 const zoomValue = document.getElementById('zoom-value');
 const resetZoomBtn = document.getElementById('reset-zoom');
 
+// Main controller interface passed to sub-modules
+const mainControllerInterface = {
+    get lastSelectedTileIndex() { return lastSelectedTileIndex; },
+    get allTiles() { return tilesStore.get(); },
+    get config() { return configStore.get().config; },
+    get allStyles() { return configStore.get().styles; },
+    updateEditorPanel, renderTiles,
+    flashField, loadBoardImage, saveTile,
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    initAuth(onAuthStateChanged);
-});
-
-function onAuthStateChanged(authState) {
-    console.log("[SetupController] onAuthStateChanged triggered. isAdmin:", authState.isAdmin);
-    if (authState.isAdmin) {
-        document.getElementById('setup-view').style.display = 'flex';
-        document.getElementById('access-denied').style.display = 'none';
-        document.getElementById('lock-tiles-btn')?.addEventListener('click', toggleTileLock);        
-        document.getElementById('show-tile-ids-btn')?.addEventListener('click', (e) => {
-            showTileIds = !showTileIds;
-            e.target.textContent = showTileIds ? 'Hide IDs' : 'Show IDs';
-            e.target.style.backgroundColor = showTileIds ? '' : '#555';
-            renderTiles();
-        });
-        document.getElementById('prereq-vis-btn')?.addEventListener('click', (e) => {
-            prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
-            e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
-            e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
-            renderPrereqLines(prereqVisMode);
-        });
-        createStylePreviewButtons();
-        applyTileLockState();
-        initializeApp(authState); // Pass the authState object here
-    } else {
-        document.getElementById('setup-view').style.display = 'none';
-        document.getElementById('access-denied').style.display = 'block';
-        document.querySelector('#access-denied p').textContent = authState.isLoggedIn ? 'You must be an Admin to view this page.' : 'You must be logged in as an Admin to view this page.';
-    }
-}
-
-function initializeApp(authState) {
-    console.log("[SetupController] initializeApp starting...");
-    showGlobalLoader();
-    unsubscribeFromAll();
-    let unsubs = [];
-
-    let initialDataLoaded = { config: false, tiles: false };
-    const checkAllLoaded = () => {
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            console.log("[SetupController] All initial data loaded.");
-            hideGlobalLoader();
-            showMessage('Live editor initialized and synced!', false);
-        }
-    };
-
-    // Main controller interface passed to sub-modules
-    const mainControllerInterface = {
-        get lastSelectedTileIndex() { return lastSelectedTileIndex; },
-        get tilesData() { return tilesData; },
-        get config() { return config; },
-        get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, saveTile,
-        flashField, loadBoardImage, // Expose the new utilities
-    };
-    
-    unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
-        console.log("[SetupController] Config/Styles updated.");
-        config = newConfig.config || {};
-        allStyles = newConfig.styles || {};
-        document.title = (config.pageTitle || 'Bingo') + ' | Live Editor';
-        
-        updateGlobalConfigData(config, allStyles);
-
-        if (!initialDataLoaded.config) {
-            unsubs.push(tileManager.listenToTiles(newTiles => { // FIX: Changed log to match format
-                console.log("[SetupController] Tiles updated in real-time.");
-                const oldTileDocIds = new Set(tilesData.map(t => t.docId));
-                const wasTileAdded = newTiles.length > tilesData.length;
-
-                tilesData = newTiles;
-                updateTileEditorData(tilesData, lastSelectedTileIndex); // Update data in tileEditor
-                updatePrereqEditorData(tilesData, lastSelectedTileIndex); // Update data in prereqEditor
-
-                populateTileSelector();
-                renderTiles(); // This will call renderPrereqLines internally
-
-                if (wasTileAdded) {
-                    // Find the newly added tile and select it
-                    const newTile = tilesData.find(t => !oldTileDocIds.has(t.docId));
-                    if (newTile) {
-                        const newIndex = tilesData.findIndex(t => t.docId === newTile.docId);
-                        updateEditorPanel(newIndex);
-                    }
-                } else {
-                    // Check if the currently selected tile was removed
-                    if (lastSelectedTileIndex !== null && !tilesData[lastSelectedTileIndex]) {
-                        updateEditorPanel(null);
-                    } else if (lastSelectedTileIndex !== null) {
-                        // If it still exists, refresh the editor panel with potentially new data
-                        updateEditorPanel(lastSelectedTileIndex);
-                    }
-                }
-
-                if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-            }, authState, config, true)); // Pass true for includeDocId
-
-            // Initial render after first data load
-            renderGlobalConfig(mainControllerInterface);
-            updateEditorPanel(null);
-            initialDataLoaded.config = true;
-            checkAllLoaded();
-        } else {
-            // On subsequent updates, just re-render things that depend on config/styles
-            renderGlobalConfig(mainControllerInterface);
-            updatePrereqEditorData(tilesData, lastSelectedTileIndex);
-            loadBoardImage(config.boardImageUrl || '');
-            renderTiles(); // This will call renderPrereqLines internally
-        }
-    })); // The error callback is no longer needed here
-
-    unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    configStore.subscribe(onDataChanged);
+    tilesStore.subscribe(onDataChanged);
 
     // Initialize sub-modules that attach event listeners
     initializeTileEditor(mainControllerInterface);
     initializePrereqEditor(mainControllerInterface);
     initializeOverrideEditor(mainControllerInterface);
-    initializeGlobalConfig(mainControllerInterface); // Pass the interface here
+    initializeGlobalConfig(mainControllerInterface);
+
+    // Setup page-level event listeners
+    document.getElementById('lock-tiles-btn')?.addEventListener('click', toggleTileLock);
+    document.getElementById('show-tile-ids-btn')?.addEventListener('click', (e) => {
+        showTileIds = !showTileIds;
+        e.target.textContent = showTileIds ? 'Hide IDs' : 'Show IDs';
+        e.target.style.backgroundColor = showTileIds ? '' : '#555';
+        renderTiles();
+    });
+    document.getElementById('prereq-vis-btn')?.addEventListener('click', (e) => {
+        prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
+        e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
+        e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+        renderPrereqLines(prereqVisMode);
+    });
+
+    // Initial call to render the page with default store values.
+    onDataChanged();
+});
+
+function onDataChanged() {
+    const authState = authStore.get();
+    const { config, styles } = configStore.get();
+    const tilesData = tilesStore.get();
+
+    // --- Visibility / Access Control ---
+    const setupView = document.getElementById('setup-view');
+    const accessDenied = document.getElementById('access-denied');
+
+    if (!authState.authChecked) {
+        showGlobalLoader();
+        setupView.style.display = 'none';
+        accessDenied.style.display = 'none';
+        return;
+    }
+
+    if (authState.isAdmin) {
+        setupView.style.display = 'flex';
+        accessDenied.style.display = 'none';
+    } else {
+        hideGlobalLoader();
+        setupView.style.display = 'none';
+        accessDenied.style.display = 'block';
+        accessDenied.querySelector('p').textContent = authState.isLoggedIn ? 'You must be an Admin to view this page.' : 'You must be logged in as an Admin to view this page.';
+        return;
+    }
+
+    // --- Data Loading Check ---
+    if (!config.pageTitle || !tilesData) {
+        showGlobalLoader();
+        return;
+    }
+    hideGlobalLoader();
+
+    // --- Render Page ---
+    document.title = (config.pageTitle || 'Bingo') + ' | Live Editor';
+
+    // Full re-render of all components that depend on data
+    renderGlobalConfig(mainControllerInterface);
+    populateTileSelector();
+    renderTiles();
+
+    // If a tile is selected, ensure its panel is up-to-date
+    if (lastSelectedTileIndex !== null) {
+        updateEditorPanel(lastSelectedTileIndex);
+    } else {
+        updateEditorPanel(null); // Ensure editor is cleared if no tile is selected
+    }
+
+    // This is the first time we have all data, so we can now do things
+    // that were previously done once.
+    if (!document.body.dataset.initialized) {
+        document.body.dataset.initialized = 'true';
+
+        // NEW: Add listeners for Lit component events
+        const tileEditor = document.getElementById('tile-editor-form-component');
+        tileEditor.addEventListener('tile-update', (e) => saveTile(e.detail.docId, e.detail.data));
+        tileEditor.addEventListener('render-tiles', () => renderTiles());
+        tileEditor.addEventListener('render-tiles-preview', handleTilePreviewUpdate);
+
+        const globalConfigEditor = document.getElementById('global-config-form-component');
+        globalConfigEditor.addEventListener('config-change', handleGlobalConfigChange);
+        globalConfigEditor.addEventListener('config-preview-change', (e) => {
+            handleGlobalConfigChange(e); // Can use the same handler for preview
+            renderTiles(); // Re-render all tiles for style previews
+        });
+
+        createStylePreviewButtons();
+        applyTileLockState();
+        loadBoardImage(config.boardImageUrl || '');
+    }
+}
+
+function handleGlobalConfigChange(event) {
+    const { status, key, value } = event.detail;
+    if (!key) return;
+
+    if (status) {
+        updateStyle(status, { [key]: value });
+    } else {
+        if (key === 'boardImageUrl') loadBoardImage(value);
+        updateConfig({ [key]: value });
+    }
+    // The store listener will trigger a re-render if necessary,
+    // but for live style previews, we want an immediate re-render.
+    if (event.type === 'config-preview-change') renderTiles();
 }
 
 function renderTiles() {
     console.log("[SetupController] renderTiles called.");
-    boardContent.querySelectorAll('.draggable-tile').forEach(el => el.remove());
+    // FIX: Target the new <bingo-tile> component tag to clear the board.
+    boardContent.querySelectorAll('bingo-tile').forEach(el => el.remove());
+    const tilesData = tilesStore.get();
+    const { config, styles } = configStore.get();
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
 
     tilesData.forEach((tile, index) => {
-        const status = currentPreviewStatus || 'Unlocked';
-        const tileEl = createTileElement(tile, status, config, allStyles, {
-            baseClass: 'draggable-tile',
-            isHighlighted: lastSelectedTileIndex === index,
-            hasConflict: duplicateIds.has(tile.id)
-        });
-
+        const tileEl = document.createElement('bingo-tile');
+        tileEl.tile = tile;
+        tileEl.status = currentPreviewStatus || 'Unlocked';
+        tileEl.config = config;
+        tileEl.allStyles = styles;
+        tileEl.isSetupTile = true; // For setup-specific styles/behavior
+        tileEl.isHighlighted = lastSelectedTileIndex === index;
+        tileEl.hasConflict = duplicateIds.has(tile.id);
+        // NEW: Pass the showId flag to the component's property.
+        tileEl.showId = showTileIds;
         tileEl.dataset.index = index;
-
-        // Render like the index page: show tile NAME based on config.
-        if (config.showTileNames === true && !tileEl.querySelector('.stamp-image')) {
-            const tileNameSpan = document.createElement('span');
-            tileNameSpan.textContent = tile.Name || tile.id; // Fallback to ID if name is missing
-            tileEl.appendChild(tileNameSpan);
-        }
-
-        // NEW: Add a separate, styled element for the tile ID if the toggle is on.
-        if (showTileIds) {
-            const idOverlay = document.createElement('div');
-            idOverlay.className = 'tile-id-overlay';
-            idOverlay.textContent = tile.id;
-            idOverlay.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: white; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 4px; z-index: 10; pointer-events: none;';
-            tileEl.appendChild(idOverlay);
-        }
 
         boardContent.appendChild(tileEl);
     });
     renderPrereqLines(prereqVisMode);
 }
 
+function handleTilePreviewUpdate(event) {
+    const { docId, key, value } = event.detail;
+    const tilesData = tilesStore.get();
+    const tileIndex = tilesData.findIndex(t => t.docId === docId);
+    if (tileIndex === -1) return;
+
+    // Find the specific tile element on the board and update it
+    const tileEl = boardContent.querySelector(`bingo-tile[data-index="${tileIndex}"]`);
+    if (tileEl) {
+        // FIX: Create a *new* tile object to ensure Lit's property change detection works.
+        // Mutating the existing object in the store's array is not enough.
+        const newTileData = { ...tileEl.tile, [key]: parseFloat(value) || 0 };
+        tileEl.tile = newTileData;
+        // Also update the master array so other interactions have the latest data.
+        tilesData[tileIndex] = newTileData;
+    }
+}
 function applyTransform() {
     boardContent.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
 }
@@ -228,7 +238,7 @@ resetZoomBtn.addEventListener('click', () => {
 
 interact(boardContainer)
     .draggable({
-        listeners: {
+        listeners: { 
             move(event) {
                 pan.x += event.dx;
                 pan.y += event.dy;
@@ -238,10 +248,11 @@ interact(boardContainer)
         allowFrom: '#board-content'
     });
 
-interact('.draggable-tile')
+interact('bingo-tile')
     .draggable({
         listeners: {
             move(event) {
+                const tilesData = tilesStore.get();
                 const target = event.target;
                 const index = target.dataset.index;
                 if (!tilesData[index]) return;
@@ -273,7 +284,8 @@ interact('.draggable-tile')
     .resizable({
         edges: { left: true, right: true, bottom: true, top: true },
         listeners: {
-            move(event) {
+            move(event) { 
+                const tilesData = tilesStore.get();
                 const target = event.target;
                 const index = target.dataset.index;
                 if (!tilesData[index]) return;
@@ -315,10 +327,10 @@ interact('.draggable-tile')
 function applyTileLockState() {
     const lockBtn = document.getElementById('lock-tiles-btn');
     if (isTilesLocked) {
-        interact('.draggable-tile').draggable(false).resizable(false);
+        interact('bingo-tile').draggable(false).resizable(false);
         lockBtn.textContent = 'Locked';
     } else {
-        interact('.draggable-tile').draggable(true).resizable(true);
+        interact('bingo-tile').draggable(true).resizable(true);
         lockBtn.textContent = 'Unlocked';
     }
 }
@@ -329,27 +341,14 @@ function toggleTileLock() {
 }
 
 function updateEditorPanel(index) {
-    if (index === null || !tilesData[index]) {
+    const tilesData = tilesStore.get();
+    if (index === null || !tilesData?.[index]) {
         index = null;
     }
     lastSelectedTileIndex = index;
 
-    const mainControllerInterface = {
-        get lastSelectedTileIndex() { return lastSelectedTileIndex; },
-        get tilesData() { return tilesData; },
-        get config() { return config; },
-        get allStyles() { return allStyles; },
-        updateEditorPanel, renderTiles, saveTile, flashField,
-        loadBoardImage
-    };
-
-    // Update data in sub-modules before re-rendering their content
-    updateTileEditorData(tilesData, lastSelectedTileIndex);
-    updatePrereqEditorData(tilesData, lastSelectedTileIndex);
-
     // Call the main content update function in tileEditor
     updateEditorPanelContent(index, mainControllerInterface);
-
     renderPrereqLines(prereqVisMode);
 }
 
@@ -364,8 +363,9 @@ boardContent.addEventListener('click', (event) => {
     if (event.target.classList.contains('interact-resizing') || event.target.classList.contains('interact-dragging')) {
         return;
     }
-    const tileEl = event.target.closest('.draggable-tile');
+    const tileEl = event.target.closest('bingo-tile');
     if (tileEl) {
+        const tilesData = tilesStore.get();
         const index = parseInt(tileEl.dataset.index, 10);
         updateEditorPanel(index);
     }
@@ -409,24 +409,4 @@ function loadBoardImage(imageUrl) {
         boardContent.appendChild(Object.assign(document.createElement('div'), { className: 'error-message', innerHTML: `<strong>Board Image Failed to Load</strong><br><small>Check the URL in the config or try re-uploading.</small>` }));
     };
     boardImage.src = imageUrl;
-}
-
-async function saveTile(docId, data, mainControllerInterface) {
-    if (!docId) return;
-    console.log(`[SetupController] Saving tile ${docId}`, data);
-    try {
-        await tileManager.updateTile(docId, data);
-        
-        // Provide user feedback
-        const key = Object.keys(data)[0];
-        const value = data[key];
-        const displayValue = String(value).length > 50 ? String(value).substring(0, 47) + '...' : value;
-        showMessage(`Saved ${key}: ${displayValue}`, false);
-
-        // FIX: Re-render tiles to show override changes immediately.
-        if (mainControllerInterface) mainControllerInterface.renderTiles();
-
-    } catch (err) {
-        showMessage(`Error saving tile: ${err.message}`, true);
-    }
 }

@@ -1,6 +1,7 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { initAuth } from '../core/auth.js';
+import { importSubmissions, clearAllSubmissions } from '../stores/submissionsStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
@@ -259,11 +260,11 @@ async function handleImport() {
         const existingSub = existingSubs.get(`${tileId}|${teamId}`);
         if (existingSub) {
             if (importMode === 'skip') {
-                operations.push({ type: 'skip', id: `${tileId} on ${teamId}` });
+                operations.push({ type: 'skip', id: `${tileId} on ${teamId}`, docId: existingSub.docId });
             } else if (importMode === 'overwrite') {
-                operations.push({ type: 'set', ref: fb.doc(db, 'submissions', existingSub.docId), data: subData });
+                operations.push({ type: 'set', docId: existingSub.docId, data: subData });
             } else if (importMode === 'archive') {
-                operations.push({ type: 'update', ref: fb.doc(db, 'submissions', existingSub.docId), data: { IsArchived: true } });
+                operations.push({ type: 'update', docId: existingSub.docId, data: { IsArchived: true } });
                 operations.push({ type: 'add', data: { ...subData, Timestamp: fb.serverTimestamp() } });
             }
         } else {
@@ -283,17 +284,7 @@ async function handleImport() {
     }
 
     try {
-        const BATCH_SIZE = 499;
-        for (let i = 0; i < operations.length; i += BATCH_SIZE) {
-            const batch = fb.writeBatch(db);
-            const chunk = operations.slice(i, i + BATCH_SIZE);
-            chunk.forEach(op => {
-                if (op.type === 'set') batch.set(op.ref, op.data, { merge: true });
-                else if (op.type === 'update') batch.update(op.ref, op.data);
-                else if (op.type === 'add') batch.set(fb.doc(fb.collection(db, 'submissions')), op.data);
-            });
-            await batch.commit();
-        }
+        await importSubmissions(operations);
         showMessage(`Successfully processed ${operations.length} rows!`, false);
         resultsContainer.style.display = 'block';
         document.getElementById('success-results').style.display = 'block';
@@ -329,14 +320,7 @@ async function executeClear() {
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Deleting...';
     try {
-        const snapshot = await fb.getDocs(fb.collection(db, 'submissions'));
-        const BATCH_SIZE = 499;
-        for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
-            const batch = fb.writeBatch(db);
-            const chunk = snapshot.docs.slice(i, i + BATCH_SIZE);
-            chunk.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-        }
+        await clearAllSubmissions();
         showMessage('All submissions have been deleted.', false);
         closeClearModal();
     } catch (error) {

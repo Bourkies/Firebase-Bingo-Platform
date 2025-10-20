@@ -1,178 +1,96 @@
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
 import { showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
-// Import the new data managers
-import * as configManager from '../core/data/configManager.js';
-import * as teamManager from '../core/data/teamManager.js';
-import * as tileManager from '../core/data/tileManager.js';
-import * as submissionManager from '../core/data/submissionManager.js';
-import * as userManager from '../core/data/userManager.js';
+// NEW: Import stores instead of old managers
+import { authStore } from '../stores/authStore.js';
+import { configStore } from '../stores/configStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
+import { tilesStore } from '../stores/tilesStore.js';
+import { submissionsStore } from '../stores/submissionsStore.js';
+import { usersStore } from '../stores/usersStore.js';
 import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
-// FIX: Initialize all data stores as empty arrays to prevent them from ever being undefined.
-// This is the definitive fix for the 'filter is not a function' race condition.
-let config = {}, allTeams = {}, tiles = [];
-let allUsers = [];
-let submissions = [];
-let authState = {};
-
+// State variables that are truly local to this page
 let fullFeedData = [];
 let teamColorMap = {};
 let myScoreChart = null;
 let fullChartData = [];
-let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 
-let initialDataLoaded = { config: false, teams: false, tiles: false, submissions: false, users: false };
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('feed-team-filter').addEventListener('change', handleFilterChange);
-    initializeApp();
-    // NEW: Listen for theme changes to re-render the chart with new colors.
     document.addEventListener('theme-changed', () => {
         handleFilterChange(); // This function already re-renders the chart and feed.
     });
-    initAuth(onAuthStateChanged);
+
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    configStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+    tilesStore.subscribe(onDataChanged);
+    submissionsStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
+
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
-function onAuthStateChanged(newAuthState) {
-    authState = newAuthState;
-    // Re-initialize listeners to apply correct permissions (e.g., for censored tiles)
-    initializeApp();
-}
+function onDataChanged() {
+    // Get the latest state from all stores
+    const authState = authStore.get();
+    const { config } = configStore.get();
+    const allTeams = teamsStore.get();
+    const tiles = tilesStore.get();
+    const submissions = submissionsStore.get();
+    const allUsers = usersStore.get();
 
-/**
- * A centralized handler for all data updates. It updates the relevant
- * state variable and triggers a re-processing of all data if the initial
- * load is complete.
- * @param {string} dataType - The type of data being updated (e.g., 'teams', 'users').
- * @param {*} newData - The new data from the listener.
- */
-function handleDataUpdateAndRender(dataType, newData) {
-    // FIX: Ensure that if a listener fails and returns undefined, we default to an empty array.
-    const data = newData || [];
-
-    // Update the corresponding global variable
-    if (dataType === 'teams') allTeams = newData; // teams are objects, not arrays
-    else if (dataType === 'users') allUsers = data;
-    else if (dataType === 'tiles') tiles = data;
-    else if (dataType === 'submissions') submissions = data;
-
-    if (initialDataLoaded.config && initialDataLoaded.teams && initialDataLoaded.users && initialDataLoaded.tiles && initialDataLoaded.submissions) {
-        processAllData();
+    // NEW: Wait until both config and auth state are definitively loaded.
+    // The authState check is crucial to prevent showing the page before permissions are known.
+    if (!config.pageTitle || !authState.authChecked) {
+        showGlobalLoader();
+        return; // Wait for more data
     }
-}
 
-function initializeApp() {
-    const checkAllLoaded = () => {
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            hideGlobalLoader();
-            document.getElementById('main-content').style.display = 'grid';
-            processAllData(); // Initial process call
-        }
-    };
-    
-    showGlobalLoader();
-    unsubscribeFromAll(); // Unsubscribe from any previous listeners
-    const unsubs = [];
+    // Handle page visibility based on config and auth state
+    const disabledPageContainer = document.getElementById('page-disabled');
+    const mainContentContainer = document.getElementById('main-content');
 
-    unsubs.push(configManager.listenToConfigAndStyles(newConfig => {
-        console.log("Overview: Config/Styles updated in real-time. Received:", newConfig);
-        // FIX: The new configManager returns an object with `config` and `styles` properties.
-        // The old code expected a `main` property directly on the returned object.
-        if (!newConfig || !newConfig.config) {
-            document.body.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--error-color);">Configuration not found.</div>`;
-            hideGlobalLoader();
-            return;
-        }
-        config = newConfig.config;
+    // --- Centralized Visibility Checks ---
+    const isCensored = config.censorTilesBeforeEvent === true;
+    const isOverviewDisabled = config.enableOverviewPage !== true;
+    const canBypass = authState.isEventMod; // isEventMod is only true for logged-in mods/admins
 
-        const disabledPageContainer = document.getElementById('page-disabled');
-        const mainContentContainer = document.getElementById('main-content');
+    if ((isOverviewDisabled || isCensored) && !canBypass) {
+        document.getElementById('disabled-title').textContent = isCensored ? 'Event Not Started' : 'Overview Page Not Available';
+        document.getElementById('disabled-message').textContent = isCensored 
+            ? 'The scoreboard and activity feed are hidden until the event begins.'
+            : 'The event administrator has disabled this page.';
 
-        // FIX: Add a specific check for private boards when the user is not logged in.
-        // This provides better user feedback than just showing an empty page.
-        if (config.boardVisibility === 'private' && !authState.isLoggedIn) {
-            disabledPageContainer.innerHTML = `
-                <h1>Private Event</h1>
-                <p>The scoreboard and activity for this event are private. Please log in to view the content.</p>`;
-            disabledPageContainer.style.display = 'block';
-            mainContentContainer.style.display = 'none';
-            hideGlobalLoader();
-            return; // Stop further processing
-        } else if (config.boardVisibility === 'private' && authState.isLoggedIn && !authState.profile?.team) {
-            // NEW: Handle the case where the user is logged in but not on a team for a private event.
-            disabledPageContainer.innerHTML = `
-                <h1>Team Assignment Required</h1>
-                <p>You must be assigned to a team to view this private event. Please contact an administrator for assistance.</p>`;
-            disabledPageContainer.style.display = 'block';
-            mainContentContainer.style.display = 'none';
-            hideGlobalLoader();
-            return; // Stop further processing
-        } else {
-            // FIX: If none of the above conditions are met, ensure the main content is visible.
-            disabledPageContainer.style.display = 'none';
-            mainContentContainer.style.display = 'grid'; // Use 'grid' as per the original style
-        }
-        if (config.enableOverviewPage !== true && !authState.isEventMod) {
-            document.getElementById('page-disabled').style.display = 'block';
-            document.getElementById('main-content').style.display = 'none';
-            hideGlobalLoader();
-            return;
-        }
-
-        document.title = (config.pageTitle || 'Bingo') + ' | Scoreboard';
-
-        // Setup other listeners that depend on config
-        setupTilesListener();
-        setupSubmissionsListener();
-
-        if (!initialDataLoaded.config) { initialDataLoaded.config = true; checkAllLoaded(); }
-    }));
-
-    unsubs.push(teamManager.listenToTeams(newTeams => {
-        console.log("Overview: Teams updated.");
-        teamColorMap = generateTeamColors(Object.keys(newTeams));
-        populateFeedFilter(newTeams);
-        handleDataUpdateAndRender('teams', newTeams);
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }));
-
-    // Always pass authState to respect security rules for all user roles.
-    unsubs.push(userManager.listenToUsers(newUsers => {
-        console.log("Overview: Users updated.");
-        handleDataUpdateAndRender('users', newUsers);
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); } 
-    }, authState));
-
-    const setupTilesListener = () => {
-        unsubs.push(tileManager.listenToTiles(newTiles => {
-            console.log("Overview: Tiles updated.");
-            handleDataUpdateAndRender('tiles', newTiles);
-            if (!initialDataLoaded.tiles) { initialDataLoaded.tiles = true; checkAllLoaded(); }
-        }, authState, config, false)); // Correct call: (callback, authState, config, includeDocId)
-    };
-
-    const setupSubmissionsListener = () => {
-        unsubs.push(submissionManager.listenToSubmissions(newSubmissions => {
-            console.log("Overview: Submissions updated.");
-            handleDataUpdateAndRender('submissions', newSubmissions);
-            if (!initialDataLoaded.submissions) { initialDataLoaded.submissions = true; checkAllLoaded(); }
-        }, authState, config)); // FIX: The listenToSubmissions manager expects (callback, authState, config)
-    };
-
-    unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
-}
-
-function processAllData() {
-    // Guard against processing until all necessary data is loaded.
-    // FIX: Add a definitive guard here. If any listener fails (e.g., permissions error),
-    // the corresponding data variable might be undefined. This check prevents any processing
-    // until all required data is available as a valid array.
-    if (!Array.isArray(submissions) || !Array.isArray(tiles) || !Array.isArray(allUsers)) {
-        console.warn('[Overview] processAllData aborted: Not all required data is available as an array.');
+        disabledPageContainer.style.display = 'block';
+        mainContentContainer.style.display = 'none';
+        hideGlobalLoader();
         return;
     }
-    if (!initialDataLoaded.config || !initialDataLoaded.teams || !initialDataLoaded.users || !initialDataLoaded.tiles) return;
+
+    // If we've reached here, the page is visible.
+    disabledPageContainer.style.display = 'none';
+    mainContentContainer.style.display = 'grid';
+
+    // NEW: Add a secondary guard for data needed for rendering.
+    if (Object.keys(allTeams).length === 0) {
+        showGlobalLoader();
+        return;
+    }
+
+    showGlobalLoader();
+
+    document.title = (config.pageTitle || 'Bingo') + ' | Scoreboard';
+
+    // Regenerate team colors if teams have changed.
+    if (Object.keys(teamColorMap).length !== Object.keys(allTeams).length) {
+        teamColorMap = generateTeamColors(Object.keys(allTeams));
+        populateFeedFilter(allTeams, config, authState);
+    }
+
     const tilesByVisibleId = tiles.reduce((acc, tile) => {
         if (tile.id) acc[tile.id] = tile;
         return acc;
@@ -230,9 +148,11 @@ function processAllData() {
     // Use the single, centralized scoreboard renderer
     renderScoreboard(document.querySelector('#leaderboard-table tbody'), leaderboardData, allTeams, config, authState, teamColorMap, 'Overview Page');
     handleFilterChange();
+
+    hideGlobalLoader();
 }
 
-function populateFeedFilter(teams = {}) {
+function populateFeedFilter(teams = {}, config = {}, authState = {}) {
     const select = document.getElementById('feed-team-filter');
     select.innerHTML = '';
     select.disabled = false;
@@ -269,7 +189,7 @@ function populateFeedFilter(teams = {}) {
     }
 }
 
-function renderFeed() {
+function renderFeed(allUsers, allTeams) {
     const container = document.getElementById('feed-container');
     container.innerHTML = '';
     const selectedTeam = document.getElementById('feed-team-filter').value;
@@ -300,7 +220,7 @@ function renderFeed() {
     });
 }
 
-function renderChart(chartData = [], teamIds = []) {
+function renderChart(chartData = [], teamIds = [], allTeams) {
     if (myScoreChart) myScoreChart.destroy();
     const ctx = document.getElementById('score-chart').getContext('2d');
 
@@ -348,8 +268,13 @@ function renderChart(chartData = [], teamIds = []) {
 }
 
 function handleFilterChange() {
-    renderFeed();
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+
+    renderFeed(allUsers, allTeams);
+
     const selectedTeam = document.getElementById('feed-team-filter').value;
     const filteredTeamIds = selectedTeam === 'all' ? Object.keys(allTeams) : [selectedTeam];
-    renderChart(fullChartData, filteredTeamIds);
+    
+    renderChart(fullChartData, filteredTeamIds, allTeams);
 }

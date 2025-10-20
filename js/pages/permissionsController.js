@@ -1,37 +1,48 @@
 
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { fb, db } from '../core/firebase-config.js';
 
-// Import the new data managers
-import * as userManager from '../core/data/userManager.js';
-import * as teamManager from '../core/data/teamManager.js';
+// NEW: Import stores instead of old managers
+import { authStore } from '../stores/authStore.js';
+import { usersStore, updateUser } from '../stores/usersStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
 
-let allUsers = [];
-let authState = {};
-let allTeams = {};
 let currentSort = { column: 'displayName', direction: 'asc' };
 let searchTerm = '';
-let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
 
 // NEW: Define the custom domain for username/password accounts
 const USERNAME_DOMAIN = '@fir-bingo-app.com';
 
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
     // Dynamically add search, note, and styles
     const controlsContainer = document.getElementById('admin-controls-container');
     controlsContainer.innerHTML = createAdminControlsHTML();
     document.getElementById('search-filter').addEventListener('input', handleSearch);
-    initAuth(onAuthStateChanged);
+
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
-function onAuthStateChanged(newAuthState) {
-    authState = newAuthState;
+function onDataChanged() {
+    const authState = authStore.get();
+
+    // --- Visibility / Access Control ---
+    if (!authState.authChecked) {
+        showGlobalLoader();
+        document.getElementById('access-denied').style.display = 'none';
+        document.getElementById('permissions-view').style.display = 'none';
+        return;
+    }
+
     if (authState.isAdmin) {
         document.getElementById('access-denied').style.display = 'none';
         document.getElementById('permissions-view').style.display = 'block';
-        initializeApp(); // Re-initialize to apply correct permissions
     } else {
         document.getElementById('access-denied').style.display = 'block';
         document.getElementById('permissions-view').style.display = 'none';
@@ -40,40 +51,18 @@ function onAuthStateChanged(newAuthState) {
         }
         hideGlobalLoader();
     }
-}
 
-function initializeApp() {
-    showGlobalLoader();
-    unsubscribeFromAll(); // Unsubscribe from any previous listeners
-    const unsubs = [];
-
-    if (!authState.isAdmin) {
-        hideGlobalLoader();
+    // --- Data Loading Check ---
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+    if (allUsers.length === 0 || Object.keys(allTeams).length === 0) {
+        showGlobalLoader();
         return;
+    } else {
+        hideGlobalLoader();
     }
 
-    let initialDataLoaded = { users: false, teams: false };
-    const checkAllLoaded = () => {
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            hideGlobalLoader();
-        }
-    };
-
-    unsubs.push(userManager.listenToUsers(newUsers => {
-        console.log("Permissions: Users updated in real-time.");
-        allUsers = newUsers;
-        renderUserManagement();
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, authState));
-
-    unsubs.push(teamManager.listenToTeams(newTeams => {
-        console.log("Permissions: Teams updated in real-time.");
-        allTeams = newTeams;
-        renderUserManagement();
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }));
-
-    unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
+    renderUserManagement();
 }
 
 function handleSearch(event) {
@@ -93,6 +82,10 @@ function handleSort(event) {
 }
 
 function renderUserManagement() {
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+    const authState = authStore.get();
+
     // Filter users based on search term
     const filteredUsers = allUsers.filter(user => {
         const name = (user.displayName || '').toLowerCase();
@@ -170,7 +163,7 @@ async function handleUserFieldChange(e) {
     const uid = e.target.dataset.uid;
     const field = e.target.dataset.field;
     const value = e.target.checked;
-    const dataToUpdate = { [field]: value };
+    const dataToUpdate = { [field]: value };    
     const user = allUsers.find(u => u.uid === uid);
 
     // NEW: If making a user an admin, also make them a mod.
@@ -186,11 +179,11 @@ async function handleUserFieldChange(e) {
 
     try {
         showGlobalLoader();
-        await userManager.updateUser(uid, dataToUpdate);
+        await updateUser(uid, dataToUpdate);
         const role = field === 'isAdmin' ? 'Admin' : 'Event Mod';
         const action = value ? 'granted' : 'revoked';
         showMessage(`${role} role ${action} for ${user.displayName}.`, false);
-        // The real-time listener will handle the UI re-render.
+        // The real-time store listener will handle the UI re-render.
     } catch (error) {
         console.error(`Failed to update user ${uid}:`, error);
         alert(`Update failed: ${error.message}`);

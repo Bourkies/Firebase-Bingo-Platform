@@ -1,6 +1,6 @@
 import '../components/Navbar.js';
-import { db, fb } from '../core/firebase-config.js';
 import { initAuth } from '../core/auth.js';
+import { exportFullConfig, importFullConfig, clearAllConfig } from '../stores/configStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 let parsedJsonData = null;
@@ -30,18 +30,7 @@ function onAuthStateChanged(authState) {
 async function handleExport() {
     showGlobalLoader();
     try {
-        const configDoc = await fb.getDoc(fb.doc(db, 'config', 'main'));
-        const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
-
-        const stylesData = {};
-        stylesSnapshot.forEach(doc => {
-            stylesData[doc.id] = doc.data();
-        });
-
-        const fullConfig = {
-            config: configDoc.exists() ? configDoc.data() : {},
-            styles: stylesData
-        };
+        const fullConfig = await exportFullConfig();
 
         const jsonString = JSON.stringify(fullConfig, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
@@ -128,17 +117,9 @@ async function handleImport() {
 
     const importMode = document.querySelector('input[name="import-mode"]:checked').value;
 
-    try {
-        if (importMode === 'replace') {
-            // SAFER REPLACE: Instead of deleting first, perform all operations in one batch.
-            // Fetch all documents to be deleted, then create a single batch that
-            // performs all deletions and all new writes together.
-            await performBatchedReplace();
-        } else { // Merge mode
-            await performBatchedMerge();
-        }
+    try {        
+        await importFullConfig(parsedJsonData, importMode);
         showMessage('Configuration imported successfully!', false);
-
     } catch (error) {
         showMessage(`Import failed: ${error.message}`, true);
         console.error('Import error:', error);
@@ -147,45 +128,6 @@ async function handleImport() {
         importBtn.disabled = false;
         importBtn.textContent = 'Import Config';
     }
-}
-
-async function performBatchedMerge() {
-    const batch = fb.writeBatch(db);
-    // Process config
-    if (parsedJsonData.config) {
-        const configRef = fb.doc(db, 'config', 'main');
-        batch.set(configRef, parsedJsonData.config, { merge: true });
-    }
-    // Process styles
-    if (parsedJsonData.styles) {
-        for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
-            const styleRef = fb.doc(db, 'styles', styleId);
-            batch.set(styleRef, styleData, { merge: true });
-        }
-    }
-    await batch.commit();
-}
-
-async function performBatchedReplace() {
-    const batch = fb.writeBatch(db);
-
-    // 1. Schedule existing documents for deletion
-    const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
-    stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-    batch.delete(fb.doc(db, 'config', 'main')); // Also delete the main config
-
-    // 2. Schedule new documents to be written
-    if (parsedJsonData.config) {
-        const configRef = fb.doc(db, 'config', 'main');
-        batch.set(configRef, parsedJsonData.config); // No merge on replace
-    }
-    if (parsedJsonData.styles) {
-        for (const [styleId, styleData] of Object.entries(parsedJsonData.styles)) {
-            const styleRef = fb.doc(db, 'styles', styleId);
-            batch.set(styleRef, styleData); // No merge on replace
-        }
-    }
-    await batch.commit();
 }
 
 // --- Clear Config Logic ---
@@ -213,27 +155,15 @@ async function executeClear(silent = false) {
     confirmBtn.textContent = 'Deleting...';
 
     try {
-        const batch = fb.writeBatch(db);
-        
-        // Delete main config doc
-        batch.delete(fb.doc(db, 'config', 'main'));
-
-        // Delete all style docs
-        const stylesSnapshot = await fb.getDocs(fb.collection(db, 'styles'));
-        stylesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-
-        await batch.commit();
-        if (!silent) {
-            showMessage('All configurations have been cleared.', false);
-            closeClearModal();
-        }
+        await clearAllConfig();
+        showMessage('All configurations have been cleared.', false);
+        closeClearModal();
     } catch (error) {
-        if (!silent) showMessage(`Error clearing config: ${error.message}`, true);
+        showMessage(`Error clearing config: ${error.message}`, true);
         console.error("Clear config error:", error);
-        // Re-throw if silent so the import process can catch it
-        if (silent) throw error;
     } finally {
-        if (!silent) hideGlobalLoader();
+        hideGlobalLoader();
         confirmBtn.textContent = 'Confirm Deletion';
+        confirmBtn.disabled = false;
     }
 }

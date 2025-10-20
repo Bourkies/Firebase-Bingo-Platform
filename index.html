@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <script type="importmap">
+    {
+        "imports": {
+            "nanostores": "https://esm.sh/nanostores",
+            "lit": "https://esm.sh/lit",
+            "lit/": "https://esm.sh/lit/",
+            "lit-html/": "https://esm.sh/lit-html/"
+        }
+    }
+  </script>
   <script src="./js/theme-loader.js"></script>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,12 +24,6 @@
     h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
     #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
     #board-container {
-      position: relative; width: 100%;
-      background-size: cover; background-position: center;
-      border-radius: 12px; box-shadow: 0 8px 24px var(--shadow-color); overflow: hidden;
-      display: flex; justify-content: center; align-items: center;
-      background-color: var(--bg-color);
-      background-image: linear-gradient(45deg, var(--surface-color) 25%, transparent 25%), linear-gradient(-45deg, var(--surface-color) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--surface-color) 75%), linear-gradient(-45deg, transparent 75%, var(--surface-color) 75%);
     }
     .tile-overlay:hover {
       border-color: var(--tile-hover-border-color, var(--accent-color));
@@ -57,30 +61,6 @@
       display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;
       padding: 1rem; background-color: var(--surface-color); border-radius: 8px;
     }
-    .key-item { 
-      display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-      font-size: 0.8rem; color: var(--secondary-text, #a0a0a0);
-    }
-    /* NEW: Ensure all tile previews in the legend are vertically aligned */
-    .key-item .tile-overlay {
-      vertical-align: middle;
-      outline: 1px solid transparent; /* Add a transparent outline to prevent layout shift on hover */
-    }
-    /* NEW: Styles for the table-based scoreboard, matching overview.html */
-    .scoreboard-wrapper {
-      display: none; /* Controlled by JS */
-      padding: 1.5rem; background-color: var(--surface-color);
-      border-radius: 8px;
-    }
-    .scoreboard-wrapper h2 { margin: 0 0 1rem 0; text-align: center; font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
-    #scoreboard-table { width: 100%; border-collapse: collapse; }
-    #scoreboard-table th, #scoreboard-table td {
-      padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color);
-    }
-    #scoreboard-table th { font-weight: bold; }
-    #scoreboard-table tr:last-child td { border-bottom: none; }
-    #scoreboard-table td:nth-child(1) { font-weight: bold; width: 40px; } /* Rank */
-    #scoreboard-table td:nth-child(3), #scoreboard-table td:nth-child(4) { text-align: right; } /* Tiles, Score */
 
 
     #submission-modal, #welcome-modal {
@@ -247,21 +227,11 @@
   <!-- NEW: Dedicated container for board-level notifications -->
   <div id="board-notification"></div>
 
-  <div id="board-container">
-    <!-- Tiles will be rendered here -->
-  </div>
+  <bingo-board id="board-container"></bingo-board>
+
   <div class="info-container">
-    <div id="color-key-container"></div>
-    <div id="scoreboard-wrapper" class="scoreboard-wrapper">
-      <h2>Scoreboard</h2>
-      <table id="scoreboard-table">
-        <thead>
-          <tr><th>#</th><th>Team</th><th>Tiles</th><th>Score</th></tr>
-        </thead>
-        <tbody id="scoreboard-container">
-        </tbody>
-      </table>
-    </div>
+    <bingo-color-key id="color-key-container"></bingo-color-key>
+    <bingo-scoreboard id="scoreboard-container"></bingo-scoreboard>
   </div>
   <div id="submission-modal">
     <div class="modal-content">

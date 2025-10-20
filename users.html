@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <script type="importmap">
+    {
+        "imports": {
+            "nanostores": "https://esm.sh/nanostores",
+            "lit": "https://esm.sh/lit",
+            "lit/": "https://esm.sh/lit/"
+        }
+    }
+  </script>
+  </script>
   <script src="./js/theme-loader.js"></script>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -159,15 +169,28 @@
             <summary>User Display Name Management</summary>
             <div class="details-content">
                 <div class="admin-controls">
-                    <div class="search-bar">
-                        <label for="search-filter">Search Users:</label>
-                        <input type="text" id="search-filter" placeholder="Filter by name, ID, or login type...">
+                    <div class="filter-group" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                        <div class="search-bar">
+                            <label for="user-search-filter">Search Users:</label>
+                            <input type="text" id="user-search-filter" placeholder="Filter by name or email...">
+                        </div>
+                        <div class="search-bar">
+                            <label for="team-filter">Filter by Team:</label>
+                            <select id="team-filter"></select>
+                        </div>
                     </div>
                 </div>
                 <div style="overflow-x: auto;">
-                    <table id="user-assignment-table">
+                    <table id="users-table">
                         <thead>
-                            <tr><th data-column="displayName">Display Name</th><th data-column="loginName">Login Name</th><th data-column="isAnonymous">Login Type</th><th data-column="team">Team</th><th data-column="uid">User ID</th><th data-column="isNameLocked">Lock Name</th></tr>
+                            <tr>
+                                <th data-column="displayName">Display Name</th>
+                                <th data-column="loginName">Login Name</th>
+                                <th data-column="isAnonymous">Login Type</th>
+                                <th data-column="team">Team</th>
+                                <th data-column="uid">User ID</th>
+                                <th data-column="isNameLocked">Lock Name</th>
+                            </tr>
                         </thead>
                         <tbody></tbody>
                     </table>

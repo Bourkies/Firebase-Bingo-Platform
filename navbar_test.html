@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script type="importmap">
+        {
+            "imports": {
+                "nanostores": "https://esm.sh/nanostores",
+                "lit": "https://esm.sh/lit",
+                "lit/": "https://esm.sh/lit/"
+            }
+        }
+    </script>
+    <script src="/js/theme-loader.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navbar & Data Test Page</title>
+    <!-- Use relative paths for local testing -->
+    <link rel="stylesheet" href="./css/theme.css">
+    <style>
+        /* Basic styles for the test page itself */
+        body {
+            background-color: var(--bg-color, #1e1e1e);
+            color: var(--primary-text, #f0f0f0);
+            font-family: sans-serif;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        main {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color, #444);
+            border-radius: 8px;
+            width: 100%;
+            max-width: 1400px;
+        }
+        /* NEW: Styles for the test content */
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .test-card {
+            background-color: var(--surface-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .test-card h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .test-card p, .test-card li {
+            color: var(--secondary-text);
+            font-size: 0.9rem;
+        }
+        .test-card strong {
+            color: var(--primary-text);
+        }
+        .test-card ul {
+            padding-left: 1.25rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .test-card .placeholder {
+            color: var(--secondary-text);
+            font-style: italic;
+        }
+        .themed-button {
+            background-color: var(--accent-color);
+            color: var(--accent-text-color);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+        .destructive-button {
+            background-color: var(--error-color);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <app-navbar></app-navbar>
+
+    <main>
+        <h1>Navbar Test Page</h1>
+        <p>This page is for testing the <code>&lt;app-navbar&gt;</code> and data fetching in isolation. The content below will update based on your authentication status and the data in Firestore.</p>
+        
+        <div class="test-grid">
+            <div id="auth-details" class="test-card">
+                <h3>Authentication State</h3>
+                <p class="placeholder">Please log in to see your details.</p>
+            </div>
+            <div id="config-details" class="test-card">
+                <h3>Event Config</h3>
+                <p class="placeholder">Loading config...</p>
+            </div>
+            <div id="tiles-list" class="test-card">
+                <h3>Tiles</h3>
+                <p class="placeholder">Loading tiles...</p>
+            </div>
+            <div id="teams-list" class="test-card">
+                <h3>Teams</h3>
+                <p class="placeholder">Loading teams...</p>
+            </div>
+        </div>
+
+        <div class="test-card" style="margin-top: 1.5rem;">
+            <h3>Themed Elements</h3>
+            <p>Testing some standard themed buttons.</p>
+            <button class="themed-button">Accent Button</button>
+            <button class="themed-button destructive-button">Destructive Button</button>
+        </div>
+    </main>
+
+    <script type="module">
+        // This page is now a consumer of the global stores initialized by the navbar.
+        // Its only job is to subscribe to those stores and render the data it receives.
+
+        import { initializeApp } from './js/app-init.js';
+        initializeApp();
+
+        import './js/components/Navbar.js';
+        // NEW: Import the stores we want to listen to.
+        import { authStore } from './js/stores/authStore.js';
+        import { configStore } from './js/stores/configStore.js';
+        import { tilesStore } from './js/stores/tilesStore.js';
+        import { teamsStore } from './js/stores/teamsStore.js';
+
+        // Get references to the display elements
+        const authDetails = document.getElementById('auth-details');
+        const configDetails = document.getElementById('config-details');
+        const tilesList = document.getElementById('tiles-list');
+        const teamsList = document.getElementById('teams-list');
+        
+        // The Navbar component now handles all listener initialization.
+        // We just subscribe to the stores to get the live data.
+        authStore.subscribe(renderAuthState);
+        configStore.subscribe(renderConfig);
+        tilesStore.subscribe(renderTiles);
+        teamsStore.subscribe(renderTeams);
+
+        function renderAuthState(state) {
+            if (!authDetails) return;
+            if (state.isLoggedIn) {
+                const profile = state.profile;
+                const roles = [];
+                if (profile.isAdmin) roles.push('Admin');
+                if (profile.isEventMod && !profile.isAdmin) roles.push('Event Mod');
+                if (state.isTeamCaptain) roles.push('Captain'); // isTeamCaptain is on the root of authState
+                if (roles.length === 0) roles.push('Player');
+
+                authDetails.innerHTML = `
+                    <h3>Authentication State</h3>
+                    <p><strong>Display Name:</strong> ${profile.displayName || 'N/A'}</p>
+                    <p><strong>UID:</strong> ${profile.uid || 'N/A'}</p>
+                    <p><strong>Team:</strong> ${profile.team || 'Unassigned'}</p>
+                    <p><strong>Roles:</strong> ${roles.join(', ')}</p>
+                `;
+            } else {
+                authDetails.innerHTML = `<h3>Authentication State</h3><p class="placeholder">Please log in to see your details.</p>`;
+            }
+        }
+
+        function renderConfig({ config }) { // Destructure to get the nested config object
+            configDetails.innerHTML = `<h3>Event Config</h3><p><strong>Page Title:</strong> ${config.pageTitle || 'Not Set'}</p>`;
+        }
+
+        function renderTiles(tiles) {
+            tilesList.innerHTML = `<h3>Tiles (${tiles.length})</h3><ul>${tiles.map(t => `<li>${t.id}: ${t.Name || 'Unnamed'}</li>`).join('')}</ul>`;
+        }
+
+        function renderTeams(teams) {
+            const teamNames = Object.values(teams).map(t => t.name).sort();
+            teamsList.innerHTML = `<h3>Teams (${teamNames.length})</h3><ul>${teamNames.map(name => `<li>${name}</li>`).join('')}</ul>`;
+        }
+    </script>
+</body>
+</html>

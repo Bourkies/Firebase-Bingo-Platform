@@ -1,20 +1,18 @@
 /* prereqEditor.js */
+// NEW: Import the tilesStore to read data directly.
+import { tilesStore } from '../../stores/tilesStore.js';
 
-let tilesData = [];
-let lastSelectedTileIndex = null;
+let mainController;
 
-export function initializePrereqEditor(mainController) {
+export function initializePrereqEditor(controller) {
     console.log("[PrereqEditor] Initializing...");
+    mainController = controller;
 }
 
-export function updatePrereqEditorData(newTilesData, newLastSelectedTileIndex) {
-    tilesData = newTilesData;
-    lastSelectedTileIndex = newLastSelectedTileIndex;
-}
-
-export function populatePrereqUI(prereqString, mainController) {
+export function populatePrereqUI(prereqString, mainController, shadowRoot) {
     console.log("[PrereqEditor] populatePrereqUI called with:", prereqString);
-    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    // FIX: Query within the provided shadowRoot, not the global document.
+    const prereqUiContainer = shadowRoot.getElementById('prereq-ui-container');
     if (!prereqUiContainer) return;
     prereqUiContainer.innerHTML = '';
 
@@ -32,16 +30,17 @@ export function populatePrereqUI(prereqString, mainController) {
     }
 
     if (isNewFormat) {
-        if (orGroups.length === 0) addPrereqOrGroup([], mainController);
-        else orGroups.forEach(andGroup => addPrereqOrGroup(andGroup, mainController));
+        if (orGroups.length === 0) addPrereqOrGroup([], mainController, shadowRoot);
+        else orGroups.forEach(andGroup => addPrereqOrGroup(andGroup, mainController, shadowRoot));
     } else {
-        addPrereqOrGroup(prereqString ? prereqString.split(',') : [], mainController);
+        addPrereqOrGroup(prereqString ? prereqString.split(',') : [], mainController, shadowRoot);
     }
 }
 
-function addPrereqOrGroup(andConditions = [], mainController) {
+function addPrereqOrGroup(andConditions = [], mainController, shadowRoot) {
     console.log("[PrereqEditor] addPrereqOrGroup called with:", andConditions);
-    const prereqUiContainer = document.getElementById('prereq-ui-container');
+    // FIX: Query within the provided shadowRoot.
+    const prereqUiContainer = shadowRoot.getElementById('prereq-ui-container');
     if (!prereqUiContainer) return;
 
     const groupDiv = document.createElement('div');
@@ -52,7 +51,7 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     andInput.placeholder = 'Tile IDs to AND (e.g. A1, A2)';
     andInput.value = andConditions.map(s => String(s).trim()).filter(Boolean).join(', ');
     // REFACTOR: Use 'change' event for more deliberate saves.
-    andInput.onchange = () => { console.log("[PrereqEditor] Input changed, updating JSON."); updatePrereqJson(mainController); };
+    andInput.onchange = () => { console.log("[PrereqEditor] Input changed, updating JSON."); updatePrereqJson(mainController, shadowRoot); };
 
     const validationSpan = document.createElement('span');
     validationSpan.className = 'prereq-validation-msg';
@@ -65,7 +64,7 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     removeBtn.onclick = () => {
         console.log("[PrereqEditor] Removing OR group.");
         groupDiv.remove();
-        updatePrereqJson(mainController);
+        updatePrereqJson(mainController, shadowRoot);
     };
 
     // The "OR" text is now removed for a cleaner, wrapping layout.
@@ -73,9 +72,12 @@ function addPrereqOrGroup(andConditions = [], mainController) {
     groupDiv.append(andInput, validationSpan, removeBtn);
 }
 
-function updatePrereqJson(mainController) {
-    const prereqUiContainer = document.getElementById('prereq-ui-container'); // FIX: Added semicolon
+function updatePrereqJson(mainController, shadowRoot) {
+    // FIX: Query within the provided shadowRoot.
+    const prereqUiContainer = shadowRoot.getElementById('prereq-ui-container');
     if (!prereqUiContainer) return;
+    const tilesData = tilesStore.get();
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
 
     const validIds = new Set(tilesData.map(t => t.id));
 
@@ -103,8 +105,8 @@ function updatePrereqJson(mainController) {
         prereqValue = JSON.stringify(orGroups);
     }
     if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex] && mainController) {
-        // FIX: Pass mainController as the third argument to match the function signature in setupController.
-        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }, mainController); 
+        // FIX: The saveTile function only takes two arguments.
+        mainController.saveTile(tilesData[lastSelectedTileIndex].docId, { 'Prerequisites': prereqValue }); 
     }
     mainController.renderTiles(); // Re-render tiles which will in turn call renderPrereqLines
 }
@@ -123,11 +125,13 @@ function parsePrerequisites(prereqString) {
 
 export function renderPrereqLines(prereqVisMode) {
     // console.log("[PrereqEditor] renderPrereqLines called."); // This can be noisy, commented out for now.
+    const tilesData = tilesStore.get();
+    const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     const prereqLinesSvg = document.getElementById('prereq-lines-svg');
     if (!prereqLinesSvg) return;
     prereqLinesSvg.innerHTML = '';
     if (prereqVisMode === 'hide' || lastSelectedTileIndex === null || !tilesData) return;
-
+    
     const destTileData = tilesData[lastSelectedTileIndex];
     if (!destTileData) return;
 
@@ -184,10 +188,10 @@ export function renderPrereqLines(prereqVisMode) {
     });
 }
 
-export function createPrereqFieldset(mainController) {
+export function createPrereqFieldset(mainController, shadowRoot) {
     console.log("[PrereqEditor] createPrereqFieldset called.");
     const prereqFieldset = Object.assign(document.createElement('fieldset'), {
-        className: 'overrides-fieldset',
+        className: 'prereq-fieldset',
         id: 'prereq-editor-container',
         style: 'grid-column: 1 / -1;',
     });
@@ -207,9 +211,9 @@ export function createPrereqFieldset(mainController) {
         id: 'add-prereq-group-btn',
         textContent: '+ Add OR Group',
         title: 'Add a new "OR" condition group. Each box is an "AND" group.',
-        onclick: () => { // Pass mainController to the functions
-            addPrereqOrGroup([], mainController);
-            updatePrereqJson(mainController);
+        onclick: () => { // Pass mainController and shadowRoot to the functions
+            addPrereqOrGroup([], mainController, shadowRoot);
+            updatePrereqJson(mainController, shadowRoot);
         }
     });
 

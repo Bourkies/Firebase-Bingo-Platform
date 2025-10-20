@@ -1,146 +1,139 @@
 import '../components/Navbar.js';
-import { initAuth } from '../core/auth.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
-// Import the new data managers
-import * as userManager from '../core/data/userManager.js';
-import * as teamManager from '../core/data/teamManager.js';
+// Import stores for reading data
+import { authStore } from '../stores/authStore.js'; 
+import { teamsStore, addTeam, updateTeam, deleteTeam } from '../stores/teamsStore.js';
+import { usersStore, updateUser } from '../stores/usersStore.js';
 
-let allUsers = [], allTeams = {};
-let authState = {};
+let captainTeamId = null;
 let currentSort = { column: 'displayName', direction: 'asc' };
-let searchTerm = '';
 
-// NEW: Define the custom domain for username/password accounts
+// Define the custom domain for username/password accounts
 const USERNAME_DOMAIN = '@fir-bingo-app.com';
 
-// NEW: State object to remember the open/closed status of details elements
-const detailsState = {
-    userManagement: false,
-    teamManagement: false,
-    teams: new Map() // Use a Map to store teamId -> isOpen state
-};
-
-let unsubscribeFromAll = () => {}; // Single function to unsubscribe from all listeners
-let resizeTimeout; // For debouncing window resize
+// State object to remember the open/closed status of details elements
+const detailsState = { userManagement: false, teamManagement: false, teams: new Map() };
 
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-    document.getElementById('search-filter').addEventListener('input', handleSearch);
-    document.querySelectorAll('#user-assignment-table th').forEach(th => {
-        th.addEventListener('click', handleSort);
-    });
-    // NEW: Add event listeners to track the state of the main details sections
-    const userManagementDetails = document.getElementById('user-management-details');
-    const teamManagementDetails = document.getElementById('team-management-details');
+    // The Navbar now initializes all stores. We just subscribe to them.
+    authStore.subscribe(onDataChanged);
+    teamsStore.subscribe(onDataChanged);
+    usersStore.subscribe(onDataChanged);
 
-    userManagementDetails.addEventListener('toggle', (e) => {
-        detailsState.userManagement = e.target.open;
-    });
-    teamManagementDetails.addEventListener('toggle', (e) => {
-        detailsState.teamManagement = e.target.open;
-    });
+    // Setup event listeners for filters
+    document.getElementById('user-search-filter').addEventListener('input', onDataChanged);
+    document.getElementById('team-filter').addEventListener('change', onDataChanged);
 
-    // NEW: Add event listeners for the delete confirmation modal
+    // Use event delegation for all user table interactions
+    const userTable = document.getElementById('users-table');
+    userTable.querySelector('tbody').addEventListener('change', handleFieldChange);
+    userTable.querySelector('thead').addEventListener('click', handleSort);
+
+
+    // Event delegation for team management actions
+    const teamManagementContainer = document.getElementById('teams-management-container');
+    teamManagementContainer.addEventListener('click', handleTeamManagementClick);
+    teamManagementContainer.addEventListener('input', handleTeamManagementInput);
+    teamManagementContainer.addEventListener('change', handleTeamDetailsChange);
+
+    // Add event listeners to track the state of the main details sections
+    document.getElementById('user-management-details').addEventListener('toggle', (e) => { detailsState.userManagement = e.target.open; });
+    document.getElementById('team-management-details').addEventListener('toggle', (e) => { detailsState.teamManagement = e.target.open; });
+    teamManagementContainer.addEventListener('toggle', (e) => {
+        if (e.target.classList.contains('team-card')) { detailsState.teams.set(e.target.dataset.teamId, e.target.open); }
+    }, true); // Use capture phase to catch toggle on details
+
+    // Add event listeners for the delete confirmation modal
     document.querySelector('#delete-team-modal .close-button').addEventListener('click', closeDeleteTeamModal);
     document.getElementById('delete-team-cancel-btn').addEventListener('click', closeDeleteTeamModal);
     document.getElementById('delete-team-confirm-input').addEventListener('input', validateDeleteInput);
     document.getElementById('delete-team-confirm-btn').addEventListener('click', executeDeleteTeam);
 
-    // NEW: Add a debounced resize listener to handle textarea height adjustments
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-            document.querySelectorAll('.team-name-input').forEach(textarea => {
-                // Only resize if the element is visible to avoid unnecessary calculations
-                if (textarea.offsetParent !== null) {
-                    textarea.style.height = 'auto';
-                    textarea.style.height = `${textarea.scrollHeight}px`;
-                }
-            });
-        }, 150);
-    });
-
-    initAuth(onAuthStateChanged);
+    // Initial call to render the page with default store values.
+    onDataChanged();
 });
 
-function onAuthStateChanged(newAuthState) {
-    authState = newAuthState;
-    if (authState.isEventMod) {
-        document.getElementById('access-denied').style.display = 'none';
-        document.getElementById('users-view').style.display = 'block';
-        initializeApp(); // Re-initialize to get data with the correct permissions
-    } else {
-        document.getElementById('access-denied').style.display = 'block';
-        document.getElementById('users-view').style.display = 'none';
-        if (authState.isLoggedIn) {
-            document.querySelector('#access-denied p').textContent = 'You do not have the required permissions (Event Mod or Admin) to view this page.';
-        }
-        hideGlobalLoader();
-    }
-}
+function onDataChanged() {
+    const authState = authStore.get();
 
-function initializeApp() {
-    showGlobalLoader();
-    unsubscribeFromAll();
-    const unsubs = [];
+    // --- Visibility / Access Control ---
+    const usersView = document.getElementById('users-view');
+    const accessDenied = document.getElementById('access-denied');
 
-    if (!authState.isEventMod) {
-        hideGlobalLoader();
+    if (!authState.authChecked) {
+        showGlobalLoader();
+        usersView.style.display = 'none';
+        accessDenied.style.display = 'none';
         return;
     }
 
-    let initialDataLoaded = { users: false, teams: false };
-    const checkAllLoaded = () => {
-        if (Object.values(initialDataLoaded).every(Boolean)) {
-            hideGlobalLoader();
-        }
-    };
-
-    unsubs.push(userManager.listenToUsers(newUsers => { // The authState object is now optional
-        allUsers = newUsers;
-        renderUserTable();
-        renderTeamManagement();
-        if (!initialDataLoaded.users) { initialDataLoaded.users = true; checkAllLoaded(); }
-    }, authState));
-
-    unsubs.push(teamManager.listenToTeams(newTeams => {
-        allTeams = newTeams;
-        renderUserTable();
-        renderTeamManagement();
-        if (!initialDataLoaded.teams) { initialDataLoaded.teams = true; checkAllLoaded(); }
-    }));
-
-    unsubscribeFromAll = () => unsubs.forEach(unsub => unsub && unsub());
-}
-
-function handleSearch(event) {
-    searchTerm = event.target.value.toLowerCase();
-    renderUserTable();
-}
-
-function handleSort(event) {
-    const column = event.currentTarget.dataset.column;
-    if (currentSort.column === column) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    // Access is granted to Captains, Mods, and Admins
+    if (authState.isTeamCaptain || authState.isEventMod) {
+        usersView.style.display = 'block';
+        accessDenied.style.display = 'none';
     } else {
-        currentSort.column = column;
-        currentSort.direction = 'asc';
+        hideGlobalLoader();
+        usersView.style.display = 'none';
+        accessDenied.style.display = 'block';
+        if (authState.isLoggedIn) {
+            document.querySelector('#access-denied p').textContent = 'You must be a Team Captain, Event Mod, or Admin to view this page.';
+        }
+        return;
     }
-    renderUserTable();
+
+    // --- Data Loading Check ---
+    const allTeams = teamsStore.get();
+    const allUsers = usersStore.get();
+
+    // Only show loader if auth is checked but we have no data yet.
+    if (authState.authChecked && (Object.keys(allTeams).length === 0 || allUsers.length === 0)) {
+        showGlobalLoader();
+    } else {
+        hideGlobalLoader();
+    }
+
+    // Determine captain's team ID if applicable
+    if (authState.isTeamCaptain) {
+        captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
+    }
+
+    // --- Render Page ---
+    populateFilters();
+    renderUsersTable();
+    renderTeamManagement(); // NEW: Render the team management section
 }
 
-function renderUserTable() {
-    // Filter users
-    const filteredUsers = allUsers.filter(user => {
-        const name = (user.displayName || '').toLowerCase();
-        const loginName = (user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '') : '').toLowerCase();
-        return name.includes(searchTerm) || loginName.includes(searchTerm);
+function populateFilters() {
+    const allTeams = teamsStore.get();
+    const teamFilter = document.getElementById('team-filter');
+    const currentValue = teamFilter.value;
+
+    teamFilter.innerHTML = `
+        <option value="all">All Teams</option>
+        <option value="unassigned">Unassigned</option>
+    `;
+
+    Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([id, data]) => {
+        teamFilter.innerHTML += `<option value="${id}">${data.name}</option>`;
     });
 
+    teamFilter.value = currentValue;
+}
+
+function renderUsersTable() {
+    const authState = authStore.get();
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+    const tbody = document.querySelector('#users-table tbody');
+    tbody.innerHTML = '';
+
+    // Get filter values
+    const searchTerm = document.getElementById('user-search-filter').value.toLowerCase();
+    const selectedTeam = document.getElementById('team-filter').value;
+
     // Sort users
-    filteredUsers.sort((a, b) => {
-        // NEW: Custom sort logic for team name
+    allUsers.sort((a, b) => {
         let valA, valB;
         if (currentSort.column === 'team') {
             valA = allTeams[a.team]?.name || 'Unassigned';
@@ -154,46 +147,63 @@ function renderUserTable() {
         return currentSort.direction === 'asc' ? comparison : -comparison;
     });
 
-    const tbody = document.querySelector('#user-assignment-table tbody');
+    const filteredUsers = allUsers.filter(user => {
+        // Search filter
+        if (searchTerm) {
+            const searchIn = [user.displayName, user.email, user.uid].join(' ').toLowerCase();
+            if (!searchIn.includes(searchTerm)) return false;
+        }
+
+        // Team filter
+        if (selectedTeam === 'unassigned') {
+            if (user.team) return false;
+        } else if (selectedTeam !== 'all') {
+            if (user.team !== selectedTeam) return false;
+        }
+
+        return true;
+    });
+
+    if (filteredUsers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No users match the current filters.</td></tr>';
+        return;
+    }
+
     tbody.innerHTML = filteredUsers.map(user => {
         const isNameLocked = user.isNameLocked === true;
+        const currentTeamName = user.team ? (allTeams[user.team]?.name || 'Invalid Team') : 'Unassigned';
 
-        // NEW: Logic to determine login type and name
+        // Determine if the current admin can edit this user
+        let canEdit = false;
+
+        // Logic to determine login type and name
         let loginType = 'Google';
         let loginTypeClass = 'login-type-google';
-        let loginName = 'N/A';
+        let loginName = user.email || 'N/A';
 
         if (user.isAnonymous) {
             loginType = 'Anonymous';
             loginTypeClass = 'login-type-anon';
         } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
             loginType = 'Username';
-            loginTypeClass = 'login-type-username'; // We'll need to add a style for this
+            loginTypeClass = 'login-type-username';
             loginName = user.email.replace(USERNAME_DOMAIN, '');
         }
 
-        // NEW: Get team name for display
-        const teamName = user.team ? (allTeams[user.team]?.name || 'Unknown Team') : 'Unassigned';
-
         return `
             <tr>
-                <td data-label="Display Name"><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked ? 'disabled' : ''}></td>
+                <td data-label="Display Name"><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked || !authState.isEventMod ? 'disabled' : ''}></td>
                 <td data-label="Login Name">${loginName}</td>
                 <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
-                <td data-label="Team">${teamName}</td>
+                <td data-label="Team">${currentTeamName}</td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
-                <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''}></td>
-            </tr>`;
+                <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''} ${!authState.isEventMod ? 'disabled' : ''}></td>
+            </tr>
+        `;
     }).join('');
 
-    // Use event delegation on the table body
-    const tableBody = document.querySelector('#user-assignment-table tbody');
-    // Use a single 'change' event listener for all field types.
-    // This fires when a text input loses focus, or a checkbox/select value changes.
-    tableBody.onchange = handleFieldChange;
-
     // Update sort indicators
-    document.querySelectorAll('#user-assignment-table th').forEach(th => {
+    document.querySelectorAll('#users-table th').forEach(th => {
         th.classList.remove('sort-asc', 'sort-desc');
         if (th.dataset.column === currentSort.column) {
             th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -201,151 +211,187 @@ function renderUserTable() {
     });
 }
 
+function handleSort(event) {
+    const column = event.target.closest('th')?.dataset.column;
+    if (!column) return;
+
+    if (currentSort.column === column) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.column = column;
+        currentSort.direction = 'asc';
+    }
+    onDataChanged(); // Re-render with new sort
+}
+
+// --- NEW: Team Management Section ---
+
 function renderTeamManagement() {
+    const authState = authStore.get();
+    const teamManagementDetails = document.getElementById('team-management-details');
+
+    if (!authState.isEventMod) {
+        // Hide the entire team management details section if not a mod/admin
+        teamManagementDetails.style.display = 'none';
+        return;
+    } else {
+        teamManagementDetails.style.display = 'block';
+    }
+
+    // Restore open states
+    document.getElementById('user-management-details').open = detailsState.userManagement;
+    teamManagementDetails.open = detailsState.teamManagement;
+    const allTeams = teamsStore.get();
+    const allUsers = usersStore.get();
     const container = document.getElementById('teams-management-container');
 
-    // NEW: Restore the open state of the main details sections
-    document.getElementById('user-management-details').open = detailsState.userManagement;
-    document.getElementById('team-management-details').open = detailsState.teamManagement;
+    // NEW: Get unassigned users once for all teams to use.
+    const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
+    const unassignedUsersHTML = unassignedUsers.length > 0 ? unassignedUsers.map(u => `
+        <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}"><span>${u.displayName}</span><button class="add-member-btn" data-uid="${u.uid}">Add</button></li>`).join('') : '<li class="no-results-message">No unassigned users available.</li>';
 
-    // NEW: Before clearing the container, save the open state of each team card
-    container.querySelectorAll('.team-card').forEach(card => {
-        detailsState.teams.set(card.dataset.teamId, card.open);
-    });
+    const sortedTeams = Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
-    container.innerHTML = '';
+    // Create options for captain selection, excluding users already captaining another team.
+    const existingCaptainIds = new Set(Object.values(allTeams).map(t => t.captainId).filter(Boolean));
 
-    Object.keys(allTeams).sort().forEach(teamId => {
-        const team = allTeams[teamId];
-        const teamCard = document.createElement('details');
-        teamCard.className = 'team-card';
-        teamCard.open = detailsState.teams.get(teamId) || false; // Restore open state, default to closed
-        teamCard.dataset.teamId = teamId; // Add teamId to the dataset for tracking
+    container.innerHTML = sortedTeams.map(([id, team]) => {
+        // NEW: Get members for this specific team
+        const teamMembers = allUsers.filter(u => u.team === id);
+        const teamMembersHTML = teamMembers.length > 0 ? teamMembers.map(m => `
+            <li class="team-member-item"><span>${m.displayName}</span><button class="remove-member-btn" data-uid="${m.uid}">Remove</button></li>`).join('') : '<li>No members assigned.</li>';
 
-        const teamMembers = allUsers.filter(u => u.team === teamId);
-        // NEW: Also find users who are assigned to a team that no longer exists.
-        const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
+        // Captain options are per-team, consisting of its members.
+        const captainOptions = teamMembers
+            .filter(u => !u.isAnonymous || u.uid === team.captainId) // Allow current captain even if anon
+            .map(u => {
+                const isCaptainOfOtherTeam = existingCaptainIds.has(u.uid) && u.uid !== team.captainId;
+                return `<option value="${u.uid}" ${isCaptainOfOtherTeam ? 'disabled' : ''}>${u.displayName}${isCaptainOfOtherTeam ? ' (Cap of other team)' : ''}</option>`;
+            }).join('');
 
-        // NEW: Only allow team members to be selected as captain.
-        const potentialCaptains = [...teamMembers];
-        const currentCaptainUser = allUsers.find(u => u.uid === team.captainId);
-
-        // If a captain is assigned but they are NOT on the team (edge case), add them to the list
-        // so they appear in the dropdown and don't get accidentally removed on a different save.
-        if (currentCaptainUser && !potentialCaptains.some(member => member.uid === currentCaptainUser.uid)) {
-            potentialCaptains.push(currentCaptainUser);
-        }
-
-        const captainOptions = potentialCaptains
-            // NEW: Filter out anonymous users, but keep the current captain if they happen to be anonymous.
-            .filter(u => !u.isAnonymous || u.uid === team.captainId)
-            .map(u => `<option value="${u.uid}" ${team.captainId === u.uid ? 'selected' : ''}>${u.displayName}</option>`)
-            .join('');
-
-        teamCard.innerHTML = `
-            <summary><span class="team-id-display-inline">[${teamId}]</span><span class="team-name-summary">${team.name || 'Unnamed Team'}</span></summary>
+        return `
+        <details class="team-card" data-team-id="${id}" ${detailsState.teams.get(id) ? 'open' : ''}>
+            <summary><span class="team-id-display-inline">[${id}]</span><span class="team-name-summary">${team.name || 'Unnamed Team'}</span></summary>
             <div class="details-content">
-                <div class="form-field">
-                    <label for="team-name-${teamId}">Team Name</label>
-                    <textarea id="team-name-${teamId}" class="team-name-input" data-team-id="${teamId}" placeholder="Team Name" rows="1">${team.name || ''}</textarea>
-                </div>
-                <div class="team-header">
-                    <label for="team-captain-${teamId}">Team Captain:</label>
-                    <select id="team-captain-${teamId}" class="team-captain-select" data-team-id="${teamId}">
+            <div class="team-header">
+                <input type="text" class="team-name-input" value="${team.name}" placeholder="Team Name">
+                <div class="form-field" style="margin-bottom: 0;">
+                    <label for="captain-select-${id}">Captain</label>
+                    <select id="captain-select-${id}" class="captain-select">
                         <option value="">-- No Captain --</option>
                         ${captainOptions}
                     </select>
                 </div>
-                <div class="team-actions">
-                    <button class="delete-team-btn destructive-btn" data-team-id="${teamId}" data-team-name="${team.name || 'Unnamed Team'}">Delete Team</button>
-                </div>
-                <h4>Current Members (${teamMembers.length})</h4>
-                <ul class="team-members-list">
-                    ${teamMembers.length > 0 ? teamMembers.map(m => `
-                        <li class="team-member-item">
-                            <span>${m.displayName}</span>
-                            <button class="remove-member-btn" data-uid="${m.uid}" data-team-id="${teamId}">Remove</button>
-                        </li>`).join('') : '<li>No members assigned.</li>'
-                    }
-                </ul>
-                <div class="add-member-section">
-                    <h4>Add Members</h4>
-                    <input type="text" class="add-member-search" data-team-id="${teamId}" placeholder="Search for unassigned users...">
-                    <ul class="unassigned-users-list">${unassignedUsers.length > 0 ? unassignedUsers.map(u => `
-                        <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}">
-                            <span>${u.displayName}</span>
-                            <button class="add-member-btn" data-uid="${u.uid}" data-team-id="${teamId}">Add</button>
-                        </li>`).join('') : '<li>No unassigned users available.</li>'}</ul>
-                </div>
+                <button class="destructive-btn delete-team-btn">Delete Team</button>
             </div>
-        `;
-        container.appendChild(teamCard);
+            <h4>Current Members (${teamMembers.length})</h4>
+            <ul class="team-members-list">${teamMembersHTML}</ul>
+            <div class="add-member-section">
+                <h4>Add Members</h4>
+                <input type="text" class="add-member-search" placeholder="Search for unassigned users...">
+                <ul class="unassigned-users-list">${unassignedUsersHTML}</ul>
+            </div>
+            </div>
+        </details>
+    `}).join('') + `<button id="add-team-btn" style="margin-top: 1rem;">+ Add New Team</button>`;
+
+    // Set the selected captain for each team
+    sortedTeams.forEach(([id, team]) => {
+        const select = container.querySelector(`#captain-select-${id}`);
+        if (select) {
+            select.value = team.captainId || '';
+        }
     });
+}
 
-    // NEW: After rendering, go through each textarea and set its initial height correctly.
-    // This prevents the "snap back" to 1 row after a data sync.
-    container.querySelectorAll('.team-name-input').forEach(textarea => {
-        textarea.style.height = 'auto';
-        textarea.style.height = `${textarea.scrollHeight}px`;
-    });
+async function handleTeamDetailsChange(event) {
+    const target = event.target;
+    if (!target.classList.contains('team-name-input') && !target.classList.contains('captain-select')) return;
+    const teamCard = target.closest('.team-card');
+    if (!teamCard) return;
 
-    // NEW: Create and append the "Add New Team" button at the end of the container.
-    const addTeamButton = document.createElement('button');
-    addTeamButton.id = 'add-team-btn';
-    addTeamButton.textContent = '+ Add New Team';
-    addTeamButton.style.marginTop = '1rem'; // Add some space above the button
-    container.appendChild(addTeamButton);
+    const teamId = teamCard.dataset.teamId;
+    const newName = teamCard.querySelector('.team-name-input').value.trim();
+    const newCaptainId = teamCard.querySelector('.captain-select').value || null;
 
-    // Add event listeners using delegation
-    container.onchange = (e) => {
-        if (e.target.classList.contains('team-name-input')) {
-            // NEW: Find the parent team-card and update the summary span if the name changes
-            const teamCard = e.target.closest('.team-card');
-            const summaryNameSpan = teamCard?.querySelector('.team-name-summary');
-            if (summaryNameSpan) summaryNameSpan.textContent = e.target.value || 'Unnamed Team';
-            teamManager.updateTeam(e.target.dataset.teamId, { name: e.target.value });
-        } else if (e.target.classList.contains('team-captain-select')) {
-            teamManager.updateTeam(e.target.dataset.teamId, { captainId: e.target.value || null });
+    if (!newName) {
+        showMessage('Team name cannot be empty.', true);
+        event.target.value = teamsStore.get()[teamId].name; // Revert
+        return;
+    }
+
+    showGlobalLoader();
+    try {
+        await updateTeam(teamId, { name: newName, captainId: newCaptainId });
+        showMessage(`Team "${newName}" updated successfully.`, false);
+    } catch (error) {
+        console.error(`Failed to update team ${teamId}:`, error);
+        showMessage(`Error updating team: ${error.message}`, true);
+    } finally {
+        hideGlobalLoader();
+    }
+}
+
+async function handleTeamManagementClick(event) {
+    const target = event.target;
+
+    if (target.id === 'add-team-btn') {
+        const newName = prompt('Enter the name for the new team:');
+        if (newName && newName.trim()) {
+            showGlobalLoader();
+            try {
+                await addTeam(newName.trim());
+                showMessage(`Team "${newName.trim()}" created.`, false);
+            } catch (error) {
+                console.error('Failed to add team:', error);
+                showMessage(`Error: ${error.message}`, true);
+            } finally {
+                hideGlobalLoader();
+            }
         }
-    };
+    }
 
-    container.onclick = (e) => {
-        if (e.target.classList.contains('delete-team-btn')) {
-            openDeleteTeamModal(e.target.dataset.teamId, e.target.dataset.teamName);
-        } else if (e.target.classList.contains('remove-member-btn')) {
-            userManager.updateUser(e.target.dataset.uid, { team: null });
-        } else if (e.target.classList.contains('add-member-btn')) {
-            userManager.updateUser(e.target.dataset.uid, { team: e.target.dataset.teamId });
-        } else if (e.target.id === 'add-team-btn') { // NEW: Handle the add team button click
-            addNewTeam();
-        }
-    };
+    if (target.classList.contains('delete-team-btn')) {
+        const teamCard = target.closest('.team-card');
+        const teamId = teamCard.dataset.teamId;
+        const teamName = teamCard.querySelector('.team-name-input').value;
 
-    container.oninput = (e) => {
-        if (e.target.classList.contains('add-member-search')) {
-            const teamId = e.target.dataset.teamId;
-            const searchTerm = e.target.value.toLowerCase().trim();
-            const list = e.target.nextElementSibling; // The <ul> list
-            const items = list.querySelectorAll('.add-member-item');
+        openDeleteTeamModal(teamId, teamName);
+    }
+}
 
-            items.forEach(item => {
-                const name = item.dataset.displayName;
-                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
-            });
-        } else if (e.target.classList.contains('team-name-input')) {
-            // NEW: Auto-resize the textarea
-            const textarea = e.target;
-            textarea.style.height = 'auto'; // Reset height to shrink if needed
-            textarea.style.height = `${textarea.scrollHeight}px`;
-        }
-    };
+function handleTeamManagementInput(event) {
+    const target = event.target;
+    if (target.classList.contains('add-member-search')) {
+        handleMemberSearch(event);
+    } else if (target.classList.contains('team-name-input')) {
+        const summaryNameSpan = target.closest('.team-card')?.querySelector('.team-name-summary');
+        if (summaryNameSpan) summaryNameSpan.textContent = target.value || 'Unnamed Team';
+    }
+}
 
-    // NEW: Add a delegated 'toggle' listener to the container for team cards
-    container.ontoggle = (e) => {
-        if (e.target.classList.contains('team-card')) {
-            detailsState.teams.set(e.target.dataset.teamId, e.target.open);
-        }
-    };
+async function executeDeleteTeam() {
+    const confirmBtn = document.getElementById('delete-team-confirm-btn');
+    const teamId = confirmBtn.dataset.teamId;
+    const teamName = confirmBtn.dataset.teamName;
+
+    closeDeleteTeamModal();
+    showGlobalLoader();
+
+    try {
+        const membersToUnassign = usersStore.get().filter(user => user.team === teamId);
+        const userUpdatePromises = membersToUnassign.map(member => updateUser(member.uid, { team: null }));
+
+        await Promise.all(userUpdatePromises);
+        await deleteTeam(teamId);
+
+        showMessage(`Successfully deleted team "${teamName}" and unassigned ${membersToUnassign.length} members.`, false);
+    } catch (error) {
+        showMessage(`Error deleting team: ${error.message}`, true);
+        console.error("Error during team deletion and member unassignment:", error);
+    } finally {
+        hideGlobalLoader();
+    }
 }
 
 function openDeleteTeamModal(teamId, teamName) {
@@ -369,84 +415,90 @@ function closeDeleteTeamModal() {
 function validateDeleteInput() {
     const confirmInput = document.getElementById('delete-team-confirm-input');
     const confirmBtn = document.getElementById('delete-team-confirm-btn');
-    const expectedName = confirmInput.dataset.expectedName;
-    confirmBtn.disabled = confirmInput.value !== expectedName;
+    confirmBtn.disabled = confirmInput.value !== confirmInput.dataset.expectedName;
 }
 
-async function executeDeleteTeam() {
-    const confirmBtn = document.getElementById('delete-team-confirm-btn');
-    const teamId = confirmBtn.dataset.teamId;
-    const teamName = confirmBtn.dataset.teamName;
-
-    if (!teamId || !teamName) {
-        showMessage('Error: Missing team information for deletion.', true);
-        return;
-    }
-
-    closeDeleteTeamModal();
-    showGlobalLoader();
-
-    try {
-        const membersToUnassign = allUsers.filter(user => user.team === teamId);
-        const userUpdatePromises = membersToUnassign.map(member => {
-            console.log(`Unassigning ${member.displayName} from team ${teamId}`);
-            return userManager.updateUser(member.uid, { team: null });
-        });
-
-        await Promise.all(userUpdatePromises);
-        await teamManager.deleteTeam(teamId);
-
-        showMessage(`Successfully deleted team "${teamName}" and unassigned ${membersToUnassign.length} members.`, false);
-    } catch (error) {
-        showMessage(`Error deleting team: ${error.message}`, true);
-        console.error("Error during team deletion and member unassignment:", error);
-    } finally {
-        hideGlobalLoader();
-    }
-}
-
-async function addNewTeam() {
-    const existingNumbers = Object.keys(allTeams).map(id => parseInt(id.replace('team', ''), 10)).filter(n => !isNaN(n));
-    const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
-    const newId = `team${String(maxNumber + 1).padStart(2, '0')}`;
-
-    try {
-        showGlobalLoader();
-        await teamManager.createTeam(newId, { name: 'New Team', captainId: null, docId: newId });
-        showMessage(`Team ${newId} created.`, false);
-    } catch (err) {
-        showMessage(`Error creating team: ${err.message}`, true);
-    } finally {
-        hideGlobalLoader();
-    }
-}
-
-async function processUpdate(target) {
-    const uid = target.dataset.uid;
-    const field = target.dataset.field;
-    const value = target.type === 'checkbox' ? target.checked : target.value;
-
-    showGlobalLoader();
-    try {
-        if (field === 'displayName' || field === 'isNameLocked') {
-            const user = allUsers.find(u => u.uid === uid);
-            await userManager.updateUser(uid, { [field]: value });
-            const fieldLabel = field === 'displayName' ? 'Display Name' : 'Name Lock';
-            showMessage(`Updated ${user.displayName}'s ${fieldLabel} to "${value}".`, false);
-        }
-    } catch (error) {
-        console.error(`Failed to update user ${uid}:`, error);
-        alert(`Update failed: ${error.message}`);
-        // The real-time listener will automatically revert the UI on error.
-    } finally {
-        hideGlobalLoader();
-    }
-}
-
-function handleFieldChange(e) {
+async function handleFieldChange(e) {
     const target = e.target;
-    // Check if the event was triggered on an element we care about.
     if (target.classList.contains('user-field')) {
-        processUpdate(target);
+        const uid = target.dataset.uid;
+        const field = target.dataset.field;
+        const value = target.type === 'checkbox' ? target.checked : target.value;
+
+        showGlobalLoader();
+        try {
+            const user = usersStore.get().find(u => u.uid === uid);
+            await updateUser(uid, { [field]: value });
+            const fieldLabel = field === 'displayName' ? 'Display Name' : 'Name Lock';
+            showMessage(`Updated ${user.displayName}'s ${fieldLabel}.`, false);
+        } catch (error) {
+            console.error(`Failed to update user ${uid}:`, error);
+            showMessage(`Update failed: ${error.message}`, true);
+        } finally {
+            hideGlobalLoader();
+        }
     }
 }
+
+// --- NEW: Member Management in Team Cards ---
+
+function handleMemberSearch(event) {
+    const input = event.target;
+    const searchTerm = input.value.toLowerCase().trim();
+    const list = input.nextElementSibling; // The <ul> list
+    if (!list) return;
+
+    const items = list.querySelectorAll('.add-member-item');
+    let visibleCount = 0;
+    items.forEach(item => {
+        const name = item.dataset.displayName;
+        const isVisible = name.includes(searchTerm);
+        item.style.display = isVisible ? 'flex' : 'none';
+        if (isVisible) visibleCount++;
+    });
+
+    // Show/hide the "no users found" message
+    const noResultsMsg = list.querySelector('.no-results-message');
+    if (noResultsMsg) {
+        noResultsMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
+async function handleMemberUpdate(teamId, userId, action) {
+    const newTeamId = action === 'add' ? teamId : null;
+    const allUsers = usersStore.get();
+    const allTeams = teamsStore.get();
+    const user = allUsers.find(u => u.uid === userId);
+
+    if (!user) return;
+
+    const teamName = allTeams[teamId]?.name || 'the team';
+    const actionText = action === 'add' ? 'Added' : 'Removed';
+    const preposition = action === 'add' ? 'to' : 'from';
+
+    showGlobalLoader();
+    try {
+        await updateUser(userId, { team: newTeamId });
+        showMessage(`${actionText} ${user.displayName} ${preposition} ${teamName}.`, false);
+    } catch (error) {
+        console.error(`Failed to update user ${userId}:`, error);
+        showMessage(`Error: ${error.message}`, true);
+    } finally {
+        hideGlobalLoader();
+    }
+}
+
+// Extend handleTeamManagementClick to handle member add/remove
+const originalTeamManagementClick = handleTeamManagementClick;
+handleTeamManagementClick = function(event) {
+    const target = event.target;
+
+    if (target.classList.contains('add-member-btn') || target.classList.contains('remove-member-btn')) {
+        const teamId = target.closest('.team-card').dataset.teamId;
+        const userId = target.dataset.uid;
+        const action = target.classList.contains('add-member-btn') ? 'add' : 'remove';
+        handleMemberUpdate(teamId, userId, action);
+        return; // Stop further processing
+    }
+    originalTeamManagementClick(event); // Call the original function for other actions
+};

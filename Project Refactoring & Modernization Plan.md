@@ -373,6 +373,7 @@ This is the target architecture we are working towards. It separates shared serv
   - [x]  **5.1.17** improve usermanagement pages (users, permisions, captian)
   - [x]  **5.1.18** Add tile search bar on index page
   - [x]  **5.1.18** Add setup mode to the page to hide board from all non admin/mod users
+  - [ ]  **5.1.19** Switch to using libraries to improve performance and reliability. see section 6
 - [x] **5.2:** Update `TEST_PLAN.md`.
 - [ ] **5.3:** Complete a full QA pass using `TEST_PLAN.md`.
   - [ ] **5.3.1:** Complete a full QA pass using `TEST_PLAN.md`.
@@ -380,3 +381,95 @@ This is the target architecture we are working towards. It separates shared serv
     - [ ] **.5.3.2.1:** Bug 1
   - [ ] **5.3.3:** Complete a full QA pass using `TEST_PLAN.md`.
 - [ ] **5.4:** Update `README.md` with the new architecture and developer guidelines.
+
+
+
+
+### Phase 6: Testing & Documentation
+### **Recommended Libraries**
+
+This plan will integrate the following free, open-source libraries that work with simple module imports:
+
+1.  **Navigo**: A lightweight client-side router to manage SPA navigation.
+2.  **Lit**: A library for building fast, lightweight, and reactive Web Components. We will use Lit on its own to create custom-styled components, avoiding external UI libraries to maintain full control over the application's look and feel.
+3.  **Nano Stores**: A tiny state management library for sharing global state (e.g., auth status).
+4.  **Zod**: A schema validation library to ensure data integrity.
+5.  **Day.js**: A modern utility for parsing and formatting dates.
+  
+- [ ] **5.1:** setup and switch to nano store
+  - [x] **5.1.1:** Create `js/stores/` directory and define stores for each data domain (`authStore`, `configStore`, `tilesStore`, `usersStore`, `teamsStore`, `submissionsStore`).
+  - [x] **5.1.2:** Implement `init<StoreName>Listener()` in each store file to sync Firebase `onSnapshot` data to the Nano Store atom/map. This will replace the logic in the `js/core/data/` managers.
+  - [x] **5.1.3:** Modify `js/core/auth.js` to update the `authStore` instead of calling multiple page callbacks.
+  - [x] **5.1.4:** Modify `js/components/Navbar.js` to import and call all `init...Listener()` functions in its `connectedCallback`, centralizing data fetching. The navbar will then subscribe to the stores it needs (e.g., `authStore`, `configStore`).
+  - [x] **5.1.5:** Refactor `indexController.js` to remove local state/listeners and subscribe to the global stores. Data will be passed down to its sub-modules (`board.js`, `submissionModal.js`).
+  - [x] **5.1.6:** Refactor `overviewController.js` to use the global stores for rendering the scoreboard, feed, and chart.
+  - [x] **5.1.7:** Refactor `adminController.js` to use the global stores.
+  - [x] **5.1.8:** Refactor `setupController.js` to use the global stores, passing data down to its sub-modules (`tileEditor.js`, `globalConfigEditor.js`, etc.).
+  - [x] **5.1.9:** Refactor `usersController.js` to use the global stores.
+  - [x] **5.1.10:** Refactor `permissionsController.js` to use the global stores.
+  - [x] **5.1.11:** Refactor `captainController.js` to use the global stores.
+  - [x] **5.1.12:** Review UI components (`TileRenderer.js`, `Scoreboard.js`, `FormBuilder.js`) to ensure they function correctly with state passed from store-connected controllers. No direct changes are expected in these files.
+  - [ ] **5.1.13:** **REVISED:** Migrate write operations from `js/core/data/` managers into the corresponding `js/stores/` files. This centralizes all database interactions (reads and writes) into the stores.
+    - [x] **5.1.13.1:** Move `configManager` write logic to `configStore.js`.
+        - **Source:** `js/core/data/configManager.js`
+        - **Destination:** `js/stores/configStore.js`
+        - **Calling Files to Update:** `js/pages/setup/globalConfigEditor.js` 
+    - [x] **5.1.13.2:** Move `tileManager` write logic to `tilesStore.js`.
+        - **Source:** `js/core/data/tileManager.js`
+        - **Destination:** `js/stores/tilesStore.js`
+        - **Calling Files to Update:** `js/pages/setupController.js`, `js/pages/setup/tileEditor.js`, `js/pages/importTilesController.js`
+    - [x] **5.1.13.3:** Move `teamManager` write logic to `teamsStore.js`.
+        - **Source:** `js/core/data/teamManager.js`
+        - **Destination:** `js/stores/teamsStore.js`
+        - **Calling Files to Update:** `js/pages/usersController.js` 
+    - [x] **5.1.13.4:** Move `userManager` write logic to `usersStore.js`.
+        - **Source:** `js/core/data/userManager.js`, `js/core/auth.js`
+        - **Destination:** `js/stores/usersStore.js`
+        - **Calling Files to Update:** `js/pages/permissionsController.js`, `js/pages/usersController.js`, `js/pages/captainController.js`, `js/components/Navbar.js`
+    - [x] **5.1.13.5:** Move `submissionManager` write logic to `submissionsStore.js`.
+        - **Source:** `js/core/data/submissionManager.js`
+        - **Destination:** `js/stores/submissionsStore.js`
+        - **Calling Files to Update:** `js/pages/index/submissionModal.js`, `js/pages/adminController.js`, `js/pages/importSubmissionsController.js` 
+  - [x] **5.1.14:** Delete the old `js/core/data/` directory once all its logic has been successfully moved and tested.
+
+- [ ] **5.2:** UI Modernization with Lit
+  - [x] **5.2.1: Foundational Setup**
+    - **Task:** Add the CDN import path for `lit` to the `importmap` in all HTML files.
+
+  - [x] **5.2.2: Convert Navbar to a Lit Component**
+    - **Task:** Refactor `js/components/Navbar.js` from a vanilla `HTMLElement` to a `LitElement`.
+    - **Task:** Replace all manual DOM creation and `innerHTML` manipulation with Lit's declarative `render()` method. The component will encapsulate its own HTML structure and styling.
+    - **Task:** The existing modals (Login, Sign Up, Welcome) will be refactored into the Lit `render()` method, maintaining their current custom styling.
+    - **Task:** Use Lit's `@property` decorator to manage internal state (like which modal is open) and to receive data from Nano Stores. The store `subscribe` callbacks will now update these properties, triggering automatic, efficient re-renders.
+
+  - [x] **5.2.3: Update Test Page (`navbar_test.html`)**
+    - **Task:** Update the `importmap` as per step 5.2.1.
+    - **Task:** Keep the main content container as-is, using standard HTML elements styled by the project's CSS.
+    - **Validation:** Confirm that the data displayed in the cards still updates in real-time when auth state changes. This proves the new Lit navbar is correctly interacting with the global stores.
+
+  - [ ] **5.2.4: Standard Refactoring Process for Complex Pages**
+    - **Instruction 1 (Component Identification):** On each target page, identify complex, stateful UI sections that are frequently re-rendered via `innerHTML`. These are prime candidates for conversion into dedicated Lit components.
+    - **Instruction 2 (Component Conversion):** Refactor the identified sections from vanilla JS DOM manipulation into new `LitElement` components (e.g., create `js/components/BingoBoard.js`). These components will manage their own structure and styles.
+    - **Instruction 3 (Integration):** In the page's HTML, replace the old container `div` with the new custom element tag (e.g., `<bingo-board></bingo-board>`).
+    - **Instruction 4 (Targeted Reactivity):** In the page controller (e.g., `indexController.js`), refactor the `onDataChanged` logic. Instead of re-rendering large chunks of `innerHTML`, subscribe to the necessary stores and pass the data into the Lit component's properties. Lit will then handle the efficient, targeted DOM updates automatically.
+
+  - [ ] **5.2.5: Page Refactoring Checklist**
+    - **Apply the standard process from 5.2.4 to the following high-impact pages.**
+    - [x] **Player Page (`index.html`)**
+      - **Files:** `index.html`, `js/pages/indexController.js`, `js/pages/index/submissionModal.js`
+      - **Task:** Convert the main board rendering logic into a `<bingo-board>` Lit component.
+      - **Task:** Convert the submission modal logic into a `<submission-modal>` Lit component.
+      - **Task:** Refactor `indexController.js` to orchestrate these new components, passing store data to their properties.
+    - [ ] **Setup Page (`setup.html`)**
+      - **Files:** `setup.html`, `js/pages/setupController.js`, `js/pages/setup/globalConfigEditor.js`, `js/pages/setup/tileEditor.js`
+      - **Task:** Convert the "Edit Tile Details" panel into a `<tile-editor-form>` Lit component.
+      - **Task:** Convert the "Global Config & Styles" panel into a `<global-config-form>` Lit component.
+      - **Task:** Refactor `setupController.js` to manage the state and data flow for these new components, replacing the large `innerHTML` re-renders.
+    - [ ] **Admin Page (`admin.html`)**
+      - **Files:** `admin.html`, `js/pages/adminController.js`
+      - **Task:** Convert the submissions table into a `<submissions-table>` Lit component.
+      - **Task:** Convert the submission review modal into a `<review-modal>` Lit component.
+      - **Task:** Refactor `adminController.js` to manage the components and their data.
+    - [ ] **Users & Teams Page (`users.html`)**
+      - **Files:** `users.html`, `js/pages/usersController.js`
+      - **Task:** Convert the user table and team management sections into reactive Lit components to eliminate full table re-renders on sort or filter.

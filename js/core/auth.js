@@ -1,10 +1,17 @@
 import { db, auth, fb } from './firebase-config.js';
+import { authStore } from '../stores/authStore.js';
+import { teamsStore } from '../stores/teamsStore.js';
 
 let currentUser = null;
 let userProfile = null;
-let authChangeListeners = []; // Use an array for multiple listeners
 let unsubscribeUserProfile = null; // To clean up the profile listener on logout
 let isAuthInitialized = false; // Prevent multiple initializations
+
+// DEPRECATED: This will be removed once all pages are refactored.
+// For now, it ensures backward compatibility with pages still using the old callback system.
+let authChangeListeners = [];
+
+let authStateHasBeenChecked = false;
 
 export function initAuth(callback) {
     if (!authChangeListeners.includes(callback)) {
@@ -16,6 +23,8 @@ export function initAuth(callback) {
         return;
     }
     isAuthInitialized = true;
+
+
     fb.onAuthStateChanged(auth, async (user) => {
         // Clean up any existing profile listener when auth state changes
         if (unsubscribeUserProfile) {
@@ -23,16 +32,17 @@ export function initAuth(callback) {
             unsubscribeUserProfile = null;
         }
 
+        authStateHasBeenChecked = true; // Mark that the initial check has completed.
         if (user) {
             currentUser = user; // Set currentUser immediately
-            // Immediately notify the page that the user is logged in, even before the profile is fetched.
+            // Immediately notify listeners that the user is logged in, even before the profile is fetched.
             notifyListeners();
             // Set up a real-time listener for the user's profile
             listenToUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
         } else {
             currentUser = null;
             userProfile = null;
-            // When logged out, immediately notify the page
+            // When logged out, immediately notify listeners
             notifyListeners();
         }
     });
@@ -112,7 +122,7 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
                 isEventMod: false,
                 isAnonymous: isAnonymous,
                 isNameLocked: false,
-                hasSetDisplayName: isAnonymous,
+                hasSetDisplayName: isAnonymous, // Anonymous users don't get the welcome modal
                 // FIX: Use the email from the currentUser object, which is more reliable on creation.
                 email: currentUser.email 
             };
@@ -144,31 +154,8 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
         userProfile = docSnap.data();
         console.log('[Auth] User profile data:', { displayName: userProfile.displayName, team: userProfile.team, isAdmin: userProfile.isAdmin });
 
-        // After getting the user profile, check if they are a team captain.
-        let isTeamCaptain = false;
-        if (userProfile?.team) {
-            console.log(`[Auth] User is in team '${userProfile.team}'. Checking captain status.`);
-            try {
-                const teamDocRef = fb.doc(db, 'teams', userProfile.team);
-                const teamDocSnap = await fb.getDoc(teamDocRef);
-                if (teamDocSnap.exists() && teamDocSnap.data().captain === uid) {
-                    isTeamCaptain = true;
-                }
-                console.log(`[Auth] Captain check result: ${isTeamCaptain}.`);
-            } catch (error) {
-                console.error("Error checking team captain status:", error);
-            }
-        } else {
-            console.log('[Auth] User is not in a team. Skipping captain check.');
-        }
-
         // After the profile is fetched or updated, notify the page controller.
-        const authState = getAuthState(isTeamCaptain);
-        // Add a flag to the authState if the team was changed by this update
-        if (oldTeam !== undefined && oldTeam !== authState.profile?.team) {
-            authState.teamChanged = true;
-        }
-        notifyListeners(authState);
+        notifyListeners();
     }, (error) => {
         console.error("Error listening to user profile:", error);
         // In case of error, still provide a callback with the current (possibly null) state
@@ -176,34 +163,15 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
     });
 }
 
-export async function updateUserDisplayName(newName) {
-    if (!currentUser || !userProfile) {
-        throw new Error("User not authenticated.");
-    }
-    if (userProfile.isNameLocked) {
-        throw new Error("Your display name has been locked by an administrator.");
-    }
-
-    const userRef = fb.doc(db, 'users', currentUser.uid);
-    const authProfileUpdate = fb.updateProfile(currentUser, { displayName: newName });
-    const firestoreUpdate = fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
-
-    try {
-        // The onSnapshot listener in listenToUserProfile will automatically detect the Firestore change
-        // and trigger the onAuthChangeCallback to update the UI across the app.
-        await Promise.all([
-            authProfileUpdate,
-            firestoreUpdate
-        ]);
-    } catch (error) {
-        console.error("Display name update error:", error);
-        throw new Error("Failed to update display name: " + error.message);
-    }
-}
-
-function notifyListeners(authState = null) {
-    const state = authState || getAuthState(false); // Pass a default for isTeamCaptain
+function notifyListeners() {
+    // NEW: Always get the state from the store, which now holds the latest captain status.
+    const state = getAuthState();
     console.log('[Auth] Notifying listeners with state:', { isLoggedIn: state.isLoggedIn, isAdmin: state.isAdmin, isEventMod: state.isEventMod, isTeamCaptain: state.isTeamCaptain });
+    
+    // Update the store with the complete, fresh state.
+    authStore.set(state);
+
+    // DEPRECATED: Notify old-style listeners. This can be removed later.
     authChangeListeners.forEach(listener => {
         listener(state);
     });
@@ -212,18 +180,22 @@ function notifyListeners(authState = null) {
 export async function signOut() {
     try {
         await fb.signOut(auth);
+        // onAuthStateChanged will handle cleanup and notifications.
     } catch (error) {
         console.error("Sign Out Error:", error);
     }
 }
 
-export function getAuthState(isTeamCaptain = false) {
-    console.log(`[Auth] getAuthState called. isTeamCaptain parameter: ${isTeamCaptain}`);
+export function getAuthState() {
+    console.log(`[Auth] getAuthState called.`);
+    const currentStoreState = authStore.get();
     const isLoggedIn = !!currentUser;
     const firestoreProfile = userProfile || {};
     const authProfile = currentUser || {};
 
     // Merge the Firestore profile with the Auth profile for a complete view.
+    const oldTeam = currentStoreState.profile?.team;
+
     const fullProfile = isLoggedIn ? {
         ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
         uid: authProfile.uid,
@@ -232,12 +204,16 @@ export function getAuthState(isTeamCaptain = false) {
         email: firestoreProfile.email || authProfile.email,
     } : null;
 
+    const newTeam = fullProfile?.team;
+
     return {
         isLoggedIn: isLoggedIn,
         user: currentUser,
         profile: fullProfile,
         isAdmin: fullProfile?.isAdmin === true,
         isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
-        isTeamCaptain: isTeamCaptain,
+        isTeamCaptain: currentStoreState.isTeamCaptain, // The value is now derived in app-init.js
+        teamChanged: oldTeam !== undefined && oldTeam !== newTeam,
+        authChecked: authStateHasBeenChecked // NEW: Signal that the initial auth check is done.
     };
 }

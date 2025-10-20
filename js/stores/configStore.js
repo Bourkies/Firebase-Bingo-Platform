@@ -1,57 +1,57 @@
-import { db, fb } from '../firebase-config.js';
+import { atom } from 'nanostores';
+import { db, fb } from '../core/firebase-config.js';
 
-let config = {};
-let allStyles = {};
-let unsubscribeConfig = null;
-let unsubscribeStyles = null;
+// This store will hold the combined config and styles data.
+export const configStore = atom({
+    config: {},
+    styles: {},
+});
+
+let unsubscribeConfig;
+let unsubscribeStyles;
+let isInitialized = false;
 
 /**
- * Listens to the main config document and all style documents.
- * @param {function} callback - Function to call when data changes.
+ * Initializes the listeners for the main config and all style documents.
+ * The data is combined and updated in the configStore.
  */
-export function listenToConfigAndStyles(callback) {
-    if (unsubscribeConfig) unsubscribeConfig();
+export function initConfigListener() {
+    if (isInitialized) return;
+    isInitialized = true;
+
+    let currentConfig = {};
+    let currentStyles = {};
+
+    const updateStore = () => {
+        configStore.set({ config: currentConfig, styles: currentStyles });
+    };
+
     unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
-        config = doc.exists() ? doc.data() : {};
-        callback({ config, styles: allStyles, error: null });
+        console.log('[configStore] Received update for config/main.');
+        currentConfig = doc.exists() ? doc.data() : {};
+        updateStore();
     }, (error) => {
-        console.error("Error listening to config:", error);
-        callback({ config: {}, styles: {}, error });
+        console.error("[configStore] Error listening to config:", error);
     });
 
-    if (unsubscribeStyles) unsubscribeStyles();
     unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
-        allStyles = {};
+        console.log('[configStore] Received update for styles collection.');
+        currentStyles = {};
         snapshot.docs.forEach(doc => {
-            allStyles[doc.id] = doc.data();
+            currentStyles[doc.id] = doc.data();
         });
-        callback({ config, styles: allStyles, error: null });
+        updateStore();
     }, (error) => {
-        console.error("Error listening to styles:", error);
-        callback({ config: {}, styles: {}, error });
+        console.error("[configStore] Error listening to styles:", error);
     });
 }
 
-/**
- * Returns the currently cached config object.
- * @returns {object}
- */
-export function getConfig() {
-    return config;
-}
-
-/**
- * Returns the currently cached styles object.
- * @returns {object}
- */
-export function getStyles() {
-    return allStyles;
-}
+// --- NEW: Write Operations ---
 
 /**
  * Updates a field in the main config document.
  * @param {object} data - The data to update.
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 export function updateConfig(data) {
     const configRef = fb.doc(db, 'config', 'main');
@@ -62,7 +62,7 @@ export function updateConfig(data) {
  * Updates a specific style document.
  * @param {string} styleId - The ID of the style document (e.g., 'Verified').
  * @param {object} data - The data to update.
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 export function updateStyle(styleId, data) {
     const styleRef = fb.doc(db, 'styles', styleId);
@@ -92,7 +92,7 @@ export async function exportFullConfig() {
  * Imports a full configuration from a JSON object.
  * @param {object} data - The full config object with `config` and `styles` keys.
  * @param {'merge'|'replace'} mode - The import mode.
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 export async function importFullConfig(data, mode = 'merge') {
     const batch = fb.writeBatch(db);
@@ -116,7 +116,7 @@ export async function importFullConfig(data, mode = 'merge') {
 
 /**
  * Clears all config and style documents.
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 export async function clearAllConfig() {
     const batch = fb.writeBatch(db);
