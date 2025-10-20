@@ -191,7 +191,7 @@ export function renderPrereqLines(prereqVisMode) {
 export function createPrereqFieldset(mainController, shadowRoot) {
     console.log("[PrereqEditor] createPrereqFieldset called.");
     const prereqFieldset = Object.assign(document.createElement('fieldset'), {
-        className: 'overrides-fieldset',
+        className: 'prereq-fieldset',
         id: 'prereq-editor-container',
         style: 'grid-column: 1 / -1;',
     });

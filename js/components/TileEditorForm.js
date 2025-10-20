@@ -85,7 +85,8 @@ export class TileEditorForm extends LitElement {
     static properties = {
         tileData: { type: Object },
         allTiles: { type: Array },
-        mainController: { type: Object }
+        mainController: { type: Object },
+        _formContent: { state: true } // NEW: Internal state for form content
     };
 
     constructor() {
@@ -93,64 +94,63 @@ export class TileEditorForm extends LitElement {
         this.tileData = null;
         this.allTiles = [];
         this.mainController = {};
+        this._formContent = null; // NEW: Initialize state
     }
 
     updated(changedProperties) {
         // FIX: Only re-render the entire form if the selected tile has changed (i.e., its docId is different).
         // This prevents the form from resetting itself due to its own updates coming back from the server.
-        if (changedProperties.has('tileData') &&
-            (this.tileData?.docId !== changedProperties.get('tileData')?.docId)
-        ) {
-            this.renderFormContents();
+        if (changedProperties.has('tileData')) {
+            // Always call renderFormContents to update the main form fields.
+            // This function is now lightweight and just sets a property.
+            this.renderFormContents(); 
+
+            // If a tile is selected, run the side-effect logic to append the vanilla JS components.
+            // This runs *after* Lit's render cycle is complete, so the form element exists.
+            if (this.tileData) {
+                const form = this.shadowRoot.getElementById('details-form');
+                if (!form) return;
+
+                // FIX: Remove existing vanilla JS fieldsets before re-adding them to prevent duplication.
+                // These are not managed by Lit's renderer, so we must clean them up manually.
+                form.querySelector('.prereq-fieldset')?.remove();
+                form.querySelector('.overrides-fieldset')?.remove();
+
+                // --- Render Prerequisites ---
+                const prereqFieldset = createPrereqFieldset(this.mainController, this.shadowRoot);
+                form.appendChild(prereqFieldset);
+                populatePrereqUI(this.tileData['Prerequisites'] || '', this.mainController, this.shadowRoot);
+
+                // --- Render Overrides ---
+                const overridesFieldset = createOverrideFieldset(this.mainController, this.shadowRoot);
+                form.appendChild(overridesFieldset);
+                
+                const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
+                if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', this.mainController, this.shadowRoot));
+
+                const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
+                if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, this.mainController, this.shadowRoot));
+
+                let overrides = {};
+                try {
+                    if (this.tileData['Overrides (JSON)']) overrides = JSON.parse(this.tileData['Overrides (JSON)']);
+                } catch (e) { /* Ignore invalid JSON */ }
+
+                if (rawJsonTextarea) rawJsonTextarea.value = this.tileData['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
+                populateOverridesUI(overrides, this.mainController, this.shadowRoot);
+            }
         }
     }
 
     renderFormContents() {
-        const form = this.shadowRoot.getElementById('details-form');
-        if (!form) return;
-        form.innerHTML = ''; // Clear previous content
-
-        if (!this.tileData) {
-            // Render a placeholder or message when no tile is selected
-            form.innerHTML = `<p style="grid-column: 1 / -1; text-align: center; color: var(--secondary-text);">No tile selected. Select a tile on the board or from the dropdown to edit its details.</p>`;
-            return;
-        }
-
-        // --- Render Main Tile Fields ---
+        // This function is now only responsible for preparing the Lit-based part of the form.
+        // The vanilla JS parts are handled as a side-effect in the `updated` method.
         const TILE_EDITOR_FIELDS = ['docId', 'id', 'Name', 'Points', 'Description', 'Left (%)', 'Top (%)', 'Width (%)', 'Height (%)', 'Rotation'];
-        createFormFields(form, tileEditorSchema, this.tileData, TILE_EDITOR_FIELDS, {
-            flashField: (el) => this.mainController.flashField(el)
-        });
+        this._formContent = this.tileData 
+            ? html`${createFormFields(tileEditorSchema, this.tileData, TILE_EDITOR_FIELDS, { flashField: (el) => this.mainController.flashField(el) })}`
+            : html`<p style="grid-column: 1 / -1; text-align: center; color: var(--secondary-text);">No tile selected. Select a tile on the board or from the dropdown to edit its details.</p>`;
 
-        // --- Render Prerequisites ---
-        const prereqFieldset = createPrereqFieldset(this.mainController, this.shadowRoot);
-        form.appendChild(prereqFieldset);
-        populatePrereqUI(this.tileData['Prerequisites'] || '', this.mainController, this.shadowRoot);
-
-        // --- Render Overrides ---
-        const overridesFieldset = createOverrideFieldset(this.mainController, this.shadowRoot);
-        form.appendChild(overridesFieldset);
-        
-        // Attach listeners to the newly created elements inside the overrides fieldset
-        const addOverrideBtn = overridesFieldset.querySelector('#add-override-btn');
-        if (addOverrideBtn) addOverrideBtn.addEventListener('click', () => addOverrideRow('', '', '', this.mainController, this.shadowRoot));
-
-        const rawJsonTextarea = overridesFieldset.querySelector('#overrides-json-textarea');
-        if (rawJsonTextarea) rawJsonTextarea.addEventListener('change', (e) => handleRawJsonOverrideChange(e, this.mainController, this.shadowRoot));
-
-        let overrides = {};
-        try {
-            if (this.tileData['Overrides (JSON)']) {
-                overrides = JSON.parse(this.tileData['Overrides (JSON)']);
-            }
-        } catch (e) { /* Ignore invalid JSON */ }
-
-        if (rawJsonTextarea) {
-            rawJsonTextarea.value = this.tileData['Overrides (JSON)'] ? JSON.stringify(overrides, null, 2) : '';
-            rawJsonTextarea.style.borderColor = '';
-        }
-        populateOverridesUI(overrides, this.mainController, this.shadowRoot);
-
+        // The validation needs to run after the form content is set.
         this.validateTileId();
     }
 
@@ -232,7 +232,9 @@ export class TileEditorForm extends LitElement {
 
     render() {
         return html`
-            <form id="details-form" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate}></form>
+            <form id="details-form" @input=${this.handleFormUpdate} @change=${this.handleFormUpdate}>
+                ${this._formContent}
+            </form>
         `;
     }
 }

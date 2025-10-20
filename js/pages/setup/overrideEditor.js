@@ -131,8 +131,19 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     populateValueContainer(valueContainer, key, value, mainController, shadowRoot);
  
     removeBtn.addEventListener('click', () => {
+        // FIX: Instead of relying on a debounced save, we will perform an immediate, explicit save.
+        // 1. Remove the visual element from the DOM.
         item.remove();
-        updateCallback();
+
+        // 2. Regenerate the overrides object from the now-modified UI.
+        const newOverrides = getOverridesFromUI(shadowRoot);
+        const newOverridesJson = Object.keys(newOverrides).length > 0 ? JSON.stringify(newOverrides) : '';
+
+        // 3. Dispatch the 'tile-update' event directly to the parent Lit component.
+        // This bypasses the debounce and ensures the deletion is saved immediately.
+        shadowRoot.host.dispatchEvent(new CustomEvent('tile-update', {
+            detail: { docId: mainController.allTiles[mainController.lastSelectedTileIndex].docId, data: { 'Overrides (JSON)': newOverridesJson } }
+        }));
     });
 }
 
