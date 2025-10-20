@@ -107,14 +107,14 @@ function onDataChanged() {
 function populateFilters() {
     const allTeams = teamsStore.get();
     const teamFilter = document.getElementById('team-filter');
-    const currentValue = teamFilter.value;
+    const currentValue = teamFilter.value || 'all'; // Default to 'all' if no value is set
 
     teamFilter.innerHTML = `
         <option value="all">All Teams</option>
         <option value="unassigned">Unassigned</option>
     `;
 
-    Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([id, data]) => {
+    Object.entries(allTeams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, data]) => {
         teamFilter.innerHTML += `<option value="${id}">${data.name}</option>`;
     });
 
@@ -249,8 +249,7 @@ function renderTeamManagement() {
     const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
     const unassignedUsersHTML = unassignedUsers.length > 0 ? unassignedUsers.map(u => `
         <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}"><span>${u.displayName}</span><button class="add-member-btn" data-uid="${u.uid}">Add</button></li>`).join('') : '<li class="no-results-message">No unassigned users available.</li>';
-
-    const sortedTeams = Object.entries(allTeams).sort((a, b) => a[1].name.localeCompare(b[1].name));
+    const sortedTeams = Object.entries(allTeams).sort((a, b) => a[0].localeCompare(b[0]));
 
     // Create options for captain selection, excluding users already captaining another team.
     const existingCaptainIds = new Set(Object.values(allTeams).map(t => t.captainId).filter(Boolean));
@@ -339,8 +338,22 @@ async function handleTeamManagementClick(event) {
         const newName = prompt('Enter the name for the new team:');
         if (newName && newName.trim()) {
             showGlobalLoader();
+            const allTeams = teamsStore.get();
+            const teamIds = Object.keys(allTeams);
+
+            // Find the highest existing team number from IDs like "team01", "team02", etc.
+            const maxTeamNum = teamIds.reduce((max, id) => {
+                if (id.startsWith('team')) {
+                    const num = parseInt(id.substring(4), 10);
+                    return !isNaN(num) && num > max ? num : max;
+                }
+                return max;
+            }, 0);
+
+            const newTeamId = `team${String(maxTeamNum + 1).padStart(2, '0')}`;
+
             try {
-                await addTeam(newName.trim());
+                await addTeam(newTeamId, { name: newName.trim(), captainId: null }); // This call is now correct
                 showMessage(`Team "${newName.trim()}" created.`, false);
             } catch (error) {
                 console.error('Failed to add team:', error);
