@@ -339,8 +339,22 @@ async function handleTeamManagementClick(event) {
         const newName = prompt('Enter the name for the new team:');
         if (newName && newName.trim()) {
             showGlobalLoader();
+            const allTeams = teamsStore.get();
+            const teamIds = Object.keys(allTeams);
+
+            // Find the highest existing team number from IDs like "team01", "team02", etc.
+            const maxTeamNum = teamIds.reduce((max, id) => {
+                if (id.startsWith('team')) {
+                    const num = parseInt(id.substring(4), 10);
+                    return !isNaN(num) && num > max ? num : max;
+                }
+                return max;
+            }, 0);
+
+            const newTeamId = `team${String(maxTeamNum + 1).padStart(2, '0')}`;
+
             try {
-                await addTeam(newName.trim());
+                await addTeam(newTeamId, { name: newName.trim(), captainId: null }); // This call is now correct
                 showMessage(`Team "${newName.trim()}" created.`, false);
             } catch (error) {
                 console.error('Failed to add team:', error);

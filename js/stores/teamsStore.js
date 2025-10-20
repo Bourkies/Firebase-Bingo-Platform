@@ -32,16 +32,15 @@ export function initTeamsListener() {
 
 /**
  * Adds a new team with an auto-generated ID.
- * @param {string} teamName - The name for the new team.
+ * @param {string} docId - The ID for the new team document.
+ * @param {object} teamData - The data for the new team.
  * @returns {Promise<void>}
  */
-export function addTeam(teamName) {
-    const teamsCollection = fb.collection(db, 'teams');
-    const newTeamRef = fb.doc(teamsCollection); // Create a reference to get a new ID
-    return fb.setDoc(newTeamRef, {
-        name: teamName,
-        captainId: null
-    });
+export function addTeam(docId, teamData) {
+    // If docId is provided, use it. Otherwise, let Firestore generate one.
+    const docRef = docId ? fb.doc(db, 'teams', docId) : fb.doc(fb.collection(db, 'teams'));
+    // The onSnapshot listener will update the store automatically.
+    return fb.setDoc(docRef, teamData);
 }
 
 /**
