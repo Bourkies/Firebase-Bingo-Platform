@@ -107,7 +107,7 @@ function onDataChanged() {
 function populateFilters() {
     const allTeams = teamsStore.get();
     const teamFilter = document.getElementById('team-filter');
-    const currentValue = teamFilter.value;
+    const currentValue = teamFilter.value || 'all'; // Default to 'all' if no value is set
 
     teamFilter.innerHTML = `
         <option value="all">All Teams</option>
