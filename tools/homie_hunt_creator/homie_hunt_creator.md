@@ -1,5 +1,7 @@
 # Homie Hunt Creator - Project Plan
 
+# IMPORNTANT NOTE - THE READ ME HAS NOT BEEN UPDATE TO INCLUDE DETAILS ABOUT THE CSV_TO_JSON FILE OR CHANGES TO RUNNING THE CREATOR SCRIPT
+
 ## 1. Overview
 
 This tool is a command-line utility written in Python designed to automate the creation of a "Homie Hunt" bingo event. It takes a structured JSON file as input, fetches images from a specified wiki, composes them into a single "tall" board image, and generates a corresponding CSV file for the tiles. This CSV is formatted for direct import into the Firebase Bingo Platform.
