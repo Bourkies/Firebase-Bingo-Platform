@@ -9,8 +9,8 @@ import '../components/TileEditorForm.js'; // Register the TileEditorForm compone
 
 // Import setup sub-modules
 import { initializeTileEditor, populateTileSelector } from './setup/tileEditor.js';
-import { initializePrereqEditor, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
-import { initializeOverrideEditor, populateOverridesUI } from './setup/overrideEditor.js';
+import { initializePrereqEditor, renderPrereqLines } from './setup/prereqEditor.js';
+import { initializeOverrideEditor } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
  
 export let lastSelectedTileIndex = null; // Export for sub-modules
@@ -386,7 +386,6 @@ function updateEditorPanel(index) {
         tileEditor.tileData = index !== null ? tilesData[index] : null;
     }
 
-    populateOverridesUI(index !== null ? tilesData[index] : null);
     renderPrereqLines(prereqVisMode);
 }
 
