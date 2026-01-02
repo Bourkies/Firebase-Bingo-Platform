@@ -48,26 +48,7 @@ export function initAuth(callback) {
     });
 }
 
-export async function signInWithGoogle() {
-    const provider = new fb.GoogleAuthProvider();
-    try {
-        await fb.signInWithPopup(auth, provider);
-        // onAuthStateChanged will handle the rest
-    } catch (error) {
-        console.error("Google Sign-In Error:", error);
-        alert("Could not sign in with Google. Please try again.");
-    }
-}
 
-export async function signInAnonymously() {
-    try {
-        await fb.signInAnonymously(auth);
-        // onAuthStateChanged will handle the rest
-    } catch (error) {
-        console.error("Anonymous Sign-In Error:", error);
-        alert("Could not sign in anonymously. Please try again.");
-    }
-}
 
 export async function signInWithEmail(email, password) {
     try {
@@ -104,7 +85,7 @@ export async function createUserWithEmail(email, password) {
 }
 
 function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
-    const userDocRef = fb.doc(db, 'users', uid);
+    const userDocRef = fb.doc(db, 'users', email);
     console.log(`[Auth] Setting up profile listener for user.`);
 
     unsubscribeUserProfile = fb.onSnapshot(userDocRef, async (docSnap) => {
@@ -116,6 +97,7 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
             // Create a new user profile if it doesn't exist
             const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
             const newUserProfile = {
+                uid: uid,
                 displayName: initialAuthDisplayName,
                 team: null,
                 isAdmin: false,

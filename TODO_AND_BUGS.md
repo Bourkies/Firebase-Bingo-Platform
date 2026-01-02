@@ -2,11 +2,7 @@
 
 ## 🚨 High Priority
 
-- [ ] **Remove Legacy Auth Providers**: 
-    - Remove Google and Anonymous login logic from `js/core/auth.js`.
-    - Remove Google and Anonymous buttons from `js/components/Navbar.js`.
-    - Ensure only Username/Password flow remains in the UI.
-    - update firestore docid per ARCHITECTURE.md
+
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
 
 ## 🛠️ Refactoring & Modernization
@@ -37,3 +33,6 @@
 ## 📝 QA & Testing
 
 - [ ] **Full Smoke Test**: Test all pages after removing legacy auth to ensure no regressions.
+
+## Change log
+

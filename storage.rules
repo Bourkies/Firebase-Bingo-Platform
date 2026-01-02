@@ -11,8 +11,8 @@ service firebase.storage {
       // This rule performs a check against the 'users' collection in Firestore
       // to verify the 'isAdmin' flag for the person making the request.
       allow write, delete: if request.auth != null &&
-                             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+                             exists(/databases/$(database)/documents/users/$(request.auth.token.email)) &&
+                             get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.get('isAdmin', false) == true;
     }
 
     // By default, deny access to all other paths. You can add more specific

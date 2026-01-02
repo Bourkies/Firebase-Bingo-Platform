@@ -7,8 +7,8 @@ service cloud.firestore {
       return request.auth != null;
     }
     function getUserData() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return userDoc.data;
+      // UPDATED: Fetch user data using Email as Document ID, matching Architecture.md
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
     }
     function isAdmin() {
       // Use .get() for safety, matching the storage rule. This ensures it handles missing fields gracefully.
@@ -77,13 +77,13 @@ service cloud.firestore {
       allow delete: if isEventMod();
     }
 
-    match /users/{userId} {
+    match /users/{userEmail} {
       // Read is allowed if:
       // 1. You are an admin/mod (can read/list anyone).
       // 2. You are reading your own profile.
       // 3. You are reading the profile of a teammate.
       allow read: if isEventMod() || // Admins/Mods can read anyone.
-                     (isAuth() && request.auth.uid == userId) || // Users can read their own profile.
+                     (isAuth() && request.auth.token.email == userEmail) || // Users can read their own profile (Doc ID is Email).
                      (isAuth() && getUserData().team != null && getUserData().team == resource.data.team) || // Users can read teammate profiles.
                      (isAuth() && isCaptainOfTeam(getUserData().team)); // Captains can read any user profile.
       
@@ -96,7 +96,7 @@ service cloud.firestore {
                      // Any authenticated user can list their own teammates.
                      (isAuth() && request.query.where.team == getUserData().team);
 
-      allow create: if request.auth.uid == userId; // A user can create their own profile on first sign-in.
+      allow create: if request.auth.token.email == userEmail; // A user can create their own profile on first sign-in.
 
       // Update is allowed if:
       allow update: if
@@ -111,7 +111,7 @@ service cloud.firestore {
         ) ||
         // 4. You are updating your OWN profile, under specific conditions.
         (
-          request.auth.uid == userId &&
+          request.auth.token.email == userEmail &&
           // You cannot make yourself an admin or mod.
           request.resource.data.isAdmin == resource.data.isAdmin &&
           request.resource.data.isEventMod == resource.data.isEventMod &&

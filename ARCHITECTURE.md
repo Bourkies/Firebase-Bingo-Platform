@@ -29,6 +29,15 @@ The application follows a modular architecture where each HTML page is driven by
 | **Import Submissions** | `.../Firebase-Bingo-Platform/import_submissions.html` | `js/pages/importSubmissionsController.js` | Tool to bulk import submissions or export them to CSV. |
 | **Import Tiles** | `.../Firebase-Bingo-Platform/import_tiles.html` | `js/pages/importTilesController.js` | Tool to bulk import tiles from CSV. |
 
+### Developer Tools
+
+| Page | File Path | Description |
+| :--- | :--- | :--- |
+| **Interactive Test Plan** | `.../Firebase-Bingo-Platform/dev/test_plan.html` | Interactive dashboard for running smoke tests. Includes buttons to quickly toggle global config settings (Visibility, Censorship, Setup Mode) for testing scenarios. |
+| **Troubleshoot** | `.../Firebase-Bingo-Platform/dev/troubleshoot.html` | Diagnostic tool to verify Firebase SDK loading, configuration keys, and security rules. |
+| **Theme Creator** | `.../Firebase-Bingo-Platform/dev/theme.html` | Tool for creating and previewing themes. |
+| **Dev Hub** | `.../Firebase-Bingo-Platform/dev/dev.html` | Central hub for accessing all developer pages. |
+
 ---
 
 ## 2. Database Structure (Firestore)

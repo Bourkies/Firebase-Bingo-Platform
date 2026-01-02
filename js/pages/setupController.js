@@ -376,6 +376,7 @@ function updateEditorPanel(index) {
         tileEditor.tileData = index !== null ? tilesData[index] : null;
     }
 
+    populateOverridesUI(index !== null ? tilesData[index] : null);
     renderPrereqLines(prereqVisMode);
 }
 
