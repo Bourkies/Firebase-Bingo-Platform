@@ -7,15 +7,22 @@ export const usersStore = atom([]);
 
 onMount(usersStore, () => {
     let unsubscribeFirestore = null;
+    let lastIsEventMod = null; // NEW: Track previous state to prevent redundant reconnects
 
     const unsubscribeAuth = authStore.subscribe(authState => {
+        const isEventMod = !!authState.isEventMod;
+
+        // OPTIMIZATION: If the permission state hasn't changed, do nothing.
+        if (isEventMod === lastIsEventMod) return;
+        lastIsEventMod = isEventMod;
+
         if (unsubscribeFirestore) {
             unsubscribeFirestore();
             unsubscribeFirestore = null;
         }
 
     // Only admins/mods should listen to the full user list.
-    if (!authState.isEventMod) {
+    if (!isEventMod) {
             // console.log('[usersStore] User is not an admin/mod. Not listening to users collection.');
         usersStore.set([]); // Clear data if permissions are lost
         return;
