@@ -1,7 +1,5 @@
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { signOut, getAuthState, signInWithEmail, createUserWithEmail } from '../core/auth.js';
-// NEW: Import the central app initializer
-import { initializeApp } from '../app-init.js';
+import { signOut, getAuthState, signInWithEmail, createUserWithEmail, initAuth } from '../core/auth.js';
 // Import stores and their write operations
 import { authStore } from '../stores/authStore.js';
 import { configStore } from '../stores/configStore.js';
@@ -237,7 +235,7 @@ class AppNavbar extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         // NEW: Initialize all data stores for the application
-        initializeApp();
+        initAuth();
 
         this.populateThemeSwitcher();
 

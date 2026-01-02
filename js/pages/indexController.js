@@ -1,6 +1,5 @@
 import '../components/Navbar.js';
-// NEW: Import the central app initializer
-import { initializeApp } from '../app-init.js';
+import { initAuth } from '../core/auth.js';
 import { atom } from 'nanostores'; // Import atom for local state
 import { authStore } from '../stores/authStore.js';
 import { db, fb } from '../core/firebase-config.js';
@@ -42,7 +41,7 @@ let isRenderScheduled = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize all data stores for the application
-    initializeApp();
+    initAuth();
 
     document.getElementById('team-selector').addEventListener('change', handleTeamChange);
     document.body.addEventListener('show-message', (e) => showMessage(e.detail.message, e.detail.isError));
