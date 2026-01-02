@@ -1,5 +1,5 @@
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { signOut, getAuthState, signInWithGoogle, signInAnonymously, signInWithEmail, createUserWithEmail } from '../core/auth.js';
+import { signOut, getAuthState, signInWithEmail, createUserWithEmail } from '../core/auth.js';
 // NEW: Import the central app initializer
 import { initializeApp } from '../app-init.js';
 // Import stores and their write operations
@@ -484,8 +484,7 @@ class AppNavbar extends LitElement {
                     <span class="close-button" @click=${this.hideLoginModal}>&times;</span>
                     <h2>Sign In</h2>
 
-                    <p class="login-method-description"><strong>Recommended:</strong> No personal information is shared.</p>
-                    <span class="login-method-warning">Note: This method does not support password or account recovery.</span>
+                    <p>Sign in with your username and password.</p>
                     <form id="email-login-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signin')}>
                         <input type="text" name="username" placeholder="Username" required autocomplete="username">
                         <input type="password" name="password" placeholder="Password" required>
@@ -493,28 +492,7 @@ class AppNavbar extends LitElement {
                     </form>
                     <p class="modal-switch" style="margin-top: 0.75rem;">Don't have an account? <a href="#" @click=${(e) => { e.preventDefault(); this.hideLoginModal(); this.isSignupModalOpen = true; }}>Sign Up</a></p>
 
-                    <div class="form-divider"><span>OR</span></div>
-
-                    <div class="login-options">
-                        <div class="google-login-container">
-                            <button id="login-google" @click=${() => { signInWithGoogle(); this.hideLoginModal(); }}>
-                                <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
-                                Sign in with Google
-                            </button>
-                            <div class="google-info-block">Your email address will be visible to event administrators for account identification.</div>
-                        </div>
-                        <button id="login-anon" @click=${() => { signInAnonymously(); this.hideLoginModal(); }}>
-                            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,13.42 19.53,14.74 18.75,15.85L15.85,18.75C14.74,19.53 13.42,20 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"></path></svg>
-                            Sign in Anonymously
-                        </button>
-                    </div>
-                    <div class="anon-warning">
-                        <strong>Warning:</strong> Anonymous sign-in has limitations:
-                        <ul>
-                            <li>Your progress is tied to <strong>this browser on this device only</strong>. If you log out or clear your cache, you will <strong>not</strong> be able to log back into this anonymous account.</li>
-                            <li>You cannot be assigned as a team captain, mod, or admin.</li>
-                        </ul>
-                    </div>
+                    
                 </div>
             </div>
         `;

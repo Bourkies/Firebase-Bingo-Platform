@@ -6,7 +6,7 @@ An interactive, real-time platform for bingo competitions built with Firebase. T
 
 *   **Real-Time Updates**: All data is synchronized in real-time using Firestore, ensuring players and admins always see the latest information.
 *   **Modular & Maintainable**: The codebase is broken down into core services, reusable UI components, and page-specific controllers, making it easy to manage and extend.
-*   **Secure Authentication**: Manages user access with Firebase Authentication (Username/Password, Google & Anonymous), protecting sensitive admin and setup pages.
+*   **Secure Authentication**: Manages user access with Firebase Authentication (Username/Password), protecting sensitive admin and setup pages.
 *   **Role-Based Permissions**: A flexible four-tier permission system (Admin, Event Mod, Captain, Player) controls who can perform which actions.
 *   **Visual Board Editor**: A graphical interface (`setup.html`) for admins to visually arrange tiles, manage users, and configure all event settings directly in the browser.
 *   **Mass Data Import/Export**: Dedicated pages to bulk import/export tiles, config, and submissions via CSV.
@@ -31,6 +31,7 @@ The repository has been refactored into a modular structure that separates conce
     *   `Navbar.js`: The universal navigation bar used on every page.
     *   `TileRenderer.js`: Logic for rendering a single bingo tile consistently.
     *   `Scoreboard.js`: Logic for calculating and rendering the scoreboard.
+    *   `FormBuilder.js`: Utility for generating dynamic forms (used in Setup).
 *   **`js/pages/`**: Page-specific logic. Each `.html` file has a corresponding controller here (e.g., `indexController.js` for `index.html`).
 
 ### Step 1: Create and Configure Firebase Project
@@ -47,14 +48,11 @@ The repository has been refactored into a modular structure that separates conce
 4.  **Enable Backend Services**:
     *   **Authentication**:
         *   Go to `Build > Authentication` and click "Get started."
-        *   On the "Sign-in method" tab, select **Google** from the list of providers.
-        *   Enable the Google provider.
-        *   The "Public-facing name" will be pre-filled (e.g., `project-12345`). It's recommended to change this to your event's name (e.g., "Community Bingo").
-        *   Select a "Project support email" from the dropdown.
-        *   Click "Save". You can leave all other settings (like Authorized Domains) as they are.
-        *   (Optional) From the "Sign-in method" tab, also enable the **Anonymous** provider. No extra configuration is needed for it.
+        *   On the "Sign-in method" tab, select **Email/Password** from the list of providers.
+        *   Enable the **Email/Password** provider.
+        *   Click "Save".
+        *   **Note:** This project uses a "Username" login flow. The application automatically appends a hidden domain (e.g., `@fir-bingo-app.com`) to usernames to create valid email addresses for Firebase.
     *   **Firestore Database**:
-        *   From the "Sign-in method" tab, also enable the **Email/Password** provider. No extra configuration is needed for it.
         *   Go to `Build > Firestore Database` and click "Create database".
         *   Choose **Start in production mode**.
         *   Select a Cloud Firestore location. A US-based multi-region like **`nam5 (United States)`** is a safe choice that is compatible with free-tier Storage.
@@ -196,10 +194,10 @@ If you own a domain name (e.g., `mybingoevent.com`), you can connect it for a pr
 After setting up your Firebase project and serving the application (either locally or by deploying it), you must assign an `Admin` role to your own user account to access the `admin.html` and `setup.html` pages.
 
 1.  **Open the App**: Open the application using your local server URL (e.g., `http://localhost:3000`) or your deployed Firebase Hosting URL.
-2.  **Log In**: Click the "Login with Google" button and sign in with the account you want to be the administrator. This action creates your user profile in the Firestore database.
+2.  **Sign Up**: Click the "Login" button, switch to the "Sign Up" tab, and create an account with a username and password. This action creates your user profile in the Firestore database.
 3.  **Go to Firestore**: In the Firebase Console, navigate to `Build > Firestore Database > Data`.
-4.  **Find Your User**: You should see a `users` collection. Click on it, then find the document that has an `email` field matching your email address.
-    > **Note:** If your user document doesn't have an email field, you can find your User ID (UID) by logging in and visiting the `troubleshoot.html` page. The UID will be listed under the "Authentication" check.
+4.  **Find Your User**: You should see a `users` collection. Click on it.
+    *   The document IDs in this collection are the email addresses (e.g., `yourusername@fir-bingo-app.com`). Find the document matching your username.
 5.  **Update Your Role**:
     *   Click on your user document to view its fields.
     *   Find the `isAdmin` field (it should be a boolean set to `false`).
@@ -250,7 +248,7 @@ The `import_*.html` pages provide powerful tools for managing data in bulk. They
 ### **Admin View**
 
 This page is for managing user roles and verifying submissions. Access is restricted to authenticated users with the `Captain`, `Event Mod`, or `Admin` role.
-*   **Log in** with an authorized Google account.
+*   **Log in** with an authorized account.
 *   **User Management**: On the `users.html` page, Admins and Event Mods can assign teams to users. Captains can assign players to their own team.
 *   **Permission Management**: On the `permissions.html` page, Admins can grant or revoke Mod and Admin roles.
 *   **Submission Review**: Event Mods and Admins will see a list of all submissions. You can filter them by status, click any row to open an edit modal, and update the verification status.
@@ -259,7 +257,8 @@ This page is for managing user roles and verifying submissions. Access is restri
 
 This project follows a modular architecture. Here are the key conventions:
 
-*   **Core Services (`js/core/`)**: Any logic that is shared across multiple pages and is not a UI component belongs here. Data management is further broken down by collection in `js/core/data/`.
+*   **Core Services (`js/core/`)**: Any logic that is shared across multiple pages and is not a UI component belongs here.
+*   **State Management (`js/stores/`)**: Contains **Nano Stores** for managing global application state and syncing with Firestore.
 *   **UI Components (`js/components/`)**: Reusable pieces of the user interface, like the navbar or tile renderer. 
 *   **Page Controllers (`js/pages/`)**: Each `.html` file has a corresponding controller in this directory. The controller is responsible for all logic unique to that page, such as initializing components and attaching event listeners.
 
