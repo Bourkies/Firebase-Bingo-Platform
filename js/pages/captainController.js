@@ -59,7 +59,16 @@ function onDataChanged() {
     }
     
     // Find the captain's team ID
-    captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
+    // We prioritize the team the user is assigned to.
+    captainTeamId = authState.profile?.team;
+
+    // Fallback: Check if the user is designated as captain on any team (by UID or Email)
+    if (!captainTeamId) {
+        captainTeamId = Object.keys(allTeams).find(teamId => {
+            const t = allTeams[teamId];
+            return t.captainId === authState.profile?.uid || t.captainId === authState.profile?.email;
+        }) || null;
+    }
     renderCaptainView();
 }
 
@@ -74,6 +83,8 @@ function renderCaptainView() {
     const authState = authStore.get();
 
     const team = allTeams[captainTeamId];
+    if (!team) return;
+
     const teamCard = document.createElement('div');
     teamCard.className = 'team-card';
 
@@ -90,7 +101,7 @@ function renderCaptainView() {
             ${teamMembers.length > 0 ? teamMembers.map(m => `
                 <li class="team-member-item">
                     <span>${m.displayName} ${m.uid === authState.user.uid ? '(You)' : ''}</span>
-                    <button class="remove-member-btn" data-uid="${m.uid}" ${m.uid === authState.user.uid ? 'disabled title="You cannot remove yourself from the team."' : ''}>Remove</button>
+                    <button class="remove-member-btn" data-doc-id="${m.docId}" ${m.uid === authState.user.uid ? 'disabled title="You cannot remove yourself from the team."' : ''}>Remove</button>
                 </li>`).join('') : '<li>No members assigned.</li>'
             }
         </ul>
@@ -100,7 +111,7 @@ function renderCaptainView() {
             <ul class="unassigned-users-list">${unassignedUsers.length > 0 ? unassignedUsers.map(u => `
                 <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}">
                     <span>${u.displayName}</span>
-                    <button class="add-member-btn" data-uid="${u.uid}">Add</button>
+                    <button class="add-member-btn" data-doc-id="${u.docId}">Add</button>
                 </li>`).join('') : '<li>No unassigned users available.</li>'}</ul>
         </div>
     `;
@@ -110,9 +121,9 @@ function renderCaptainView() {
     container.onclick = (e) => {
         if (e.target.classList.contains('remove-member-btn')) {
             if (e.target.disabled) return;
-            processUpdate(e.target.dataset.uid, null);
+            processUpdate(e.target.dataset.docId, null);
         } else if (e.target.classList.contains('add-member-btn')) {
-            processUpdate(e.target.dataset.uid, captainTeamId);
+            processUpdate(e.target.dataset.docId, captainTeamId);
         }
     };
 
@@ -130,17 +141,17 @@ function renderCaptainView() {
     };
 }
 
-async function processUpdate(uid, newTeamId) {
-    console.log(`[CaptainController] Processing update for user ${uid}, new team ${newTeamId}`);
+async function processUpdate(docId, newTeamId) {
+    console.log(`[CaptainController] Processing update for user ${docId}, new team ${newTeamId}`);
 
     const allUsers = usersStore.get();
     const allTeams = teamsStore.get();
 
     showGlobalLoader();
     try {
-        const user = allUsers.find(u => u.uid === uid);
+        const user = allUsers.find(u => u.docId === docId);
 
-        await updateUser(uid, { team: newTeamId });
+        await updateUser(docId, { team: newTeamId });
 
         const action = newTeamId ? 'Added' : 'Removed';
         const teamName = allTeams[captainTeamId]?.name || 'your team';
@@ -148,7 +159,7 @@ async function processUpdate(uid, newTeamId) {
         showMessage(`${action} ${user.displayName} ${preposition} ${teamName}.`, false);
 
     } catch (error) {
-        console.error(`Failed to update user ${uid}:`, error);
+        console.error(`Failed to update user ${docId}:`, error);
         showMessage(`Update failed: ${error.message}`, true);
         // The real-time store listener will automatically revert the UI on error.
     } finally {

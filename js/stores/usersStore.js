@@ -11,31 +11,33 @@ onMount(usersStore, () => {
 
     const unsubscribeAuth = authStore.subscribe(authState => {
         const isEventMod = !!authState.isEventMod;
+        const isTeamCaptain = !!authState.isTeamCaptain;
+        const shouldListen = isEventMod || isTeamCaptain;
 
         // OPTIMIZATION: If the permission state hasn't changed, do nothing.
-        if (isEventMod === lastIsEventMod) return;
-        lastIsEventMod = isEventMod;
+        if (shouldListen === lastIsEventMod) return;
+        lastIsEventMod = shouldListen;
 
         if (unsubscribeFirestore) {
             unsubscribeFirestore();
             unsubscribeFirestore = null;
         }
 
-    // Only admins/mods should listen to the full user list.
-    if (!isEventMod) {
-            // console.log('[usersStore] User is not an admin/mod. Not listening to users collection.');
+    // Only admins/mods/captains should listen to the full user list.
+    if (!shouldListen) {
+            // console.log('[usersStore] User is not an admin/mod/captain. Not listening to users collection.');
         usersStore.set([]); // Clear data if permissions are lost
         return;
     }
 
-    console.log('[usersStore] User is admin/mod. Listening to users collection.');
+    console.log('[usersStore] User is admin/mod/captain. Listening to users collection.');
     const usersQuery = fb.collection(db, 'users');
     unsubscribeFirestore = fb.onSnapshot(usersQuery, (snapshot) => {
         const source = snapshot.metadata.fromCache ? "local cache" : "server";
         console.log(`[usersStore] Users updated from ${source}. Count: ${snapshot.docs.length}`);
         const users = snapshot.docs.map(doc => ({
             ...doc.data(),
-            uid: doc.id
+            docId: doc.id
         }));
         usersStore.set(users);
     }, (error) => {
@@ -55,15 +57,15 @@ onMount(usersStore, () => {
 
 /**
  * Updates a specific user document in Firestore.
- * @param {string} uid - The ID of the user to update.
+ * @param {string} docId - The Document ID (Email) of the user to update.
  * @param {object} data - An object containing the fields to update.
  * @returns {Promise<void>}
  */
-export async function updateUser(uid, data) {
-    if (!uid) {
-        throw new Error("User ID is required to update a user.");
+export async function updateUser(docId, data) {
+    if (!docId) {
+        throw new Error("User Document ID is required to update a user.");
     }
-    const userRef = fb.doc(db, 'users', uid);
+    const userRef = fb.doc(db, 'users', docId);
     return fb.updateDoc(userRef, data);
 }
 
