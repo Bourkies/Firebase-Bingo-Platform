@@ -1,4 +1,4 @@
-import { atom } from 'nanostores';
+import { atom, onMount } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
 
 // This store will hold the combined config and styles data.
@@ -7,26 +7,29 @@ export const configStore = atom({
     styles: {},
 });
 
-let unsubscribeConfig;
-let unsubscribeStyles;
-let isInitialized = false;
-
-/**
- * Initializes the listeners for the main config and all style documents.
- * The data is combined and updated in the configStore.
- */
-export function initConfigListener() {
-    if (isInitialized) return;
-    isInitialized = true;
-
+onMount(configStore, () => {
+    console.log('[configStore] Mounted. Listening...');
     let currentConfig = {};
     let currentStyles = {};
 
+    // NEW: Try to load from LocalStorage
+    try {
+        const cached = localStorage.getItem('bingo_config_cache');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            currentConfig = parsed.config || {};
+            currentStyles = parsed.styles || {};
+            configStore.set(parsed);
+        }
+    } catch (e) { console.warn('Error reading config cache', e); }
+
     const updateStore = () => {
-        configStore.set({ config: currentConfig, styles: currentStyles });
+        const newState = { config: currentConfig, styles: currentStyles };
+        configStore.set(newState);
+        localStorage.setItem('bingo_config_cache', JSON.stringify(newState));
     };
 
-    unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
+    const unsubscribeConfig = fb.onSnapshot(fb.doc(db, 'config', 'main'), (doc) => {
         console.log('[configStore] Received update for config/main.');
         currentConfig = doc.exists() ? doc.data() : {};
         updateStore();
@@ -34,7 +37,7 @@ export function initConfigListener() {
         console.error("[configStore] Error listening to config:", error);
     });
 
-    unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
+    const unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
         console.log('[configStore] Received update for styles collection.');
         currentStyles = {};
         snapshot.docs.forEach(doc => {
@@ -44,7 +47,13 @@ export function initConfigListener() {
     }, (error) => {
         console.error("[configStore] Error listening to styles:", error);
     });
-}
+
+    return () => {
+        console.log('[configStore] Unmounted.');
+        unsubscribeConfig();
+        unsubscribeStyles();
+    };
+});
 
 // --- NEW: Write Operations ---
 

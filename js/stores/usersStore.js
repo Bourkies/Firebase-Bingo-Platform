@@ -1,36 +1,31 @@
-import { atom } from 'nanostores';
+import { atom, onMount } from 'nanostores';
 import { db, fb, auth } from '../core/firebase-config.js';
 import { authStore } from './authStore.js';
 
 // This store will hold the array of all user documents.
 export const usersStore = atom([]);
 
-let unsubscribe;
+onMount(usersStore, () => {
+    let unsubscribeFirestore = null;
 
-/**
- * Initializes the listener for the 'users' collection.
- */
-export function initUsersListener() {
-    // This listener depends on auth state to know if it has permission.
-    authStore.subscribe(handleAuthStateChange);
-}
-
-function handleAuthStateChange(authState) {
-    if (unsubscribe) {
-        unsubscribe();
-        unsubscribe = null;
-    }
+    const unsubscribeAuth = authStore.subscribe(authState => {
+        if (unsubscribeFirestore) {
+            unsubscribeFirestore();
+            unsubscribeFirestore = null;
+        }
 
     // Only admins/mods should listen to the full user list.
     if (!authState.isEventMod) {
-        console.log('[usersStore] User is not an admin/mod. Not listening to users collection.');
+            // console.log('[usersStore] User is not an admin/mod. Not listening to users collection.');
         usersStore.set([]); // Clear data if permissions are lost
         return;
     }
 
     console.log('[usersStore] User is admin/mod. Listening to users collection.');
     const usersQuery = fb.collection(db, 'users');
-    unsubscribe = fb.onSnapshot(usersQuery, (snapshot) => {
+    unsubscribeFirestore = fb.onSnapshot(usersQuery, (snapshot) => {
+        const source = snapshot.metadata.fromCache ? "local cache" : "server";
+        console.log(`[usersStore] Users updated from ${source}. Count: ${snapshot.docs.length}`);
         const users = snapshot.docs.map(doc => ({
             ...doc.data(),
             uid: doc.id
@@ -40,7 +35,14 @@ function handleAuthStateChange(authState) {
         console.error("[usersStore] Error listening to users:", error);
         usersStore.set([]);
     });
-}
+    });
+
+    // Cleanup when no components are using this store
+    return () => {
+        if (unsubscribeFirestore) unsubscribeFirestore();
+        unsubscribeAuth();
+    };
+});
 
 // --- NEW: Write Operations ---
 

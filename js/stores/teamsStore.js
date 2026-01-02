@@ -1,32 +1,37 @@
-import { map } from 'nanostores';
+import { map, onMount } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
 
 // A map is used for teams because they are a key-value object (teamId: teamData).
 export const teamsStore = map({});
 
-let unsubscribe;
-let isInitialized = false;
-
-/**
- * Initializes the listener for the 'teams' collection.
- */
-export function initTeamsListener() {
-    if (isInitialized) return;
-    isInitialized = true;
+onMount(teamsStore, () => {
+    console.log('[teamsStore] Mounted. Listening...');
+    
+    // NEW: Try to load from LocalStorage
+    try {
+        const cached = localStorage.getItem('bingo_teams_cache');
+        if (cached) teamsStore.set(JSON.parse(cached));
+    } catch (e) { console.warn('Error reading teams cache', e); }
 
     const teamsQuery = fb.query(fb.collection(db, 'teams'), fb.orderBy(fb.documentId()));
 
-    unsubscribe = fb.onSnapshot(teamsQuery, (snapshot) => {
+    const unsubscribe = fb.onSnapshot(teamsQuery, (snapshot) => {
         console.log('[teamsStore] Received update for teams collection.');
         const newTeams = {};
         snapshot.docs.forEach(doc => {
             newTeams[doc.id] = doc.data();
         });
         teamsStore.set(newTeams);
+        localStorage.setItem('bingo_teams_cache', JSON.stringify(newTeams));
     }, (error) => {
         console.error("[teamsStore] Error listening to teams:", error);
     });
-}
+
+    return () => {
+        console.log('[teamsStore] Unmounted.');
+        unsubscribe();
+    };
+});
 
 // --- NEW: Write Operations ---
 

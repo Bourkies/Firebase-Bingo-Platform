@@ -31,7 +31,7 @@ service cloud.firestore {
     }
     match /tiles/{tileId} {
       // Allow read if censorship is off, OR if the user is an admin/mod.
-      // If censorship is on, non-admins will be denied and should read from `public_tiles`.
+      // If censorship is on, non-admins will be denied and should read from `config/tiles_packed_public`.
       allow read: if get(/databases/$(database)/documents/config/main).data.censorTilesBeforeEvent != true || isEventMod();
       allow write: if isAdmin();
     }
@@ -41,12 +41,6 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
-    }
-
-    // NEW: Publicly readable layout data for censored boards. Only admins can write.
-    match /public_tiles/{tileId} {
-      allow read: if true;
-      allow write: if isAdmin();
     }
 
     // NEW: Styles are publicly readable, but only Admins can modify them.

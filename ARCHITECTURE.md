@@ -89,6 +89,7 @@ Stores the configuration for each bingo tile on the board.
 | `Width (%)` | Number | Width relative to board size. |
 | `Height (%)` | Number | Height relative to board size. |
 | `Rotation` | Number | Rotation in degrees. |
+| `packed` (Doc) | JSON | Special document containing all uncensored tiles in a single payload for efficient loading. |
 
 ### Collection: `submissions`
 Stores player claims for tiles.
@@ -127,6 +128,7 @@ Stores global application settings.
 | `enableOverviewPage` | Boolean | Master switch for the public overview page. |
 | `scoreOnVerifiedOnly` | Boolean | If true, points are only awarded after Admin Verification. |
 | `boardVisibility` | String | 'public' (everyone sees all) or 'private' (teams see only theirs). |
+| `tiles_packed_public` (Doc)| JSON | Special document containing censored/public tile data for efficient loading. |
 | `...` | Various | Font settings, padding, and layout configuration. |
 
 ---
@@ -135,7 +137,7 @@ Stores global application settings.
 
 The application uses **Nano Stores** as the single source of truth for application state. Stores handle all Firestore subscriptions and write operations.
 
-*   **Initialization:** The application state is initialized via `initializeApp()` in `js/app-init.js`, which is called by the `<app-navbar>` component when it connects. This ensures data listeners are active regardless of which page is loaded.
+*   **Initialization (Lazy Loading):** The application uses a "Lazy Loading" pattern. `initializeApp()` only initializes Authentication. Data listeners (Tiles, Users, Submissions) are started automatically via `onMount` only when a page actually requires that data. This significantly reduces database read costs.
 
 *   **`authStore.js`**: Manages current user, profile, and permissions (`isAdmin`, `isEventMod`, `isTeamCaptain`).
 *   **`configStore.js`**: Syncs the `config/global` document.
@@ -182,7 +184,7 @@ The `firestore.rules` file enforces Role-Based Access Control (RBAC) using custo
     *   **Player:** Can create/update submissions for their own team and read their own/teammates' profiles.
 
 *   **Key Rules:**
-    *   **Public Read:** `config`, `teams`, `styles`, and `public_tiles` are readable by everyone.
+    *   **Public Read:** `config`, `teams`, and `styles` are readable by everyone.
     *   **Conditional Read:** `tiles` are readable unless `censorTilesBeforeEvent` is true (then only Admins/Mods).
     *   **Submissions:** Players can only create/update submissions for their assigned team.
     *   **Users:** Users can only update specific fields (displayName, email) on their own profile.
@@ -191,3 +193,17 @@ The `firestore.rules` file enforces Role-Based Access Control (RBAC) using custo
 
 *   **`README.md`**: Serves as the entry point for developers and administrators. It **must** be kept up-to-date with any changes to the project structure, setup instructions, or key features.
 *   **`ARCHITECTURE.md`**: Serves as the technical reference for AI assistants and developers, detailing the schema, file paths, and state management.
+
+## 9. Performance & Caching Strategy
+
+To minimize Firestore read costs and ensure scalability for 100+ concurrent users, the app employs a 3-layer optimization strategy:
+
+1.  **Packed Tiles:**
+    *   Instead of reading 100+ individual tile documents, players read a single "Packed" document (`config/tiles_packed_public` or `tiles/packed`).
+    *   This reduces tile-related reads by ~99%.
+2.  **Firestore Offline Persistence:**
+    *   Enabled in `firebase-config.js`. Caches Submissions and Users to IndexedDB.
+    *   Subsequent page loads only download *changed* data (deltas), often resulting in 0 reads for static data.
+3.  **Local Storage Caching:**
+    *   Used for `tiles`, `teams`, and `config`.
+    *   Allows the board and UI to render instantly (0 latency) while the background listener checks for updates.
