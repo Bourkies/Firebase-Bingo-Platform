@@ -5,9 +5,10 @@ import '../components/BingoTile.js'; // Import the tile component
 import { authStore } from '../stores/authStore.js';
 import { configStore, updateConfig, updateStyle } from '../stores/configStore.js'; 
 import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
+import '../components/TileEditorForm.js'; // Register the TileEditorForm component
 
 // Import setup sub-modules
-import { initializeTileEditor, populateTileSelector, updateEditorPanelContent } from './setup/tileEditor.js';
+import { initializeTileEditor, populateTileSelector } from './setup/tileEditor.js';
 import { initializePrereqEditor, renderPrereqLines, populatePrereqUI } from './setup/prereqEditor.js';
 import { initializeOverrideEditor, populateOverridesUI } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
@@ -269,15 +270,26 @@ interact('bingo-tile')
                 target.style.left = `${x_pct}%`;
                 target.style.top = `${y_pct}%`;
 
-                const dataToSave = {
-                    'Left (%)': parseFloat(x_pct.toFixed(2)),
-                    'Top (%)': parseFloat(y_pct.toFixed(2))
-                };
-                tilesData[index]['Left (%)'] = dataToSave['Left (%)'];
-                tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
-                saveTile(tilesData[index].docId, dataToSave);
+                // Update local data for immediate feedback (e.g. for the editor panel)
+                // But DO NOT save to DB yet.
+                tilesData[index]['Left (%)'] = parseFloat(x_pct.toFixed(2));
+                tilesData[index]['Top (%)'] = parseFloat(y_pct.toFixed(2));
+                
+                // Update the editor panel inputs live so you see the numbers change
                 updateEditorPanel(index);
                 renderPrereqLines(prereqVisMode);
+            },
+            end(event) {
+                const tilesData = tilesStore.get();
+                const target = event.target;
+                const index = target.dataset.index;
+                if (!tilesData[index]) return;
+
+                const dataToSave = {
+                    'Left (%)': tilesData[index]['Left (%)'],
+                    'Top (%)': tilesData[index]['Top (%)']
+                };
+                saveTile(tilesData[index].docId, dataToSave);
             }
         }
     })
@@ -307,19 +319,28 @@ interact('bingo-tile')
                 target.style.left = `${x_pct}%`;
                 target.style.top = `${y_pct}%`;
                 
-                const dataToSave = {
-                    'Left (%)': parseFloat(x_pct.toFixed(2)),
-                    'Top (%)': parseFloat(y_pct.toFixed(2)),
-                    'Width (%)': parseFloat(width_pct.toFixed(2)),
-                    'Height (%)': parseFloat(height_pct.toFixed(2))
-                };
-                tilesData[index]['Left (%)'] = dataToSave['Left (%)'];
-                tilesData[index]['Top (%)'] = dataToSave['Top (%)'];
-                tilesData[index]['Width (%)'] = dataToSave['Width (%)'];
-                tilesData[index]['Height (%)'] = dataToSave['Height (%)'];
-                saveTile(tilesData[index].docId, dataToSave);
+                // Update local data only
+                tilesData[index]['Left (%)'] = parseFloat(x_pct.toFixed(2));
+                tilesData[index]['Top (%)'] = parseFloat(y_pct.toFixed(2));
+                tilesData[index]['Width (%)'] = parseFloat(width_pct.toFixed(2));
+                tilesData[index]['Height (%)'] = parseFloat(height_pct.toFixed(2));
+
                 updateEditorPanel(index);
                 renderPrereqLines(prereqVisMode);
+            },
+            end(event) {
+                const tilesData = tilesStore.get();
+                const target = event.target;
+                const index = target.dataset.index;
+                if (!tilesData[index]) return;
+
+                const dataToSave = {
+                    'Left (%)': tilesData[index]['Left (%)'],
+                    'Top (%)': tilesData[index]['Top (%)'],
+                    'Width (%)': tilesData[index]['Width (%)'],
+                    'Height (%)': tilesData[index]['Height (%)']
+                };
+                saveTile(tilesData[index].docId, dataToSave);
             }
         }
     });
@@ -347,8 +368,14 @@ function updateEditorPanel(index) {
     }
     lastSelectedTileIndex = index;
 
-    // Call the main content update function in tileEditor
-    updateEditorPanelContent(index, mainControllerInterface);
+    // Update the Lit component
+    const tileEditor = document.getElementById('tile-editor-form-component');
+    if (tileEditor) {
+        tileEditor.allTiles = tilesData;
+        tileEditor.mainController = mainControllerInterface;
+        tileEditor.tileData = index !== null ? tilesData[index] : null;
+    }
+
     renderPrereqLines(prereqVisMode);
 }
 
