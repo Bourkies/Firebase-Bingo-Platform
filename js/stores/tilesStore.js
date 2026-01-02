@@ -194,7 +194,7 @@ export async function publishTiles(tilesToPublish) {
     }
 
     // 2. Create the "Public/Censored" version (Strip sensitive data)
-    const publicTiles = tiles.map(t => ({
+    const publicTiles = tiles.filter(t => t).map(t => ({
         id: t.id,
         docId: t.docId,
         'Left (%)': t['Left (%)'],
