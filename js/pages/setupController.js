@@ -125,7 +125,9 @@ function onDataChanged() {
     }
 
     // --- Data Loading Check ---
-    if (!config.pageTitle || !tilesData) {
+    // REVISED: Only wait for config. The tilesStore can be initially empty,
+    // and the page will reactively render them when they load.
+    if (!config.pageTitle) {
         showGlobalLoader();
         return;
     }
@@ -191,6 +193,7 @@ function renderTiles() {
     boardContent.querySelectorAll('bingo-tile').forEach(el => el.remove());
     const tilesData = tilesStore.get();
     const { config, styles } = configStore.get();
+    console.log(`[SetupController] Rendering ${tilesData ? tilesData.length : 0} tiles.`);
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
 

@@ -17,7 +17,8 @@ onMount(tilesStore, () => {
     const handleStateChange = () => {
         const authState = authStore.get();
         const { config } = configStore.get();
-        const isSetupPage = window.location.pathname.includes('setup.html');
+        // FIX: Check for 'setup' generally to handle URLs without .html extension or query params
+        const isSetupPage = window.location.pathname.toLowerCase().includes('setup');
 
         // Determine the required mode
         let newMode = 'private'; // Default
