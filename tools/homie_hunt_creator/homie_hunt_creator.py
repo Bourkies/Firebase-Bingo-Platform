@@ -1,10 +1,11 @@
-import argparse
 import json
 import logging
 import os
 import csv
 import shutil
 import requests
+import tkinter as tk
+from tkinter import filedialog, messagebox
 from PIL import Image, ImageDraw, ImageFont
 from urllib.parse import quote_plus, quote
 
@@ -14,13 +15,6 @@ OUTPUT_DIR = "output" # Base directory for all generated boards
 def setup_logging():
     """Sets up basic logging to the console."""
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-def parse_arguments():
-    """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(description="Generate a Homie Hunt bingo board from a JSON config.")
-    parser.add_argument("config_file", type=str, help="Path to the JSON configuration file.")
-    parser.add_argument("--clear-cache", action="store_true", help="Clear the image cache before running.")
-    return parser.parse_args()
 
 def clear_cache(cache_dir):
     """Deletes the cache directory if it exists."""
@@ -414,55 +408,103 @@ def generate_tiles_csv(all_tile_data_for_csv, output_path):
     except IOError as e:
         logging.error(f"Could not write CSV file: {e}")
 
+class CreatorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Homie Hunt Creator")
+
+        self.config_file_var = tk.StringVar()
+        self.clear_cache_var = tk.BooleanVar(value=False)
+
+        # --- Widgets ---
+        main_frame = tk.Frame(root, padx=10, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # File selection
+        file_frame = tk.Frame(main_frame)
+        file_frame.pack(fill=tk.X, pady=5)
+        tk.Label(file_frame, text="Config File:").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Entry(file_frame, textvariable=self.config_file_var).pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Button(file_frame, text="Browse...", command=self.browse_file).pack(side=tk.LEFT, padx=(5, 0))
+
+        # Options
+        options_frame = tk.Frame(main_frame)
+        options_frame.pack(fill=tk.X, pady=5)
+        tk.Checkbutton(options_frame, text="Clear image cache before running", variable=self.clear_cache_var).pack(anchor='w')
+
+        # Run button
+        tk.Button(main_frame, text="Generate Board", command=self.run_creator, bg="#2ecc71", fg="white", height=2).pack(fill=tk.X, pady=(10, 0))
+
+    def browse_file(self):
+        file_path = filedialog.askopenfilename(
+            title="Select the Homie Hunt Config JSON",
+            filetypes=[("JSON files", "*.json")]
+        )
+        if file_path:
+            self.config_file_var.set(file_path)
+
+    def run_creator(self):
+        config_file_path = self.config_file_var.get()
+        should_clear_cache = self.clear_cache_var.get()
+
+        if not config_file_path:
+            messagebox.showerror("Error", "Please select a configuration file.")
+            return
+
+        if should_clear_cache:
+            clear_cache(CACHE_DIR)
+
+        config_data = load_config(config_file_path)
+        if not config_data:
+            messagebox.showerror("Error", f"Failed to load or parse the configuration file:\n{config_file_path}")
+            return
+
+        # --- Create unique output directory ---
+        project_title = config_data['config'].get('projectTitle', 'bingo_board')
+        safe_project_title = "".join(c for c in project_title if c.isalnum() or c in (' ', '_', '-')).rstrip().replace(' ', '_')
+        
+        output_folder_base = os.path.join(OUTPUT_DIR, safe_project_title)
+        output_folder = output_folder_base
+        counter = 1
+        while os.path.exists(output_folder):
+            output_folder = f"{output_folder_base}_{counter}"
+            counter += 1
+        
+        os.makedirs(output_folder, exist_ok=True)
+        logging.info(f"Created output directory: {output_folder}")
+
+        # Define output file paths
+        output_image_path = os.path.join(output_folder, "board.png")
+        output_csv_path = os.path.join(output_folder, "tiles.csv")
+
+        # Create cache directory for images
+        os.makedirs(CACHE_DIR, exist_ok=True)
+
+        # Use a session for persistent connections and headers
+        with requests.Session() as session:
+            session.headers.update({'User-Agent': 'HomieHuntCreator/1.1'})
+            
+            all_tile_data_for_csv, image_layout_data = process_sections(config_data, session)
+            
+            if not all_tile_data_for_csv:
+                logging.error("Processing failed: No tiles were generated. Aborting.")
+                messagebox.showerror("Error", "Processing failed: No tiles were generated. Check logs for details.")
+                return
+            
+            generate_board_image(config_data['config'], image_layout_data, all_tile_data_for_csv, output_image_path)
+            generate_tiles_csv(all_tile_data_for_csv, output_csv_path)
+
+        logging.info("Tool finished execution.")
+        messagebox.showinfo("Success", f"Board generation complete!\n\nOutput saved to:\n{output_folder}")
+
 def main():
     """Main execution function."""
     setup_logging()
-    args = parse_arguments()
-
-    if args.clear_cache:
-        clear_cache(CACHE_DIR)
-
-    config_data = load_config(args.config_file)
-    if not config_data:
-        return
-
-    # --- Create unique output directory ---
-    project_title = config_data['config'].get('projectTitle', 'bingo_board')
-    # Sanitize title for folder name
-    safe_project_title = "".join(c for c in project_title if c.isalnum() or c in (' ', '_', '-')).rstrip().replace(' ', '_')
-    
-    output_folder_base = os.path.join(OUTPUT_DIR, safe_project_title)
-    output_folder = output_folder_base
-    counter = 1
-    while os.path.exists(output_folder):
-        output_folder = f"{output_folder_base}_{counter}"
-        counter += 1
-    
-    os.makedirs(output_folder, exist_ok=True)
-    logging.info(f"Created output directory: {output_folder}")
-
-    # Define output file paths
-    output_image_path = os.path.join(output_folder, "board.png")
-    output_csv_path = os.path.join(output_folder, "tiles.csv")
-
-    # Create cache directory for images
-    os.makedirs(CACHE_DIR, exist_ok=True)
-
-    # Use a session for persistent connections and headers
-    with requests.Session() as session:
-        # It's good practice to set a User-Agent for API requests
-        session.headers.update({'User-Agent': 'HomieHuntCreator/1.0 (https://github.com/your-repo; your-contact)'})
-        
-        all_tile_data_for_csv, image_layout_data = process_sections(config_data, session)
-        
-        if not all_tile_data_for_csv:
-            logging.error("Processing failed: No tiles were generated. Aborting.")
-            return
-        
-        generate_board_image(config_data['config'], image_layout_data, all_tile_data_for_csv, output_image_path)
-        generate_tiles_csv(all_tile_data_for_csv, output_csv_path)
-
-    logging.info("Tool finished execution.")
+    logging.info("Starting Homie Hunt Creator GUI...")
+    root = tk.Tk()
+    app = CreatorApp(root)
+    root.mainloop()
+    logging.info("Application closed.")
 
 if __name__ == "__main__":
     main()
