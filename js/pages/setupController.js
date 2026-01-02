@@ -4,7 +4,7 @@ import '../components/BingoTile.js'; // Import the tile component
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
 import { configStore, updateConfig, updateStyle } from '../stores/configStore.js'; 
-import { tilesStore, updateTile as saveTile } from '../stores/tilesStore.js';
+import { tilesStore, updateTile as saveTile, publishTiles } from '../stores/tilesStore.js';
 import '../components/TileEditorForm.js'; // Register the TileEditorForm component
 
 // Import setup sub-modules
@@ -81,6 +81,16 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
         e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
         renderPrereqLines(prereqVisMode);
+    });
+
+    // NEW: Publish Button Listener
+    document.getElementById('publish-board-btn')?.addEventListener('click', async (e) => {
+        if (!confirm('Publishing will update the board for all players. Continue?')) return;
+        e.target.disabled = true;
+        e.target.textContent = 'Publishing...';
+        await publishTiles();
+        e.target.textContent = 'Published!';
+        setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Publish Board'; }, 2000);
     });
 
     // Initial call to render the page with default store values.
@@ -216,7 +226,7 @@ function handleTilePreviewUpdate(event) {
         const newTileData = { ...tileEl.tile, [key]: parseFloat(value) || 0 };
         tileEl.tile = newTileData;
         // Also update the master array so other interactions have the latest data.
-        tilesData[tileIndex] = newTileData;
+        // tilesData[tileIndex] = newTileData; // No need to mutate store directly here, visual update is enough until save
     }
 }
 function applyTransform() {

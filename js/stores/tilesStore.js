@@ -1,4 +1,4 @@
-import { atom, map } from 'nanostores';
+import { atom, map, onMount } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
 import { authStore } from './authStore.js';
 import { configStore } from './configStore.js';
@@ -10,53 +10,75 @@ export const tilesStore = atom([]);
 const privateTiles = atom([]);
 const publicTiles = atom([]);
 
-let unsubscribePrivate, unsubscribePublic;
+onMount(tilesStore, () => {
+    let unsubscribe = null;
 
-/**
- * Initializes the listener for the 'tiles' or 'public_tiles' collection.
- */
-export function initTilesListener() {
-    // This listener depends on auth and config, so it subscribes to them.
-    // When auth or config changes, it will re-evaluate and set up the correct listener.
-    authStore.subscribe(handleStateChange);
-    configStore.subscribe(handleStateChange);
-}
-
-function handleStateChange() {
-    // Always clean up previous listeners
-    if (unsubscribePrivate) unsubscribePrivate();
-    if (unsubscribePublic) unsubscribePublic();
-
+    const handleStateChange = () => {
+        // Always clean up previous listeners before switching modes
+        if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        
     const authState = authStore.get();
     const { config } = configStore.get();
+        const isSetupPage = window.location.pathname.includes('setup.html');
 
-    const isCensored = config?.censorTilesBeforeEvent === true && !authState?.isEventMod;
+        // 1. SETUP MODE: Always listen to the full collection for real-time editing
+        if (isSetupPage) {
+            console.log('[tilesStore] Setup mode: Listening to raw collection.');
+            unsubscribe = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+                // Filter out the special 'packed' document so it doesn't show up as a tile
+                const tiles = snapshot.docs
+                    .filter(doc => doc.id !== 'packed')
+                    .map(doc => ({ ...doc.data(), docId: doc.id }));
+                tilesStore.set(tiles);
+            });
+            return;
+        }
 
-    if (isCensored) {
-        console.log(`[tilesStore] Censored mode: Listening to 'public_tiles'.`);
-        // In censored mode, we populate the main store with the public tile data.
-        // This contains all necessary layout info. The component will handle the missing name/desc.
-        unsubscribePublic = fb.onSnapshot(fb.collection(db, 'public_tiles'), (snapshot) => {
-            const tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-            tilesStore.set(tiles);
-        }, (error) => {
-            console.error(`[tilesStore] Error listening to public_tiles:`, error);
-            tilesStore.set([]);
-        });
-    } else {
-        console.log(`[tilesStore] Uncensored mode: Listening to 'tiles'.`);
-        // In uncensored mode, we listen to the full 'tiles' collection.
-        // We also clear the publicTiles store as it's not needed.
-        publicTiles.set([]);
-        unsubscribePrivate = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
-            const tiles = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }));
-            tilesStore.set(tiles);
-        }, (error) => {
-            console.error(`[tilesStore] Error listening to tiles:`, error);
-            tilesStore.set([]);
+        // 2. PLAYER MODE: Listen to the "Packed" document (1 Read)
+        const isCensored = config?.censorTilesBeforeEvent === true && !authState?.isEventMod;
+        
+        // If censored, read from public config. If not, read from the protected tiles collection.
+        const packedDocRef = isCensored 
+            ? fb.doc(db, 'config', 'tiles_packed_public') 
+            : fb.doc(db, 'tiles', 'packed');
+
+        console.log(`[tilesStore] Player mode: Listening to packed doc at ${packedDocRef.path}`);
+        
+        // NEW: Try to load from LocalStorage for instant render
+        const cacheKey = isCensored ? 'bingo_tiles_public_cache' : 'bingo_tiles_cache';
+        try {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) tilesStore.set(JSON.parse(cached));
+        } catch (e) { console.warn('Error reading tiles cache', e); }
+
+        unsubscribe = fb.onSnapshot(packedDocRef, (doc) => {
+            if (doc.exists() && doc.data().tiles) {
+                const tilesData = doc.data().tiles;
+                tilesStore.set(tilesData);
+                localStorage.setItem(cacheKey, JSON.stringify(tilesData));
+            } else {
+                console.warn('[tilesStore] Packed tiles not found.');
+                // Fallback: Only fall back to raw collection if we are allowed to see it (Uncensored).
+                if (!isCensored) {
+                    unsubscribe = fb.onSnapshot(fb.collection(db, 'tiles'), (snap) => {
+                        tilesStore.set(snap.docs.filter(d => d.id !== 'packed').map(d => ({...d.data(), docId: d.id})));
+                    });
+                } else {
+                    tilesStore.set([]); // No public data available yet
+                }
+            }
         });
     }
-}
+
+    const unsubAuth = authStore.subscribe(handleStateChange);
+    const unsubConfig = configStore.subscribe(handleStateChange);
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+        unsubAuth();
+        unsubConfig();
+    };
+});
 
 /**
  * A special getter that returns the public tile data if available.
@@ -144,4 +166,37 @@ export async function importTiles(tilesToImport) {
         });
         await batch.commit();
     }
+}
+
+/**
+ * Reads all tiles from the collection and saves them into a single "Packed" document.
+ * This drastically reduces read costs for players.
+ */
+export async function publishTiles() {
+    // 1. Fetch all raw tiles (Cost: N reads)
+    const snapshot = await fb.getDocs(fb.collection(db, 'tiles'));
+    const tiles = snapshot.docs
+        .filter(doc => doc.id !== 'packed') // Don't include the packed doc in itself
+        .map(doc => ({ ...doc.data(), docId: doc.id }));
+
+    // 2. Create the "Public/Censored" version (Strip sensitive data)
+    const publicTiles = tiles.map(t => ({
+        id: t.id,
+        docId: t.docId,
+        'Left (%)': t['Left (%)'],
+        'Top (%)': t['Top (%)'],
+        'Width (%)': t['Width (%)'],
+        'Height (%)': t['Height (%)'],
+        'Rotation': t.Rotation,
+        Points: t.Points,
+        // We intentionally exclude Name, Description, Prerequisites for the censored version
+    }));
+
+    // 3. Save both versions to the 'config' collection (Cost: 2 writes)
+    const batch = fb.writeBatch(db);
+    batch.set(fb.doc(db, 'tiles', 'packed'), { tiles: tiles }); // Protected
+    batch.set(fb.doc(db, 'config', 'tiles_packed_public'), { tiles: publicTiles });
+
+    await batch.commit();
+    console.log('[tilesStore] Board published successfully.');
 }

@@ -1,10 +1,6 @@
 import { initAuth } from './core/auth.js';
 import { authStore } from './stores/authStore.js';
-import { initConfigListener } from './stores/configStore.js';
-import { initTeamsListener, teamsStore } from './stores/teamsStore.js';
-import { initTilesListener } from './stores/tilesStore.js';
-import { initUsersListener } from './stores/usersStore.js';
-import { initSubmissionsListener } from './stores/submissionsStore.js';
+import { teamsStore } from './stores/teamsStore.js';
 
 let areStoresInitialized = false;
 
@@ -20,11 +16,6 @@ export function initializeApp() {
 
     // The order matters for dependencies: auth -> config -> others
     initAuth(() => {}); // Kicks off auth process, which populates authStore
-    initConfigListener();
-    initTeamsListener();
-    initTilesListener();
-    initUsersListener();
-    initSubmissionsListener();
 
     // --- Derived State Calculation ---
     // Listen to both auth and teams stores to calculate captain status.

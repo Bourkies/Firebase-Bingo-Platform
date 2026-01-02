@@ -299,6 +299,14 @@ export function updateOverridesJsonFromCurrentTile(mainController, shadowRoot) {
     const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';
     const rawJsonTextarea = shadowRoot.getElementById('overrides-json-textarea');
     if (rawJsonTextarea) rawJsonTextarea.value = newOverridesJson;
+
+    // NEW: Dispatch save event immediately so UI changes persist to Firestore
+    if (shadowRoot.host) {
+        shadowRoot.host.dispatchEvent(new CustomEvent('tile-update', {
+            detail: { docId: mainController.allTiles[mainController.lastSelectedTileIndex].docId, data: { 'Overrides (JSON)': newOverridesJson } }
+        }));
+    }
+
     mainController.renderTiles();
 }
 

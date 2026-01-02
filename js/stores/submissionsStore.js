@@ -1,19 +1,15 @@
-import { atom } from 'nanostores';
+import { atom, onMount } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
 
 export const submissionsStore = atom([]);
 
-let unsubscribe = null;
-
-export function initSubmissionsListener() {
-    if (unsubscribe) {
-        console.log('[SubmissionsStore] Listener already initialized.');
-        return unsubscribe;
-    }
-
+onMount(submissionsStore, () => {
+    console.log('[SubmissionsStore] Mounted. Starting listener...');
     const submissionsCollection = fb.collection(db, 'submissions');
 
-    unsubscribe = fb.onSnapshot(submissionsCollection, (snapshot) => {
+    const unsubscribe = fb.onSnapshot(submissionsCollection, (snapshot) => {
+        const source = snapshot.metadata.fromCache ? "local cache" : "server";
+        console.log(`[SubmissionsStore] Submissions updated from ${source}. Count: ${snapshot.docs.length}`);
         const submissions = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -29,12 +25,63 @@ export function initSubmissionsListener() {
             };
         });
         submissionsStore.set(submissions);
-        console.log(`[SubmissionsStore] Submissions updated. Count: ${submissions.length}`);
     }, (error) => {
         console.error("[SubmissionsStore] Error fetching submissions:", error);
     });
 
-    return unsubscribe;
+    return () => {
+        console.log('[SubmissionsStore] Unmounted. Stopping listener.');
+        unsubscribe();
+    };
+});
+
+/**
+ * Starts a listener for a specific team's submissions.
+ * Used by the Index page to reduce reads.
+ * @param {string} teamId - The team ID to listen for.
+ * @param {object} storeToUpdate - The Nano Store atom to update with the results.
+ * @returns {function} - Unsubscribe function.
+ */
+export function startTeamSubmissionsListener(teamId, storeToUpdate) {
+    if (!teamId) {
+        storeToUpdate.set([]);
+        return () => {};
+    }
+
+    console.log(`[SubmissionsStore] Starting listener for Team: ${teamId}`);
+    const q = fb.query(
+        fb.collection(db, 'submissions'),
+        fb.where('Team', '==', teamId)
+    );
+
+    return fb.onSnapshot(q, (snapshot) => {
+        const subs = snapshot.docs.map(doc => processSubmissionDoc(doc));
+        storeToUpdate.set(subs);
+    }, (error) => {
+        console.error(`[SubmissionsStore] Error listening to team ${teamId}:`, error);
+    });
+}
+
+/**
+ * Starts a listener for the activity feed (Last 50 items).
+ * Used by the Overview page.
+ * @param {object} storeToUpdate - The Nano Store atom to update.
+ * @returns {function} - Unsubscribe function.
+ */
+export function startFeedListener(storeToUpdate) {
+    console.log(`[SubmissionsStore] Starting Feed listener (Limit 50)`);
+    const q = fb.query(
+        fb.collection(db, 'submissions'),
+        fb.orderBy('Timestamp', 'desc'),
+        fb.limit(50)
+    );
+
+    return fb.onSnapshot(q, (snapshot) => {
+        const subs = snapshot.docs.map(doc => processSubmissionDoc(doc));
+        storeToUpdate.set(subs);
+    }, (error) => {
+        console.error(`[SubmissionsStore] Error listening to feed:`, error);
+    });
 }
 
 /**
@@ -95,6 +142,21 @@ export async function importSubmissions(operations) {
         });
         await batch.commit();
     }
+}
+
+// Helper to process raw Firestore doc into our app format
+function processSubmissionDoc(doc) {
+    const data = doc.data();
+    return {
+        ...data,
+        docId: doc.id,
+        Timestamp: data.Timestamp?.toDate(),
+        CompletionTimestamp: data.CompletionTimestamp?.toDate(),
+        history: (data.history || []).map(h => ({
+            ...h,
+            timestamp: h.timestamp?.toDate()
+        }))
+    };
 }
 
 /**

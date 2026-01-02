@@ -1,12 +1,13 @@
 import '../components/Navbar.js';
 // NEW: Import the central app initializer
 import { initializeApp } from '../app-init.js';
+import { atom } from 'nanostores'; // Import atom for local state
 import { authStore } from '../stores/authStore.js';
 import { db, fb } from '../core/firebase-config.js';
 import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
 import { tilesStore, getPublicTiles } from '../stores/tilesStore.js';
-import { submissionsStore } from '../stores/submissionsStore.js';
+import { submissionsStore, startTeamSubmissionsListener } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
 import { calculateScoreboardData } from '../components/Scoreboard.js';
@@ -29,6 +30,10 @@ let prevSubmissionsCount = -1;
 let prevTilesCount = -1;
 let prevTeamsCount = -1;
 let prevConfig = null;
+
+// NEW: Local store for this specific view (Team Submissions Only)
+const localSubmissionsStore = atom([]);
+let unsubscribeTeamListener = null;
 
 let unsubscribeFromSingleSubmission = null;
 
@@ -63,7 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
     configStore.subscribe(onDataChanged);
     teamsStore.subscribe(onDataChanged);
     tilesStore.subscribe(onDataChanged);
-    submissionsStore.subscribe(onDataChanged);
+    // submissionsStore.subscribe(onDataChanged); // REMOVED: Don't listen to global store
+    localSubmissionsStore.subscribe(onDataChanged); // Listen to local filtered store
     usersStore.subscribe(onDataChanged);
 
     // Initial call to render the page with default store values.
@@ -154,7 +160,7 @@ function renderPage() {
     const { config, styles } = configStore.get();
     const allTeams = teamsStore.get();
     const tiles = tilesStore.get();
-    const submissions = submissionsStore.get();
+    const submissions = localSubmissionsStore.get(); // Use local filtered data
 
     // --- NEW: More intelligent rendering logic ---
     const submissionsChanged = submissions.length !== prevSubmissionsCount;
@@ -228,6 +234,13 @@ function renderPage() {
 
     // Set the current team based on the new state
     currentTeam = document.getElementById('team-selector').value;
+
+    // NEW: Manage the team listener dynamically
+    if (currentTeam && currentTeam !== (unsubscribeTeamListener?.teamId)) {
+        if (unsubscribeTeamListener) unsubscribeTeamListener();
+        unsubscribeTeamListener = startTeamSubmissionsListener(currentTeam, localSubmissionsStore);
+        unsubscribeTeamListener.teamId = currentTeam; // Tag it
+    }
 
     // FIX: Show/hide search bar based on current team selection on every render.
     document.getElementById('tile-search-container').style.display = currentTeam ? 'block' : 'none';
@@ -394,7 +407,7 @@ const mainControllerInterface = {
         const { config, styles } = configStore.get();
         const allTeams = teamsStore.get();
         const tiles = tilesStore.get();
-        const submissions = submissionsStore.get();
+        const submissions = localSubmissionsStore.get();
         const allUsers = usersStore.get();
         const authState = authStore.get();
 
@@ -408,7 +421,7 @@ const mainControllerInterface = {
         if (unsubscribeFromSingleSubmission) unsubscribeFromSingleSubmission();
 
         const authState = authStore.get();
-        const submissions = submissionsStore.get();
+        const submissions = localSubmissionsStore.get();
 
         const teamSubmissions = submissions.filter(s => s.Team === authState.profile.team && !s.IsArchived);
         const existingSubmission = teamSubmissions.find(s => s.id === tile.id) || {};
@@ -529,7 +542,7 @@ function handleSearchInput(event) {
     const { config, styles: allStyles } = configStore.get();
     const tiles = tilesStore.get();
     const authState = authStore.get();
-    const { teamData } = processAllData(submissionsStore.get(), tiles, teamsStore.get(), config);
+    const { teamData } = processAllData(localSubmissionsStore.get(), tiles, teamsStore.get(), config);
 
 
     const currentTeamData = teamData[currentTeam] || { tileStates: {} };
