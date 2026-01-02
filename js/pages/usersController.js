@@ -176,25 +176,13 @@ function renderUsersTable() {
         // Determine if the current admin can edit this user
         let canEdit = false;
 
-        // Logic to determine login type and name
-        let loginType = 'Google';
-        let loginTypeClass = 'login-type-google';
-        let loginName = user.email || 'N/A';
-
-        if (user.isAnonymous) {
-            loginType = 'Anonymous';
-            loginTypeClass = 'login-type-anon';
-        } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
-            loginType = 'Username';
-            loginTypeClass = 'login-type-username';
-            loginName = user.email.replace(USERNAME_DOMAIN, '');
-        }
+        // Logic to determine login name (Username)
+        const loginName = user.email && user.email.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '') : (user.email || 'N/A');
 
         return `
             <tr>
                 <td data-label="Display Name"><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked || !authState.isEventMod ? 'disabled' : ''}></td>
                 <td data-label="Login Name">${loginName}</td>
-                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td data-label="Team">${currentTeamName}</td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
                 <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''} ${!authState.isEventMod ? 'disabled' : ''}></td>
@@ -262,7 +250,6 @@ function renderTeamManagement() {
 
         // Captain options are per-team, consisting of its members.
         const captainOptions = teamMembers
-            .filter(u => !u.isAnonymous || u.uid === team.captainId) // Allow current captain even if anon
             .map(u => {
                 const isCaptainOfOtherTeam = existingCaptainIds.has(u.uid) && u.uid !== team.captainId;
                 return `<option value="${u.uid}" ${isCaptainOfOtherTeam ? 'disabled' : ''}>${u.displayName}${isCaptainOfOtherTeam ? ' (Cap of other team)' : ''}</option>`;

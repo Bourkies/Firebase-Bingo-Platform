@@ -89,10 +89,9 @@ function renderUserManagement() {
     // Filter users based on search term
     const filteredUsers = allUsers.filter(user => {
         const name = (user.displayName || '').toLowerCase();
-        const loginType = user.isAnonymous ? 'anonymous' : (user.email?.endsWith(USERNAME_DOMAIN) ? 'username' : 'google');
-        const loginName = user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '').toLowerCase() : '';
+        const loginName = user.email?.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '').toLowerCase() : (user.email || '').toLowerCase();
         const teamName = (allTeams[user.team]?.name || 'unassigned').toLowerCase();
-        return name.includes(searchTerm) || loginType.includes(searchTerm) || loginName.includes(searchTerm) || teamName.includes(searchTerm);
+        return name.includes(searchTerm) || loginName.includes(searchTerm) || teamName.includes(searchTerm);
     });
 
     // Sort users
@@ -113,23 +112,13 @@ function renderUserManagement() {
     const tbody = document.querySelector('#user-management-table tbody');
     tbody.innerHTML = filteredUsers.map(user => {
         // An admin can edit roles, but not for anonymous users or their own admin status.
-        const canEditRoles = authState.isAdmin && !user.isAnonymous;
+        const canEditRoles = authState.isAdmin;
         const canEditAdmin = canEditRoles && user.uid !== authState.user.uid;
         const isModLockedByAdmin = user.isAdmin; // NEW: An admin is always a mod.
         const adminTooltip = !canEditAdmin ? 'title="Cannot remove your own admin status."' : '';
 
-        // NEW: Logic to determine login type
-        let loginType = 'Google';
-        let loginName = 'N/A';
-        let loginTypeClass = 'login-type-google';
-        if (user.isAnonymous) {
-            loginType = 'Anonymous';
-            loginTypeClass = 'login-type-anon';
-        } else if (user.email && user.email.endsWith(USERNAME_DOMAIN)) {
-            loginType = 'Username';
-            loginTypeClass = 'login-type-username';
-            loginName = user.email.replace(USERNAME_DOMAIN, '');
-        }
+        // Logic to determine login name
+        const loginName = user.email && user.email.endsWith(USERNAME_DOMAIN) ? user.email.replace(USERNAME_DOMAIN, '') : (user.email || 'N/A');
 
         const teamName = user.team ? (allTeams[user.team]?.name || 'Unknown Team') : 'Unassigned';
 
@@ -137,7 +126,6 @@ function renderUserManagement() {
             <tr>
                 <td data-label="Display Name">${user.displayName || ''}</td>
                 <td data-label="Login Name">${loginName}</td>
-                <td data-label="Login Type"><span class="login-type-badge ${loginTypeClass}">${loginType}</span></td>
                 <td data-label="Team">${teamName}</td>
                 <td data-label="Is Mod"><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
                 <td data-label="Is Admin" ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
@@ -205,17 +193,10 @@ function createAdminControlsHTML() {
             #user-management-table th.sort-asc::after, #user-management-table th.sort-desc::after { content: ''; display: inline-block; margin-left: 0.5em; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; }
             #user-management-table th.sort-asc::after { border-bottom: 5px solid var(--primary-text); }
             #user-management-table th.sort-desc::after { border-top: 5px solid var(--primary-text); }
-            .login-type-badge { padding: 0.2em 0.6em; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
-            .login-type-google { background-color: #4285F4; color: white; }
-            .login-type-anon { background-color: #757575; color: white; }
-            .login-type-username { background-color: #00897b; color: white; }
         </style>
         <div class="search-bar">
             <label for="search-filter">Search:</label>
             <input type="text" id="search-filter" placeholder="Filter by name or login type...">
-        </div>
-        <div class="info-note">
-            <strong>Note:</strong> Anonymous accounts cannot be granted Mod or Admin rights. These permissions require a verified Google account.
         </div>
     `;
 }

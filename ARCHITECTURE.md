@@ -56,7 +56,6 @@ Stores user profiles and authentication roles.
 | `team` | String | Reference to a `teams` document ID. |
 | `isAdmin` | Boolean | Grants full access to Setup, Permissions, and Admin pages. |
 | `isEventMod` | Boolean | Grants access to Admin page for submission verification. |
-| `isAnonymous` | Boolean | Indicates if the user signed in anonymously. |
 | `isNameLocked` | Boolean | Prevents the user from changing their display name. |
 | `hasSetDisplayName` | Boolean | Flag to track if the user has completed the welcome flow. |
 

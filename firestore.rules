@@ -6,22 +6,30 @@ service cloud.firestore {
     function isAuth() {
       return request.auth != null;
     }
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.token.email);
+    }
     function getUserData() {
       // UPDATED: Fetch user data using Email as Document ID, matching Architecture.md
-      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+      return get(userPath()).data;
     }
     function isAdmin() {
       // Use .get() for safety, matching the storage rule. This ensures it handles missing fields gracefully.
-      return isAuth() && getUserData().get('isAdmin', false) == true;
+      return isAuth() && exists(userPath()) && getUserData().get('isAdmin', false) == true;
     }
     function isEventMod() {
-      return isAuth() && (getUserData().isEventMod == true || isAdmin());
+      return isAuth() && exists(userPath()) && (getUserData().get('isEventMod', false) == true || isAdmin());
     }
     function isCaptainOfTeam(teamName) {
       // A captain is defined by the captainId field in a document in the /teams collection.
       // Return false if teamId is null or not a string.
       return isAuth() && teamName != null && teamName is string &&
              get(/databases/$(database)/documents/teams/$(teamName)).data.captainId == request.auth.uid;
+    }
+    
+    function isCensored() {
+      return exists(/databases/$(database)/documents/config/main) && 
+             get(/databases/$(database)/documents/config/main).data.get('censorTilesBeforeEvent', false) == true;
     }
 
     // Config and Tiles are publicly readable, but only Admins can modify them via the setup page.
@@ -32,7 +40,7 @@ service cloud.firestore {
     match /tiles/{tileId} {
       // Allow read if censorship is off, OR if the user is an admin/mod.
       // If censorship is on, non-admins will be denied and should read from `config/tiles_packed_public`.
-      allow read: if get(/databases/$(database)/documents/config/main).data.censorTilesBeforeEvent != true || isEventMod();
+      allow read: if !isCensored() || isEventMod();
       allow write: if isAdmin();
     }
 
@@ -107,8 +115,8 @@ service cloud.firestore {
         (
           request.auth.token.email == userEmail &&
           // You cannot make yourself an admin or mod.
-          request.resource.data.isAdmin == resource.data.isAdmin &&
-          request.resource.data.isEventMod == resource.data.isEventMod &&
+          request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
+          request.resource.data.get('isEventMod', false) == resource.data.get('isEventMod', false) &&
           // You can only change your displayName (if not locked), hasSetDisplayName flag, and backfill your email.
           (resource.data.get('isNameLocked', false) == false || request.resource.data.displayName == resource.data.displayName) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hasSetDisplayName', 'email'])

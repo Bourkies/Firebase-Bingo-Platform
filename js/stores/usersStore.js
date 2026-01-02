@@ -76,11 +76,27 @@ export async function updateUserDisplayName(newName) {
         throw new Error("Your display name has been locked by an administrator.");
     }
 
-    const userRef = fb.doc(db, 'users', currentUser.uid);
-    const authProfileUpdate = fb.updateProfile(currentUser, { displayName: newName });
-    const firestoreUpdate = fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
+    // FIX: Use email as the document ID, matching the architecture.
+    const docId = currentUser.email;
+    if (!docId) throw new Error("User email is required to update profile.");
 
-    // The onSnapshot listener in auth.js will automatically detect the Firestore change
-    // and trigger the authStore to update the UI across the app.
+    const userRef = fb.doc(db, 'users', docId);
+    const authProfileUpdate = fb.updateProfile(currentUser, { displayName: newName });
+    
+    // FIX: Retry logic to handle race condition where auth.js hasn't created the doc yet.
+    const firestoreUpdate = (async () => {
+        for (let i = 0; i < 5; i++) {
+            try {
+                await fb.updateDoc(userRef, { displayName: newName, hasSetDisplayName: true });
+                return; // Success
+            } catch (e) {
+                // If doc doesn't exist yet, wait and retry
+                if (e.code === 'not-found') await new Promise(r => setTimeout(r, 500));
+                else throw e;
+            }
+        }
+        console.warn("Could not update Firestore profile: Document not found after retries.");
+    })();
+
     await Promise.all([authProfileUpdate, firestoreUpdate]);
 }

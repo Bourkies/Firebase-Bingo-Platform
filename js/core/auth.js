@@ -54,15 +54,14 @@ export async function signInWithEmail(email, password) {
     try {
         await fb.signInWithEmailAndPassword(auth, email, password);
         // onAuthStateChanged will handle the rest.
-        return true; // Indicate success
+        return { success: true };
     } catch (error) {
-        console.error("Email/Password Sign-In Error:", error);
+        console.warn("Sign-In:", error.code); // Less aggressive logging
+        let message = `Sign-in failed: ${error.message}`;
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-            alert('Sign-in failed: Invalid email or password.');
-        } else {
-            alert(`Sign-in failed: ${error.message}`);
+            message = 'Invalid username or password.';
         }
-        return false; // Indicate failure
+        return { success: false, message };
     }
 }
 
@@ -70,17 +69,16 @@ export async function createUserWithEmail(email, password) {
     try {
         await fb.createUserWithEmailAndPassword(auth, email, password);
         // onAuthStateChanged will handle the rest.
-        return true; // Indicate success
+        return { success: true };
     } catch (error) {
-        console.error("Email/Password Account Creation Error:", error);
+        console.warn("Account Creation:", error.code);
+        let message = `Could not create account: ${error.message}`;
         if (error.code === 'auth/email-already-in-use') {
-            alert('Sign-up failed: An account with this email already exists. Please try signing in instead.');
+            message = 'Username is already taken. Please try another.';
         } else if (error.code === 'auth/weak-password') {
-            alert('Sign-up failed: The password is too weak. It must be at least 6 characters long.');
-        } else {
-            alert(`Could not create account: ${error.message}`);
+            message = 'Password is too weak. It must be at least 6 characters.';
         }
-        return false; // Indicate failure
+        return { success: false, message };
     }
 }
 

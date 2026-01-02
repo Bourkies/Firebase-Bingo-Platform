@@ -223,6 +223,7 @@ class AppNavbar extends LitElement {
         }
         .anon-warning strong { color: #ffc107; } 
         .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); } 
+        .error-message { color: var(--error-color, #ff5252); background-color: rgba(255, 82, 82, 0.1); padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; text-align: center; border: 1px solid var(--error-color, #ff5252); }
     `;
 
     static properties = {
@@ -235,6 +236,7 @@ class AppNavbar extends LitElement {
         isMobileMenuOpen: { state: true },
         isMobileView: { state: true },
         availableThemes: { state: true },
+        errorMessage: { state: true },
     };
 
     constructor() {
@@ -248,18 +250,22 @@ class AppNavbar extends LitElement {
         this.isMobileMenuOpen = false;
         this.isMobileView = false;
         this.availableThemes = [];
+        this.errorMessage = '';
     }
 
     showLoginModal() {
+        this.errorMessage = '';
         this.isLoginModalOpen = true;
     }
 
     hideLoginModal() {
         this.isLoginModalOpen = false;
+        this.errorMessage = '';
     }
 
     hideSignupModal() {
         this.isSignupModalOpen = false;
+        this.errorMessage = '';
     }
 
     connectedCallback() {
@@ -428,29 +434,40 @@ class AppNavbar extends LitElement {
 
     async handleEmailLogin(event, action) {
         event.preventDefault();
+        this.errorMessage = '';
         const form = event.target;
         const formData = new FormData(form);
         const username = formData.get('username');
         const password = formData.get('password');
 
         if (!username || !password) {
-            alert('Please enter both username and password.');
+            this.errorMessage = 'Please enter both username and password.';
             return;
         }
 
         // Construct the email from the username
         const email = `${username.trim()}@fir-bingo-app.com`;
 
-        let success = false;
+        let result = { success: false };
         if (action === 'signin') {
-            success = await signInWithEmail(email, password);
+            result = await signInWithEmail(email, password);
         } else if (action === 'signup') {
-            success = await createUserWithEmail(email, password);
+            result = await createUserWithEmail(email, password);
+            // NEW: Set default display name to username immediately upon creation
+            if (result.success) {
+                try {
+                    await updateUserDisplayName(username.trim());
+                } catch (e) {
+                    console.warn('Could not set default display name:', e);
+                }
+            }
         }
 
-        if (success) {
+        if (result.success) {
             this.hideLoginModal();
             this.hideSignupModal();
+        } else {
+            this.errorMessage = result.message || 'An unknown error occurred.';
         }
     }
 
@@ -460,6 +477,12 @@ class AppNavbar extends LitElement {
         const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
         const message = (this.config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
 
+        // Fix: Strip the internal domain from the default value if present
+        let currentName = this.authState.profile.displayName || '';
+        if (currentName.includes('@fir-bingo-app.com')) {
+            currentName = currentName.split('@')[0];
+        }
+
         return html`
             <div id="welcome-modal" class="modal" style="display: flex;">
                 <div class="modal-content">
@@ -468,7 +491,7 @@ class AppNavbar extends LitElement {
                     <p>${message}</p>
                     <form id="welcome-form" @submit=${this.handleWelcomeFormSubmit}>
                         <label for="welcome-display-name">Display Name</label>
-                        <input type="text" id="welcome-display-name" name="welcome-display-name" .value=${this.authState.profile.displayName || ''} required>
+                        <input type="text" id="welcome-display-name" name="welcome-display-name" .value=${currentName} required>
                         <button type="submit">Save and Continue</button>
                     </form>
                 </div>
@@ -484,6 +507,7 @@ class AppNavbar extends LitElement {
                     <span class="close-button" @click=${this.hideLoginModal}>&times;</span>
                     <h2>Sign In</h2>
 
+                    ${this.errorMessage ? html`<div class="error-message">${this.errorMessage}</div>` : ''}
                     <p>Sign in with your username and password.</p>
                     <form id="email-login-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signin')}>
                         <input type="text" name="username" placeholder="Username" required autocomplete="username">
@@ -505,6 +529,7 @@ class AppNavbar extends LitElement {
                 <div class="modal-content">
                     <span class="close-button" @click=${this.hideSignupModal}>&times;</span>
                     <h2>Create Account</h2>
+                    ${this.errorMessage ? html`<div class="error-message">${this.errorMessage}</div>` : ''}
                     <p>Create an account to save your progress and join a team.</p>
                     <form id="email-signup-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signup')}>
                         <input type="text" name="username" placeholder="Username" required autocomplete="username">
@@ -518,7 +543,7 @@ class AppNavbar extends LitElement {
     }
 
     render() {
-        const canChangeName = this.authState.isLoggedIn && !this.authState.profile?.isAnonymous && !this.authState.profile?.isNameLocked;
+        const canChangeName = this.authState.isLoggedIn && !this.authState.profile?.isNameLocked;
 
         const desktopActions = html`
             <select id="theme-switcher" @change=${(e) => this.setTheme(e.target.value)}>
