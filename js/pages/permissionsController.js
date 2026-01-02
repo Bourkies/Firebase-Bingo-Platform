@@ -152,6 +152,7 @@ async function handleUserFieldChange(e) {
     const field = e.target.dataset.field;
     const value = e.target.checked;
     const dataToUpdate = { [field]: value };    
+    const allUsers = usersStore.get();
     const user = allUsers.find(u => u.uid === uid);
 
     // NEW: If making a user an admin, also make them a mod.
