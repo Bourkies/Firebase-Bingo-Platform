@@ -11,7 +11,7 @@ import '../components/TileEditorForm.js'; // Register the TileEditorForm compone
 // Import setup sub-modules
 import { initializeTileEditor, populateTileSelector } from './setup/tileEditor.js';
 import { initializePrereqEditor, renderPrereqLines } from './setup/prereqEditor.js';
-import { initializeOverrideEditor } from './setup/overrideEditor.js';
+import { initializeOverrideEditor, STATUSES } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
  
 export let lastSelectedTileIndex = null; // Export for sub-modules
@@ -22,8 +22,6 @@ let prereqVisMode = 'hide'; // State for the new prereq button
 
 let publishedTiles = [];
 let tileDiff = [];
-
-const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 
 let currentScale = 1;
 let pan = { x: 0, y: 0 };
