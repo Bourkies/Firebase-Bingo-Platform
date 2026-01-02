@@ -187,42 +187,8 @@ class AppNavbar extends LitElement {
         .form-divider { text-align: center; color: var(--secondary-text); margin: 1.5rem 0; font-size: 0.9rem; }
         .modal-switch { text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--secondary-text); }
 
-        /* NEW: Styles for login method descriptions and warnings */
-        .login-method-description { font-size: 0.9rem; color: var(--secondary-text); margin-bottom: 0.5rem; text-align: left; }
-        .login-method-description strong { color: var(--primary-text); }
-        .login-method-warning { font-size: 0.8rem; color: var(--warn-color); margin-top: 0.25rem; text-align: left; }
-        .google-login-container { position: relative; }
-        /* NEW: Style for the Google info block */
-        .google-info-block {
-            margin-top: 0.5rem;
-            padding: 0.75rem;
-            background-color: rgba(100, 181, 246, 0.1);
-            border: 1px solid rgba(100, 181, 246, 0.3);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            color: var(--secondary-text);
-        }
-
         /* Login Modal Specific Styles */
         #login-modal .modal-content { max-width: 400px; text-align: center; }
-        .login-options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
-        .login-options button {
-            width: 100%; padding: 0.75rem; font-size: 1rem; border-radius: 8px;
-            cursor: pointer; transition: background-color 0.2s; display: flex;
-            align-items: center; justify-content: center; gap: 0.75rem;
-        }
-        #login-google { background-color: #4285F4; color: white; border: none; }
-        #login-google:hover { background-color: #5a95f5; }
-        #login-anon { background-color: #607d8b; color: white; border: none; }
-        #login-anon:hover { background-color: #78909c; }
-        .login-options svg { width: 20px; height: 20px; }
-        .anon-warning {
-            margin-top: 1.5rem; padding: 0.75rem; background-color: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; text-align: left;
-            color: var(--secondary-text);
-        }
-        .anon-warning strong { color: #ffc107; } 
-        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); } 
         .error-message { color: var(--error-color, #ff5252); background-color: rgba(255, 82, 82, 0.1); padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; text-align: center; border: 1px solid var(--error-color, #ff5252); }
     `;
 

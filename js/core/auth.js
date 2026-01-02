@@ -38,7 +38,7 @@ export function initAuth(callback) {
             // Immediately notify listeners that the user is logged in, even before the profile is fetched.
             notifyListeners();
             // Set up a real-time listener for the user's profile
-            listenToUserProfile(user.uid, user.isAnonymous, user.displayName, user.email);
+            listenToUserProfile(user.uid, user.displayName, user.email);
         } else {
             currentUser = null;
             userProfile = null;
@@ -82,7 +82,7 @@ export async function createUserWithEmail(email, password) {
     }
 }
 
-function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
+function listenToUserProfile(uid, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', email);
     console.log(`[Auth] Setting up profile listener for user.`);
 
@@ -93,16 +93,22 @@ function listenToUserProfile(uid, isAnonymous, initialDisplayName, email) {
         if (!docSnap.exists()) {
             console.log('[Auth] Profile does not exist. Creating new profile.');
             // Create a new user profile if it doesn't exist
-            const initialAuthDisplayName = isAnonymous ? `Anonymous-${uid.substring(0, 5)}` : (initialDisplayName || email || `User-${uid.substring(0,5)}`);
+            
+            // NEW: Derive display name from email (username) if available
+            let defaultDisplayName = initialDisplayName;
+            if (!defaultDisplayName && currentUser.email) {
+                defaultDisplayName = currentUser.email.split('@')[0];
+            }
+            if (!defaultDisplayName) defaultDisplayName = `User-${uid.substring(0,5)}`;
+
             const newUserProfile = {
                 uid: uid,
-                displayName: initialAuthDisplayName,
+                displayName: defaultDisplayName,
                 team: null,
                 isAdmin: false,
                 isEventMod: false,
-                isAnonymous: isAnonymous,
                 isNameLocked: false,
-                hasSetDisplayName: isAnonymous, // Anonymous users don't get the welcome modal
+                hasSetDisplayName: true, // Auto-set to username, so we skip the welcome modal
                 // FIX: Use the email from the currentUser object, which is more reliable on creation.
                 email: currentUser.email 
             };
@@ -177,10 +183,10 @@ export function getAuthState() {
     const oldTeam = currentStoreState.profile?.team;
 
     const fullProfile = isLoggedIn ? {
-        ...firestoreProfile, // isAnonymous, isAdmin, isEventMod, team, etc.
+        ...firestoreProfile, // isAdmin, isEventMod, team, etc.
         uid: authProfile.uid,
         displayName: firestoreProfile.displayName || authProfile.displayName, // Prioritize Firestore name
-        // Prioritize Firestore email (for username/pass), fallback to auth email (for Google)
+        // Prioritize Firestore email (for username/pass), fallback to auth email
         email: firestoreProfile.email || authProfile.email,
     } : null;
 

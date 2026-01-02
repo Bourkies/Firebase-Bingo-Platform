@@ -172,6 +172,12 @@ The project utilizes a **Username + Password** authentication model using a hidd
 *   **Mechanism:** Users sign up and log in using a simple username. The application automatically appends `@fir-bingo-app.com` to the input to construct a valid email address for Firebase Authentication (e.g., `myuser` becomes `myuser@fir-bingo-app.com`).
 *   **Objective:** To move towards using this username-based flow exclusively, removing the need for users to provide real email addresses or use third-party providers.
 
+### Legacy Context (Removed Features)
+Previously, the application supported **Google Sign-In** and **Anonymous** authentication. These have been fully removed to simplify the user experience and codebase.
+*   **`isAnonymous`**: This field has been removed from the user schema.
+*   **Login Types**: Logic distinguishing between "Google", "Anonymous", and "Username" accounts has been removed. All accounts are now treated uniformly as Username/Password accounts.
+*   **Cleanup**: If you encounter code referencing `signInAnonymously`, `GoogleAuthProvider`, or `isAnonymous`, it is legacy code and should be refactored or removed.
+
 ## 7. Security Rules (Firestore)
 
 The `firestore.rules` file enforces Role-Based Access Control (RBAC) using custom helper functions.
