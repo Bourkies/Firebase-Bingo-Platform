@@ -87,6 +87,30 @@ To test the application on your local machine, you can use a simple web server l
 2.  **Run the server**: From your project's root directory, run `serve .`
 3.  **Open the App**: The terminal will provide a local URL (e.g., `http://localhost:3000`). Open this URL in your browser.
 
+### Advanced: Local Development with Emulators
+To test security rules, avoid hitting your Firestore quota, or work offline, use the Firebase Emulator Suite.
+
+1.  **Prerequisites**: Install **Java JDK 11 or higher** (JDK 17 or 21 is recommended). You can download it from [Adoptium](https://adoptium.net/).
+2.  **Initialize Emulators**:
+    Run `firebase init emulators`.
+    *   Select **Authentication**, **Firestore**, and **Storage**.
+    *   Accept default ports.
+    *   **Note**: This command generates `firebase.json` (emulator config) and `.firebaserc` (project aliases) in your root directory.
+3.  **Run Emulators**:
+    ```bash
+    firebase emulators:start --import=./firebase-data --export-on-exit
+    ```
+    *   `--import`: Loads saved data on startup.
+    *   `--export-on-exit`: Saves data when you stop the emulator (Ctrl+C).
+4.  **Connect**: The application is pre-configured to detect `localhost` and connect to the emulators automatically.
+5.  **Monitor**: Open `http://localhost:4000` to view the Emulator UI and watch database requests in real-time.
+
+### Seeding Test Data (Emulator Only)
+To quickly populate the emulator with test users and submissions:
+1.  Start the emulators.
+2.  Navigate to `http://localhost:3000/dev/seed.html`.
+3.  Click the buttons in order to generate Teams, Users, and Submissions.
+
 ### Deployment to Firebase Hosting
 You can deploy the site manually for quick tests or set up automated deployments from GitHub for a seamless workflow.
 

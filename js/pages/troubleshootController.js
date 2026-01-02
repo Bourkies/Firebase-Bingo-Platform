@@ -67,8 +67,8 @@ function checkImports() {
         'doc', 'collection', 'query', 'where', 'orderBy', 'onSnapshot',
         'writeBatch', 'arrayUnion', 'serverTimestamp', 'documentId',
         // Auth
-        'onAuthStateChanged', 'GoogleAuthProvider', 'signInWithPopup',
-        'signInAnonymously', 'signOut', 'updateProfile',
+        'onAuthStateChanged', 'signOut', 'updateProfile',
+        'signInWithEmailAndPassword', 'createUserWithEmailAndPassword',
         // Storage
         'ref', 'getDownloadURL', 'uploadBytes', 'deleteObject'
     ];
@@ -94,7 +94,7 @@ function checkAuth() {
         initAuth(authState => {
             if (authState.isLoggedIn) {
                 const profile = authState.profile || {};
-                const details = `<strong>Status:</strong> Logged In\n<strong>User ID:</strong> ${authState.user.uid}\n<strong>Display Name:</strong> ${profile.displayName || 'N/A'}\n<strong>Email:</strong> ${profile.email || 'N/A'}\n<strong>Anonymous:</strong> ${profile.isAnonymous}\n\n<strong>Permissions:</strong>\n  - Admin: ${profile.isAdmin}\n  - Event Mod: ${profile.isEventMod}\n\n<strong>Team:</strong> ${profile.team || 'Not Assigned'}`;
+                const details = `<strong>Status:</strong> Logged In\n<strong>User ID:</strong> ${authState.user.uid}\n<strong>Display Name:</strong> ${profile.displayName || 'N/A'}\n<strong>Email:</strong> ${profile.email || 'N/A'}\n\n<strong>Permissions:</strong>\n  - Admin: ${profile.isAdmin}\n  - Event Mod: ${profile.isEventMod}\n\n<strong>Team:</strong> ${profile.team || 'Not Assigned'}`;
                 updateCheck('auth', 'success', 'LOGGED IN', details);
             } else {
                 updateCheck('auth', 'warn', 'LOGGED OUT', 'You are not logged in. Some Firestore checks may fail due to security rules.');

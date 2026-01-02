@@ -5,9 +5,12 @@
 # IMPORTANT: Never commit your service account keys or web app config!
 *.json
 !firebase.json
+.firebaserc
+firebase.json
 firebase-config.js
 .github/workflows/*.yml # Ignore active workflows
 !.github/workflows/*.txt # But DO track our .txt templates
+/firebase-data/*
 
 
 # Custom user files
@@ -19,6 +22,10 @@ Example and test config/*
 tools/homie_hunt_creator/.cache/*
 tools/homie_hunt_creator/output/*
 !tools/homie_hunt_creator/HHC_config.example.json
+
+# Local Development / Seeds
+dev/seed.html
+dev/seedController.js
 
 
 # Logs

@@ -36,3 +36,8 @@
 
 ## Change log
 
+- **Removed Legacy Auth**: Removed Google Sign-In and Anonymous login methods. The platform now exclusively uses the Username/Password flow (backed by Firebase Email/Password auth with a hidden domain).
+    - Removed `isAnonymous` field from user profiles.
+    - Removed `signInAnonymously`, `signInWithPopup`, `GoogleAuthProvider` from `firebase-config.js` and `auth.js`.
+    - Updated `Navbar.js` to remove legacy login buttons.
+    - Updated `usersController.js` and `permissionsController.js` to remove "Login Type" columns and logic.

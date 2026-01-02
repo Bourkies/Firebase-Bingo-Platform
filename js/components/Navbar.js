@@ -187,42 +187,9 @@ class AppNavbar extends LitElement {
         .form-divider { text-align: center; color: var(--secondary-text); margin: 1.5rem 0; font-size: 0.9rem; }
         .modal-switch { text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--secondary-text); }
 
-        /* NEW: Styles for login method descriptions and warnings */
-        .login-method-description { font-size: 0.9rem; color: var(--secondary-text); margin-bottom: 0.5rem; text-align: left; }
-        .login-method-description strong { color: var(--primary-text); }
-        .login-method-warning { font-size: 0.8rem; color: var(--warn-color); margin-top: 0.25rem; text-align: left; }
-        .google-login-container { position: relative; }
-        /* NEW: Style for the Google info block */
-        .google-info-block {
-            margin-top: 0.5rem;
-            padding: 0.75rem;
-            background-color: rgba(100, 181, 246, 0.1);
-            border: 1px solid rgba(100, 181, 246, 0.3);
-            border-radius: 8px;
-            font-size: 0.85rem;
-            color: var(--secondary-text);
-        }
-
         /* Login Modal Specific Styles */
         #login-modal .modal-content { max-width: 400px; text-align: center; }
-        .login-options { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
-        .login-options button {
-            width: 100%; padding: 0.75rem; font-size: 1rem; border-radius: 8px;
-            cursor: pointer; transition: background-color 0.2s; display: flex;
-            align-items: center; justify-content: center; gap: 0.75rem;
-        }
-        #login-google { background-color: #4285F4; color: white; border: none; }
-        #login-google:hover { background-color: #5a95f5; }
-        #login-anon { background-color: #607d8b; color: white; border: none; }
-        #login-anon:hover { background-color: #78909c; }
-        .login-options svg { width: 20px; height: 20px; }
-        .anon-warning {
-            margin-top: 1.5rem; padding: 0.75rem; background-color: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; text-align: left;
-            color: var(--secondary-text);
-        }
-        .anon-warning strong { color: #ffc107; } 
-        .anon-warning ul { padding-left: 1.25rem; margin: 0.5rem 0 0 0; color: var(--secondary-text); } 
+        .error-message { color: var(--error-color, #ff5252); background-color: rgba(255, 82, 82, 0.1); padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; text-align: center; border: 1px solid var(--error-color, #ff5252); }
     `;
 
     static properties = {
@@ -235,6 +202,7 @@ class AppNavbar extends LitElement {
         isMobileMenuOpen: { state: true },
         isMobileView: { state: true },
         availableThemes: { state: true },
+        errorMessage: { state: true },
     };
 
     constructor() {
@@ -248,18 +216,22 @@ class AppNavbar extends LitElement {
         this.isMobileMenuOpen = false;
         this.isMobileView = false;
         this.availableThemes = [];
+        this.errorMessage = '';
     }
 
     showLoginModal() {
+        this.errorMessage = '';
         this.isLoginModalOpen = true;
     }
 
     hideLoginModal() {
         this.isLoginModalOpen = false;
+        this.errorMessage = '';
     }
 
     hideSignupModal() {
         this.isSignupModalOpen = false;
+        this.errorMessage = '';
     }
 
     connectedCallback() {
@@ -428,29 +400,40 @@ class AppNavbar extends LitElement {
 
     async handleEmailLogin(event, action) {
         event.preventDefault();
+        this.errorMessage = '';
         const form = event.target;
         const formData = new FormData(form);
         const username = formData.get('username');
         const password = formData.get('password');
 
         if (!username || !password) {
-            alert('Please enter both username and password.');
+            this.errorMessage = 'Please enter both username and password.';
             return;
         }
 
-        // Construct the email from the username
-        const email = `${username.trim()}@fir-bingo-app.com`;
+        // Construct the email from the username (force lowercase to ensure consistent document IDs)
+        const email = `${username.trim().toLowerCase()}@fir-bingo-app.com`;
 
-        let success = false;
+        let result = { success: false };
         if (action === 'signin') {
-            success = await signInWithEmail(email, password);
+            result = await signInWithEmail(email, password);
         } else if (action === 'signup') {
-            success = await createUserWithEmail(email, password);
+            result = await createUserWithEmail(email, password);
+            // NEW: Set default display name to username immediately upon creation
+            if (result.success) {
+                try {
+                    await updateUserDisplayName(username.trim());
+                } catch (e) {
+                    console.warn('Could not set default display name:', e);
+                }
+            }
         }
 
-        if (success) {
+        if (result.success) {
             this.hideLoginModal();
             this.hideSignupModal();
+        } else {
+            this.errorMessage = result.message || 'An unknown error occurred.';
         }
     }
 
@@ -460,6 +443,12 @@ class AppNavbar extends LitElement {
         const defaultMessage = 'Please set your display name for the event. This will be shown on leaderboards and submissions.';
         const message = (this.config.welcomeMessage || defaultMessage).replace('{displayName}', this.authState.profile.displayName || 'User');
 
+        // Fix: Strip the internal domain from the default value if present
+        let currentName = this.authState.profile.displayName || '';
+        if (currentName.includes('@fir-bingo-app.com')) {
+            currentName = currentName.split('@')[0];
+        }
+
         return html`
             <div id="welcome-modal" class="modal" style="display: flex;">
                 <div class="modal-content">
@@ -468,7 +457,7 @@ class AppNavbar extends LitElement {
                     <p>${message}</p>
                     <form id="welcome-form" @submit=${this.handleWelcomeFormSubmit}>
                         <label for="welcome-display-name">Display Name</label>
-                        <input type="text" id="welcome-display-name" name="welcome-display-name" .value=${this.authState.profile.displayName || ''} required>
+                        <input type="text" id="welcome-display-name" name="welcome-display-name" .value=${currentName} required>
                         <button type="submit">Save and Continue</button>
                     </form>
                 </div>
@@ -484,6 +473,7 @@ class AppNavbar extends LitElement {
                     <span class="close-button" @click=${this.hideLoginModal}>&times;</span>
                     <h2>Sign In</h2>
 
+                    ${this.errorMessage ? html`<div class="error-message">${this.errorMessage}</div>` : ''}
                     <p>Sign in with your username and password.</p>
                     <form id="email-login-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signin')}>
                         <input type="text" name="username" placeholder="Username" required autocomplete="username">
@@ -505,6 +495,7 @@ class AppNavbar extends LitElement {
                 <div class="modal-content">
                     <span class="close-button" @click=${this.hideSignupModal}>&times;</span>
                     <h2>Create Account</h2>
+                    ${this.errorMessage ? html`<div class="error-message">${this.errorMessage}</div>` : ''}
                     <p>Create an account to save your progress and join a team.</p>
                     <form id="email-signup-form" class="email-login-form" @submit=${(e) => this.handleEmailLogin(e, 'signup')}>
                         <input type="text" name="username" placeholder="Username" required autocomplete="username">
@@ -518,7 +509,7 @@ class AppNavbar extends LitElement {
     }
 
     render() {
-        const canChangeName = this.authState.isLoggedIn && !this.authState.profile?.isAnonymous && !this.authState.profile?.isNameLocked;
+        const canChangeName = this.authState.isLoggedIn && !this.authState.profile?.isNameLocked;
 
         const desktopActions = html`
             <select id="theme-switcher" @change=${(e) => this.setTheme(e.target.value)}>
