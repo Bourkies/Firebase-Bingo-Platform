@@ -11,7 +11,7 @@ import '../components/TileEditorForm.js'; // Register the TileEditorForm compone
 // Import setup sub-modules
 import { initializeTileEditor, populateTileSelector } from './setup/tileEditor.js';
 import { initializePrereqEditor, renderPrereqLines } from './setup/prereqEditor.js';
-import { initializeOverrideEditor } from './setup/overrideEditor.js';
+import { initializeOverrideEditor, STATUSES } from './setup/overrideEditor.js';
 import { initializeGlobalConfig, renderGlobalConfig } from './setup/globalConfigEditor.js';
  
 export let lastSelectedTileIndex = null; // Export for sub-modules
@@ -23,10 +23,12 @@ let prereqVisMode = 'hide'; // State for the new prereq button
 let publishedTiles = [];
 let tileDiff = [];
 
-const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
-
 let currentScale = 1;
 let pan = { x: 0, y: 0 };
+
+// NEW: Local preview state to prevent store thrashing during high-frequency inputs
+let previewConfig = {};
+let previewStyles = {};
 
 // --- FIX: Re-add the missing UI Feedback Utility ---
 function flashField(element) {
@@ -80,12 +82,26 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.style.backgroundColor = showTileIds ? '' : '#555';
         renderTiles();
     });
-    document.getElementById('prereq-vis-btn')?.addEventListener('click', (e) => {
-        prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
-        e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
-        e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
-        renderPrereqLines(prereqVisMode);
-    });
+    const prereqBtn = document.getElementById('prereq-vis-btn');
+    if (prereqBtn) {
+        prereqBtn.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
+        prereqBtn.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+        prereqBtn.addEventListener('click', (e) => {
+            console.log("[SetupController] Prereq toggle clicked.");
+            // Cycle: hide -> selected -> all -> hide
+            if (prereqVisMode === 'hide') prereqVisMode = 'selected';
+            else if (prereqVisMode === 'selected') prereqVisMode = 'all';
+            else prereqVisMode = 'hide';
+
+            let label = 'Hidden';
+            if (prereqVisMode === 'selected') label = 'Selected';
+            if (prereqVisMode === 'all') label = 'All';
+
+            e.target.textContent = label;
+            e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+            renderPrereqLines(prereqVisMode);
+        });
+    }
 
     // REVISED: Publish button now opens the diff modal
     document.getElementById('publish-board-btn')?.addEventListener('click', openPublishModal);
@@ -145,6 +161,10 @@ function onDataChanged() {
     }
     hideGlobalLoader();
 
+    // Reset previews on fresh data load to ensure consistency
+    previewConfig = {};
+    previewStyles = {};
+
     // --- Render Page ---
     document.title = (config.pageTitle || 'Bingo') + ' | Live Editor';
 
@@ -173,11 +193,25 @@ function onDataChanged() {
         tileEditor.addEventListener('render-tiles-preview', handleTilePreviewUpdate);
 
         const globalConfigEditor = document.getElementById('global-config-form-component');
-        globalConfigEditor.addEventListener('config-change', handleGlobalConfigChange);
-        globalConfigEditor.addEventListener('config-preview-change', (e) => {
-            handleGlobalConfigChange(e); // Can use the same handler for preview
-            renderTiles(); // Re-render all tiles for style previews
-        });
+        if (globalConfigEditor) {
+            globalConfigEditor.addEventListener('config-change', handleGlobalConfigChange);
+            // Fallback: Listen for 'config-changed' in case of naming mismatch
+            globalConfigEditor.addEventListener('config-changed', handleGlobalConfigChange);
+            
+            globalConfigEditor.addEventListener('config-preview-change', (e) => {
+                handleGlobalConfigChange(e); 
+                renderTiles(); 
+            });
+            
+            // NEW: Listen for style-specific events
+            globalConfigEditor.addEventListener('style-change', handleGlobalConfigChange);
+            globalConfigEditor.addEventListener('style-preview-change', (e) => {
+                handleGlobalConfigChange(e);
+                renderTiles();
+            });
+        } else {
+            console.error("[SetupController] Critical: Global Config component not found in DOM.");
+        }
 
         createStylePreviewButtons();
         applyTileLockState();
@@ -330,26 +364,61 @@ function populateDiffModal() {
 }
 
 function handleGlobalConfigChange(event) {
-    const { status, key, value } = event.detail;
+    console.log('[SetupController] Config Update:', event.type, event.detail);
+    const { status, key, value } = event.detail || {};
     if (!key) return;
 
+    // Check if this is a preview event (high frequency) or a commit event (debounced)
+    const isPreview = event.type.includes('preview');
+
+    if (isPreview) {
+        // Update local preview state only. Do NOT update the store.
+        // This prevents the GlobalConfigForm from re-rendering and interrupting the user's input.
+        if (status) {
+            previewStyles[status] = { ...(previewStyles[status] || {}), [key]: value };
+        } else {
+            previewConfig[key] = value;
+            if (key === 'boardImageUrl') loadBoardImage(value);
+        }
+        renderTiles(); // Re-render the board to reflect changes visually
+        return; 
+    }
+
+    // Optimistic update for immediate preview
+    const currentStore = configStore.get();
+    const newConfig = { ...currentStore.config };
+    const newStyles = { ...currentStore.styles };
+
     if (status) {
-        updateStyle(status, { [key]: value });
+        newStyles[status] = { ...(newStyles[status] || {}), [key]: value };
+        updateStyle(status, { [key]: value }).catch(e => console.error("Error updating style:", e));
     } else {
         if (key === 'boardImageUrl') loadBoardImage(value);
-        updateConfig({ [key]: value });
+        newConfig[key] = value;
+        updateConfig({ [key]: value }).catch(e => console.error("Error updating config:", e));
     }
-    // The store listener will trigger a re-render if necessary,
-    // but for live style previews, we want an immediate re-render.
-    if (event.type === 'config-preview-change') renderTiles();
+
+    // Update store immediately so renderTiles() sees the new value
+    configStore.set({ config: newConfig, styles: newStyles });
 }
 
 function renderTiles() {
     console.log("[SetupController] renderTiles called.");
     // FIX: Target the new <bingo-tile> component tag to clear the board.
     boardContent.querySelectorAll('bingo-tile').forEach(el => el.remove());
+    
     const tilesData = tilesStore.get();
-    const { config, styles } = configStore.get();
+    const { config: storeConfig, styles: storeStyles } = configStore.get();
+
+    // Merge store data with local previews for rendering
+    const config = { ...storeConfig, ...previewConfig };
+    const styles = { ...storeStyles };
+    
+    // Deep merge styles
+    Object.keys(previewStyles).forEach(status => {
+        styles[status] = { ...(styles[status] || {}), ...previewStyles[status] };
+    });
+
     console.log(`[SetupController] Rendering ${tilesData ? tilesData.length : 0} tiles.`);
     if (!tilesData) return;
     const duplicateIds = getDuplicateIds(tilesData);
@@ -546,6 +615,18 @@ function updateEditorPanel(index) {
         tileEditor.tileData = index !== null ? tilesData[index] : null;
     }
 
+    // Update delete button state
+    const deleteBtn = document.getElementById('delete-tile-btn');
+    if (deleteBtn) {
+        deleteBtn.disabled = (index === null);
+    }
+
+    // Sync the dropdown selector
+    const selector = document.getElementById('tile-selector-dropdown');
+    if (selector) {
+        selector.value = index !== null ? index : "";
+    }
+
     renderPrereqLines(prereqVisMode);
 }
 
@@ -637,7 +718,7 @@ async function handlePublishSelected() {
         selectedItems.forEach(change => {
             const docId = change.tile?.docId || change.newTile?.docId;
             if (change.type === 'added' || change.type === 'modified') {
-                finalTilesMap.set(docId, change.newTile);
+                finalTilesMap.set(docId, change.newTile || change.tile);
             } else if (change.type === 'deleted') {
                 finalTilesMap.delete(docId);
             }

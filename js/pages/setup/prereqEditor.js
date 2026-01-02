@@ -124,68 +124,105 @@ function parsePrerequisites(prereqString) {
 }
 
 export function renderPrereqLines(prereqVisMode) {
-    // console.log("[PrereqEditor] renderPrereqLines called."); // This can be noisy, commented out for now.
+    console.log(`[PrereqEditor] renderPrereqLines called. Mode: ${prereqVisMode}`);
     const tilesData = tilesStore.get();
     const lastSelectedTileIndex = mainController.lastSelectedTileIndex;
     const prereqLinesSvg = document.getElementById('prereq-lines-svg');
-    if (!prereqLinesSvg) return;
-    prereqLinesSvg.innerHTML = '';
-    if (prereqVisMode === 'hide' || lastSelectedTileIndex === null || !tilesData) return;
     
-    const destTileData = tilesData[lastSelectedTileIndex];
-    if (!destTileData) return;
+    if (!prereqLinesSvg) {
+        console.warn("[PrereqEditor] SVG element 'prereq-lines-svg' not found.");
+        return;
+    }
+    
+    prereqLinesSvg.innerHTML = '';
+    
+    if (prereqVisMode === 'hide') {
+        console.log("[PrereqEditor] Mode is hidden, clearing lines.");
+        return;
+    }
 
-    const orGroups = parsePrerequisites(destTileData['Prerequisites']);
-    if (orGroups.length === 0) return;
+    // Define arrow marker
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '9'); 
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', '3'); // Scale relative to stroke width
+    marker.setAttribute('markerHeight', '3');
+    marker.setAttribute('orient', 'auto');
+    
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    path.setAttribute('fill', 'black');
+    
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    prereqLinesSvg.appendChild(defs);
 
-    const destCenter = {
-        x: parseFloat(destTileData['Left (%)']) + parseFloat(destTileData['Width (%)']) / 2,
-        y: parseFloat(destTileData['Top (%)']) + parseFloat(destTileData['Height (%)']) / 2
+    // Helper function to draw lines for a single destination tile
+    const drawLinesForTile = (destTileData) => {
+        const orGroups = parsePrerequisites(destTileData['Prerequisites']);
+        if (orGroups.length === 0) return;
+
+        const destCenter = {
+            x: parseFloat(destTileData['Left (%)']) + parseFloat(destTileData['Width (%)']) / 2,
+            y: parseFloat(destTileData['Top (%)']) + parseFloat(destTileData['Height (%)']) / 2
+        };
+
+        const totalGroups = orGroups.length;
+        const baseStrokeWidth = 0.3;
+        const strokeWidthIncrement = 0.4;
+        const outlinePadding = 0.15;
+
+        orGroups.forEach((andGroup, orIndex) => {
+            const strokeWidth = baseStrokeWidth + (totalGroups - 1 - orIndex) * strokeWidthIncrement;
+            const outlineWidth = strokeWidth + outlinePadding;
+            const hue = (orIndex * 360) / totalGroups;
+            const color = `hsl(${hue}, 85%, 55%)`;
+
+            const outlinesFragment = document.createDocumentFragment();
+            const fillsFragment = document.createDocumentFragment();
+
+            andGroup.forEach(tileId => {
+                const sourceTileData = tilesData.find(t => t.id === tileId);
+                if (!sourceTileData) return;
+
+                const sourceCenter = {
+                    x: parseFloat(sourceTileData['Left (%)']) + parseFloat(sourceTileData['Width (%)']) / 2,
+                    y: parseFloat(sourceTileData['Top (%)']) + parseFloat(sourceTileData['Height (%)']) / 2
+                };
+
+                const outlineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                outlineLine.setAttribute('x1', `${sourceCenter.x}%`); outlineLine.setAttribute('y1', `${sourceCenter.y}%`);
+                outlineLine.setAttribute('x2', `${destCenter.x}%`); outlineLine.setAttribute('y2', `${destCenter.y}%`);
+                outlineLine.setAttribute('stroke', 'black');
+                outlineLine.setAttribute('stroke-width', `${outlineWidth}%`);
+                outlineLine.setAttribute('stroke-linecap', 'round');
+                outlinesFragment.appendChild(outlineLine);
+
+                const fillLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                fillLine.setAttribute('x1', `${sourceCenter.x}%`); fillLine.setAttribute('y1', `${sourceCenter.y}%`);
+                fillLine.setAttribute('x2', `${destCenter.x}%`); fillLine.setAttribute('y2', `${destCenter.y}%`);
+                fillLine.setAttribute('stroke', color);
+                fillLine.setAttribute('stroke-width', `${strokeWidth}%`);
+                fillLine.setAttribute('stroke-linecap', 'round');
+                fillLine.setAttribute('marker-end', 'url(#arrowhead)'); // Add arrow
+                fillsFragment.appendChild(fillLine);
+            });
+
+            prereqLinesSvg.appendChild(outlinesFragment);
+            prereqLinesSvg.appendChild(fillsFragment);
+        });
     };
 
-    const totalGroups = orGroups.length;
-    const baseStrokeWidth = 0.3;
-    const strokeWidthIncrement = 0.4;
-    const outlinePadding = 0.15;
-
-    orGroups.forEach((andGroup, orIndex) => {
-        const strokeWidth = baseStrokeWidth + (totalGroups - 1 - orIndex) * strokeWidthIncrement;
-        const outlineWidth = strokeWidth + outlinePadding;
-        const hue = (orIndex * 360) / totalGroups;
-        const color = `hsl(${hue}, 85%, 55%)`;
-
-        const outlinesFragment = document.createDocumentFragment();
-        const fillsFragment = document.createDocumentFragment();
-
-        andGroup.forEach(tileId => {
-            const sourceTileData = tilesData.find(t => t.id === tileId);
-            if (!sourceTileData) return;
-
-            const sourceCenter = {
-                x: parseFloat(sourceTileData['Left (%)']) + parseFloat(sourceTileData['Width (%)']) / 2,
-                y: parseFloat(sourceTileData['Top (%)']) + parseFloat(sourceTileData['Height (%)']) / 2
-            };
-
-            const outlineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            outlineLine.setAttribute('x1', `${sourceCenter.x}%`); outlineLine.setAttribute('y1', `${sourceCenter.y}%`);
-            outlineLine.setAttribute('x2', `${destCenter.x}%`); outlineLine.setAttribute('y2', `${destCenter.y}%`);
-            outlineLine.setAttribute('stroke', 'black');
-            outlineLine.setAttribute('stroke-width', `${outlineWidth}%`);
-            outlineLine.setAttribute('stroke-linecap', 'round');
-            outlinesFragment.appendChild(outlineLine);
-
-            const fillLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            fillLine.setAttribute('x1', `${sourceCenter.x}%`); fillLine.setAttribute('y1', `${sourceCenter.y}%`);
-            fillLine.setAttribute('x2', `${destCenter.x}%`); fillLine.setAttribute('y2', `${destCenter.y}%`);
-            fillLine.setAttribute('stroke', color);
-            fillLine.setAttribute('stroke-width', `${strokeWidth}%`);
-            fillLine.setAttribute('stroke-linecap', 'round');
-            fillsFragment.appendChild(fillLine);
-        });
-
-        prereqLinesSvg.appendChild(outlinesFragment);
-        prereqLinesSvg.appendChild(fillsFragment);
-    });
+    if (prereqVisMode === 'all') {
+        tilesData.forEach(tile => drawLinesForTile(tile));
+    } else if (prereqVisMode === 'selected') {
+        if (lastSelectedTileIndex !== null && tilesData[lastSelectedTileIndex]) {
+            drawLinesForTile(tilesData[lastSelectedTileIndex]);
+        }
+    }
 }
 
 export function createPrereqFieldset(mainController, shadowRoot) {

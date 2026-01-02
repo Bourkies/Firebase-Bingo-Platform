@@ -2,7 +2,7 @@
 import { tilesStore } from '../../stores/tilesStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../../core/utils.js';
 
-const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
+export const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 const VALID_OVERRIDE_PROPERTIES = [
     'shape', 'color', 'opacity',
     'borderWidth', 'borderColor',
@@ -22,45 +22,78 @@ export function initializeOverrideEditor(mainController) {
 }
 
 function getOverridesFromUI(shadowRoot) {
-    const overrides = {};
-    // FIX: Query within the provided shadowRoot.
-    shadowRoot.querySelectorAll('#overrides-container .override-item').forEach(item => {
+    const specificOverrides = {};
+    const allStatusOverrides = {};
+    const rows = shadowRoot.querySelectorAll('#overrides-container .override-item');
+    const seenSpecifics = new Set();
+    const duplicates = new Set();
+
+    // 1. First pass: Identify all specific duplicates
+    rows.forEach(item => {
+        const status = item.querySelector('.override-status-select').value;
+        const key = item.querySelector('.override-key').value;
+        item.style.border = ''; // Reset border
+        if (status && key && status !== '__ALL__') {
+            const uniqueKey = `${status}|${key}`;
+            if (seenSpecifics.has(uniqueKey)) {
+                duplicates.add(uniqueKey);
+            }
+            seenSpecifics.add(uniqueKey);
+        }
+    });
+
+    // 2. Second pass: Build data structures and highlight duplicates
+    rows.forEach(item => {
         const status = item.querySelector('.override-status-select').value;
         const key = item.querySelector('.override-key').value;
         const valueEl = item.querySelector('.override-value');
-        let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
+        
+        if (!status || !key) return;
 
-        // FIX: Only skip rows that are completely empty. If a status or key is selected, include it.
-        if (!status && !key && value === '') return;
+        const uniqueKey = `${status}|${key}`;
+        if (duplicates.has(uniqueKey)) {
+            item.style.border = '2px solid var(--error-color)';
+        }
 
-        if (valueEl.dataset.unit && value !== '') value += valueEl.dataset.unit;
-        if (valueEl.tagName === 'SELECT' && value === '') return;
+        let value;
+        if (valueEl.type === 'checkbox') {
+            value = valueEl.checked;
+        } else if (valueEl.type === 'range' || valueEl.type === 'number') {
+            // FIX: Re-add the unit to the value before saving to prevent "bouncing" sliders.
+            value = parseFloat(valueEl.value); // Always get the number
+            if (valueEl.dataset.unit) {
+                value = `${value}${valueEl.dataset.unit}`; // Add unit back if it exists
+            }
+        } else {
+            value = valueEl.value;
+        }
 
-        if (!overrides[status]) overrides[status] = {};
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
 
-        if (value === 'true') overrides[status][key] = true;
-        else if (value === 'false') overrides[status][key] = false;
-        else overrides[status][key] = value;
+        if (status === '__ALL__') {
+            allStatusOverrides[key] = value; // Last wins
+        } else {
+            if (!specificOverrides[status]) specificOverrides[status] = {};
+            // Last one wins in case of duplicate
+            specificOverrides[status][key] = value;
+        }
     });
-    return overrides;
-}
 
-function saveOverrides(mainController, shadowRoot) {
-    const index = mainController.lastSelectedTileIndex;
-    const tilesData = tilesStore.get();
-    if (index === null || !tilesData || !tilesData[index]) return;
+    // 3. Third pass: Apply the "All Statuses" rules
+    Object.entries(allStatusOverrides).forEach(([key, value]) => {
+        STATUSES.forEach(status => {
+            if (!specificOverrides[status]) {
+                specificOverrides[status] = {};
+            }
+            // Only apply if a more specific override for this property doesn't already exist
+            if (specificOverrides[status][key] === undefined) {
+                specificOverrides[status][key] = value;
+            }
+        });
+    });
 
-    const overrides = getOverridesFromUI(shadowRoot);
-    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';    
-
-    // FIX: Update the textarea value directly and only save to DB on a 'change' event, not every UI update.
-    const rawJsonTextarea = shadowRoot.getElementById('overrides-json-textarea');
-    if (rawJsonTextarea) {
-        rawJsonTextarea.value = newOverridesJson;
-    }
-    // The actual save to DB is now handled by the 'change' event on the textarea itself.
-    // This prevents saving incomplete data while the user is building an override.
-    mainController.renderTiles();
+    return specificOverrides;
 }
 
 export function populateOverridesUI(overrides, mainController, shadowRoot) {
@@ -72,9 +105,41 @@ export function populateOverridesUI(overrides, mainController, shadowRoot) {
     if (typeof overrides !== 'object' || overrides === null) return;
     mainController.flashField(shadowRoot.getElementById('overrides-json-textarea'));
 
+    // NEW LOGIC: Detect common properties to collapse into "All Statuses"
+    const propertyMap = {}; // key -> { value, consistent, count }
+
+    // 1. Analyze existing overrides against the known STATUSES list
+    STATUSES.forEach(status => {
+        if (overrides[status]) {
+            Object.entries(overrides[status]).forEach(([key, value]) => {
+                if (!propertyMap[key]) {
+                    propertyMap[key] = { value, consistent: true, count: 1 };
+                } else {
+                    const entry = propertyMap[key];
+                    if (entry.value !== value) entry.consistent = false;
+                    entry.count++;
+                }
+            });
+        }
+    });
+
+    const globalKeys = new Set();
+    // 2. Identify keys that are present in ALL statuses with the SAME value
+    Object.entries(propertyMap).forEach(([key, entry]) => {
+        if (entry.consistent && entry.count === STATUSES.length) {
+            globalKeys.add(key);
+            addOverrideRow('__ALL__', key, entry.value, mainController, shadowRoot);
+        }
+    });
+
+    // 3. Render specific overrides, skipping those covered by global keys
     for (const [status, properties] of Object.entries(overrides)) {
         if (typeof properties === 'object' && properties !== null) {
             for (const [key, value] of Object.entries(properties)) {
+                // If this is a known status and the key is global, skip it (it's covered by __ALL__)
+                if (STATUSES.includes(status) && globalKeys.has(key)) {
+                    continue;
+                }
                 addOverrideRow(status, key, value, mainController, shadowRoot);
             }
         }
@@ -95,6 +160,7 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     STATUSES.forEach(s => {
         statusSelect.innerHTML += `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`;
     });
+    statusSelect.innerHTML += `<option value="__ALL__" ${status === '__ALL__' ? 'selected' : ''}>All Statuses</option>`;
 
     const keySelect = document.createElement('select');
     keySelect.className = 'override-key';
@@ -218,14 +284,14 @@ function populateValueContainer(container, propertyName, value, mainController, 
 
         const rangeInput = document.createElement('input');
         rangeInput.type = 'range'; // This is the primary input
-        rangeInput.className = 'override-value'; // This triggers the update
+        rangeInput.className = 'override-slider'; // Helper input
         rangeInput.value = val;
-        if (schema.unit) rangeInput.dataset.unit = schema.unit;
         rangeInput.min = schema.min; rangeInput.max = schema.max; rangeInput.step = schema.step;
 
         const numberInput = document.createElement('input');
         numberInput.type = 'number';
-        numberInput.className = 'override-value-display'; // Not the primary source of truth
+        numberInput.className = 'override-value'; // Primary source of truth
+        if (schema.unit) numberInput.dataset.unit = schema.unit;
         numberInput.style.width = '70px';
         numberInput.value = val;
         numberInput.min = schema.min; numberInput.max = schema.max; numberInput.step = schema.step;
@@ -236,7 +302,6 @@ function populateValueContainer(container, propertyName, value, mainController, 
         // Use 'change' on the number input to prevent sync loops
         numberInput.addEventListener('change', () => {
             rangeInput.value = numberInput.value;
-            rangeInput.dispatchEvent(new Event('change', { bubbles: true }));
         });
         compoundDiv.append(rangeInput, numberInput, Object.assign(document.createElement('span'), { textContent: schema.unit || '' }));
         container.appendChild(compoundDiv);

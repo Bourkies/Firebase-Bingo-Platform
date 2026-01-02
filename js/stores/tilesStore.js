@@ -194,7 +194,7 @@ export async function publishTiles(tilesToPublish) {
     }
 
     // 2. Create the "Public/Censored" version (Strip sensitive data)
-    const publicTiles = tiles.map(t => ({
+    const publicTiles = tiles.filter(t => t).map(t => ({
         id: t.id,
         docId: t.docId,
         'Left (%)': t['Left (%)'],
@@ -206,11 +206,13 @@ export async function publishTiles(tilesToPublish) {
         // We intentionally exclude Name, Description, Prerequisites for the censored version
     }));
 
-    // 3. Save both versions to the 'config' collection (Cost: 2 writes)
+    // 3. Save both versions (Cost: 2 writes)
+    // - 'tiles/packed': Full uncensored data. Protected by 'tiles' collection rules.
+    // - 'config/tiles_packed_public': Censored data. Publicly readable in 'config' collection.
     const batch = fb.writeBatch(db);
-    batch.set(fb.doc(db, 'tiles', 'packed'), { tiles: tiles }); // Protected
+    batch.set(fb.doc(db, 'tiles', 'packed'), { tiles: tiles });
     batch.set(fb.doc(db, 'config', 'tiles_packed_public'), { tiles: publicTiles });
 
     await batch.commit();
-    console.log('[tilesStore] Board published successfully.');
+    console.log('[tilesStore] Board published successfully. Updated [tiles/packed] and [config/tiles_packed_public].');
 }

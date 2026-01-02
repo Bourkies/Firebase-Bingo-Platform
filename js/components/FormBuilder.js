@@ -56,7 +56,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
             return html`
                 <div class="form-field" data-key=${key}>
                     ${labelHtml}
-                    <input type="text" .value=${val} data-key=${key} ?data-status=${status}>
+                    <input type="text" .value=${val} data-key=${key} data-status=${status}>
                 </div>
             `;
         }
@@ -64,7 +64,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
             return html`
                 <div class="form-field" data-key=${key}>
                     ${labelHtml}
-                    <textarea .value=${value ?? ''} data-key=${key} ?data-status=${status}></textarea>
+                    <textarea .value=${value ?? ''} data-key=${key} data-status=${status}></textarea>
                 </div>
             `;
         }
@@ -73,7 +73,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
             return html`
                 <div class="form-field" data-key=${key}>
                     ${labelHtml}
-                    <input type="checkbox" .checked=${checked} data-key=${key} ?data-status=${status} style="width: auto;">
+                    <input type="checkbox" .checked=${checked} data-key=${key} data-status=${status} style="width: auto;">
                 </div>
             `;
         }
@@ -81,7 +81,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
             return html`
                 <div class="form-field" data-key=${key}>
                     ${labelHtml}
-                    <select .value=${value} data-key=${key} ?data-status=${status}>
+                    <select .value=${value} data-key=${key} data-status=${status}>
                         ${schema.options.map(opt => html`<option value=${opt} ?selected=${value === opt}>${opt}</option>`)}
                     </select>
                 </div>
@@ -100,8 +100,8 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                             max=${schema.max}
                             step=${schema.step}
                             data-key=${key}
-                            ?data-status=${status}
-                            ?data-unit=${schema.unit}
+                            data-status=${status}
+                            data-unit=${schema.unit}
                         >
                         <input
                             type="number"
@@ -110,7 +110,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                             max=${schema.max}
                             step=${schema.step}
                             data-key=${key}
-                            ?data-status=${status}
+                            data-status=${status}
                             style="width: 70px;"
                         >
                     </div>
@@ -127,8 +127,8 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                     <div class="form-field-compound" style="flex-direction: column; align-items: stretch; gap: 8px;">
                         <!-- Color Part -->
                         <div class="form-field-compound">
-                            <input type="color" .value=${colorVal} data-key="color" ?data-status=${status}>
-                            <input type="text" class="color-text-input" .value=${colorVal} data-key="color" ?data-status=${status}>
+                            <input type="color" .value=${colorVal} data-key="color" data-status=${status}>
+                            <input type="text" class="color-text-input" .value=${colorVal} data-key="color" data-status=${status}>
                         </div>
                         <!-- Opacity Part -->
                         <div class="form-field-compound">
@@ -137,14 +137,14 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                                 .value=${opacityVal}
                                 min="0" max="1" step="0.01"
                                 data-key="opacity"
-                                ?data-status=${status}
+                                data-status=${status}
                             >
                             <input
                                 type="number"
                                 .value=${opacityVal}
                                 min="0" max="1" step="0.01"
                                 data-key="opacity"
-                                ?data-status=${status}
+                                data-status=${status}
                                 style="width: 70px;"
                             >
                         </div>
@@ -168,13 +168,13 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                             .value=${widthVal}
                             min="0" max="20" step="1"
                             data-key=${widthKey}
-                            ?data-status=${status}
+                            data-status=${status}
                             data-unit=${unit}
                             style="max-width: 70px;"
                         >
                         <span style="width: 30px; text-align: left; margin-left: 5px;">${unit}</span>
-                        <input type="color" .value=${colorVal} data-key=${colorKey} ?data-status=${status}>
-                        <input type="text" class="color-text-input" .value=${colorVal} data-key=${colorKey} ?data-status=${status}>
+                        <input type="color" .value=${colorVal} data-key=${colorKey} data-status=${status}>
+                        <input type="text" class="color-text-input" .value=${colorVal} data-key=${colorKey} data-status=${status}>
                     </div>
                 </div>
             `;
@@ -189,7 +189,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                         .value=${value ?? ''}
                         name=${key}
                         data-key=${key}
-                        ?data-status=${status}
+                        data-status=${status}
                         ?disabled=${schema.disabled}
                     >
                 </div>
