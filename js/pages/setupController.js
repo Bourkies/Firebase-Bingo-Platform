@@ -80,12 +80,26 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.style.backgroundColor = showTileIds ? '' : '#555';
         renderTiles();
     });
-    document.getElementById('prereq-vis-btn')?.addEventListener('click', (e) => {
-        prereqVisMode = prereqVisMode === 'hide' ? 'selected' : 'hide';
-        e.target.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
-        e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
-        renderPrereqLines(prereqVisMode);
-    });
+    const prereqBtn = document.getElementById('prereq-vis-btn');
+    if (prereqBtn) {
+        prereqBtn.textContent = prereqVisMode === 'hide' ? 'Hidden' : 'Visible';
+        prereqBtn.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+        prereqBtn.addEventListener('click', (e) => {
+            console.log("[SetupController] Prereq toggle clicked.");
+            // Cycle: hide -> selected -> all -> hide
+            if (prereqVisMode === 'hide') prereqVisMode = 'selected';
+            else if (prereqVisMode === 'selected') prereqVisMode = 'all';
+            else prereqVisMode = 'hide';
+
+            let label = 'Hidden';
+            if (prereqVisMode === 'selected') label = 'Selected';
+            if (prereqVisMode === 'all') label = 'All';
+
+            e.target.textContent = label;
+            e.target.style.backgroundColor = prereqVisMode === 'hide' ? '#555' : '';
+            renderPrereqLines(prereqVisMode);
+        });
+    }
 
     // REVISED: Publish button now opens the diff modal
     document.getElementById('publish-board-btn')?.addEventListener('click', openPublishModal);

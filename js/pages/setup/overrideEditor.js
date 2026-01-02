@@ -22,45 +22,78 @@ export function initializeOverrideEditor(mainController) {
 }
 
 function getOverridesFromUI(shadowRoot) {
-    const overrides = {};
-    // FIX: Query within the provided shadowRoot.
-    shadowRoot.querySelectorAll('#overrides-container .override-item').forEach(item => {
+    const specificOverrides = {};
+    const allStatusRules = [];
+    const rows = shadowRoot.querySelectorAll('#overrides-container .override-item');
+    const seenSpecifics = new Set();
+    const duplicates = new Set();
+
+    // 1. First pass: Identify all specific duplicates
+    rows.forEach(item => {
+        const status = item.querySelector('.override-status-select').value;
+        const key = item.querySelector('.override-key').value;
+        item.style.border = ''; // Reset border
+        if (status && key && status !== '__ALL__') {
+            const uniqueKey = `${status}|${key}`;
+            if (seenSpecifics.has(uniqueKey)) {
+                duplicates.add(uniqueKey);
+            }
+            seenSpecifics.add(uniqueKey);
+        }
+    });
+
+    // 2. Second pass: Build data structures and highlight duplicates
+    rows.forEach(item => {
         const status = item.querySelector('.override-status-select').value;
         const key = item.querySelector('.override-key').value;
         const valueEl = item.querySelector('.override-value');
-        let value = valueEl.type === 'checkbox' ? valueEl.checked : valueEl.value;
+        
+        if (!status || !key) return;
 
-        // FIX: Only skip rows that are completely empty. If a status or key is selected, include it.
-        if (!status && !key && value === '') return;
+        const uniqueKey = `${status}|${key}`;
+        if (duplicates.has(uniqueKey)) {
+            item.style.border = '2px solid var(--error-color)';
+        }
 
-        if (valueEl.dataset.unit && value !== '') value += valueEl.dataset.unit;
-        if (valueEl.tagName === 'SELECT' && value === '') return;
+        let value;
+        if (valueEl.type === 'checkbox') {
+            value = valueEl.checked;
+        } else if (valueEl.type === 'range' || valueEl.type === 'number') {
+            // FIX: Re-add the unit to the value before saving to prevent "bouncing" sliders.
+            value = parseFloat(valueEl.value); // Always get the number
+            if (valueEl.dataset.unit) {
+                value = `${value}${valueEl.dataset.unit}`; // Add unit back if it exists
+            }
+        } else {
+            value = valueEl.value;
+        }
 
-        if (!overrides[status]) overrides[status] = {};
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
 
-        if (value === 'true') overrides[status][key] = true;
-        else if (value === 'false') overrides[status][key] = false;
-        else overrides[status][key] = value;
+        if (status === '__ALL__') {
+            allStatusRules.push({ key, value });
+        } else {
+            if (!specificOverrides[status]) specificOverrides[status] = {};
+            // Last one wins in case of duplicate
+            specificOverrides[status][key] = value;
+        }
     });
-    return overrides;
-}
 
-function saveOverrides(mainController, shadowRoot) {
-    const index = mainController.lastSelectedTileIndex;
-    const tilesData = tilesStore.get();
-    if (index === null || !tilesData || !tilesData[index]) return;
+    // 3. Third pass: Apply the "All Statuses" rules
+    allStatusRules.forEach(({ key, value }) => {
+        STATUSES.forEach(status => {
+            if (!specificOverrides[status]) {
+                specificOverrides[status] = {};
+            }
+            // Only apply if a more specific override for this property doesn't already exist
+            if (specificOverrides[status][key] === undefined) {
+                specificOverrides[status][key] = value;
+            }
+        });
+    });
 
-    const overrides = getOverridesFromUI(shadowRoot);
-    const newOverridesJson = Object.keys(overrides).length > 0 ? JSON.stringify(overrides, null, 2) : '';    
-
-    // FIX: Update the textarea value directly and only save to DB on a 'change' event, not every UI update.
-    const rawJsonTextarea = shadowRoot.getElementById('overrides-json-textarea');
-    if (rawJsonTextarea) {
-        rawJsonTextarea.value = newOverridesJson;
-    }
-    // The actual save to DB is now handled by the 'change' event on the textarea itself.
-    // This prevents saving incomplete data while the user is building an override.
-    mainController.renderTiles();
+    return specificOverrides;
 }
 
 export function populateOverridesUI(overrides, mainController, shadowRoot) {
@@ -95,6 +128,7 @@ export function addOverrideRow(status = '', key = '', value = '', mainController
     STATUSES.forEach(s => {
         statusSelect.innerHTML += `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`;
     });
+    statusSelect.innerHTML += `<option value="__ALL__" ${status === '__ALL__' ? 'selected' : ''}>All Statuses</option>`;
 
     const keySelect = document.createElement('select');
     keySelect.className = 'override-key';
