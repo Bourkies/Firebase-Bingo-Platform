@@ -180,12 +180,18 @@ export async function importTiles(tilesToImport) {
  * Reads all tiles from the collection and saves them into a single "Packed" document.
  * This drastically reduces read costs for players.
  */
-export async function publishTiles() {
-    // 1. Fetch all raw tiles (Cost: N reads)
-    const snapshot = await fb.getDocs(fb.collection(db, 'tiles'));
-    const tiles = snapshot.docs
-        .filter(doc => doc.id !== 'packed') // Don't include the packed doc in itself
-        .map(doc => ({ ...doc.data(), docId: doc.id }));
+export async function publishTiles(tilesToPublish) {
+    let tiles;
+    if (tilesToPublish) {
+        // If an array is provided, use it directly. This is for publishing selected changes.
+        tiles = tilesToPublish;
+    } else {
+        // 1. Fetch all raw tiles (Cost: N reads)
+        const snapshot = await fb.getDocs(fb.collection(db, 'tiles'));
+        tiles = snapshot.docs
+            .filter(doc => doc.id !== 'packed') // Don't include the packed doc in itself
+            .map(doc => ({ ...doc.data(), docId: doc.id }));
+    }
 
     // 2. Create the "Public/Censored" version (Strip sensitive data)
     const publicTiles = tiles.map(t => ({

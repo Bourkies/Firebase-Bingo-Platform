@@ -355,6 +355,31 @@
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 10;
         }
+        /* NEW: Styles for Publish Diff Modal */
+        #publish-indicator {
+            color: var(--warn-color);
+            font-weight: bold;
+            margin-right: 4px;
+            animation: pulse-indicator 2s infinite;
+        }
+        @keyframes pulse-indicator {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+        .destructive-btn { background-color: var(--error-color); }
+        .success-btn { background-color: var(--success-color); }
+        #diff-container { border: 1px solid var(--border-color); border-radius: 4px; padding: 1rem; background-color: var(--bg-color); }
+        .diff-item { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start; padding: 0.75rem; border-bottom: 1px solid var(--border-color); }
+        .diff-item:last-child { border-bottom: none; }
+        .diff-item-content { display: flex; flex-direction: column; }
+        .diff-summary { font-weight: bold; margin-bottom: 0.5rem; }
+        .diff-details { list-style-type: none; margin: 0; padding: 0; font-size: 0.85em; font-family: monospace; }
+        .diff-details li { padding: 2px 5px; border-radius: 3px; white-space: pre-wrap; word-break: break-all; }
+        .diff-details li.highlight { background-color: rgba(255, 193, 7, 0.15); }
+        .diff-details .from { color: var(--error-color); text-decoration: line-through; }
+        .diff-details .to { color: var(--success-color); }
 
     </style>
 </head>
@@ -418,7 +443,9 @@
                 <select id="tile-selector-dropdown"></select>
                 <button id="delete-tile-btn" disabled>Delete Selected Tile</button>
                 <button id="add-new-tile-btn">Add New Tile</button>                
-                <button id="publish-board-btn" style="background-color: var(--success-color); margin-left: auto;" title="Takes all current tiles and 'packs' them into single documents for efficient loading by players. This should be done after making significant tile changes.">Publish Board</button>
+                <button id="publish-board-btn" class="success-btn" style="margin-left: auto;" title="Review and publish all current tile changes to make them live for players.">
+                    <span id="publish-indicator" style="display: none;">●</span>Publish Board
+                </button>
                 <a href="./import_tiles.html" class="button-like-link" target="_blank" rel="noopener noreferrer">Import/Export Tiles</a>
                 <button id="delete-all-tiles-btn">Delete All Tiles</button>
             </div>
@@ -442,6 +469,26 @@
         <p>To confirm, please type <code style="background: #111; padding: 2px 5px; border-radius: 3px;">DELETE ALL</code> in the box below.</p>
         <input type="text" id="delete-confirm-input" autocomplete="off">
         <button id="delete-confirm-btn" disabled>Confirm Deletion</button>
+    </div>
+</div>
+
+<!-- NEW: Publish Confirmation/Diff Modal -->
+<div id="publish-diff-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 900px;">
+        <span class="close-button">&times;</span>
+        <h3>Review Unpublished Changes</h3>
+        <p>Select changes to publish or revert. Unchecked items will be ignored.</p>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">
+            <input type="checkbox" id="select-all-diff-checkbox" style="margin: 0; width: auto;">
+            <label for="select-all-diff-checkbox" style="margin: 0;">Select All</label>
+        </div>
+        <div id="diff-container" style="max-height: 50vh; overflow-y: auto; text-align: left; margin-bottom: 1.5rem;">
+            <!-- Diff items will be injected here -->
+        </div>
+        <div class="modal-actions">
+            <button id="revert-selected-btn" class="destructive-btn">Revert Selected</button>
+            <button id="publish-selected-btn" class="success-btn">Publish Selected</button>
+        </div>
     </div>
 </div>
 

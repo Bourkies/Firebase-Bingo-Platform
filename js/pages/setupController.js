@@ -4,7 +4,8 @@ import '../components/BingoTile.js'; // Import the tile component
 // NEW: Import stores for reading data
 import { authStore } from '../stores/authStore.js';
 import { configStore, updateConfig, updateStyle } from '../stores/configStore.js'; 
-import { tilesStore, updateTile as saveTile, publishTiles } from '../stores/tilesStore.js';
+import { tilesStore, updateTile as saveTile, publishTiles, createTile, deleteTile, deleteAllTiles, importTiles } from '../stores/tilesStore.js';
+import { db, fb } from '../core/firebase-config.js';
 import '../components/TileEditorForm.js'; // Register the TileEditorForm component
 
 // Import setup sub-modules
@@ -18,6 +19,9 @@ let currentPreviewStatus = null;
 let isTilesLocked = true;
 let showTileIds = true; // State for the new toggle
 let prereqVisMode = 'hide'; // State for the new prereq button
+
+let publishedTiles = [];
+let tileDiff = [];
 
 const STATUSES = ['Locked', 'Unlocked', 'Partially Complete', 'Submitted', 'Verified', 'Requires Action'];
 
@@ -83,14 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPrereqLines(prereqVisMode);
     });
 
-    // NEW: Publish Button Listener
-    document.getElementById('publish-board-btn')?.addEventListener('click', async (e) => {
-        if (!confirm('Publishing will update the board for all players. Continue?')) return;
-        e.target.disabled = true;
-        e.target.textContent = 'Publishing...';
-        await publishTiles();
-        e.target.textContent = 'Published!';
-        setTimeout(() => { e.target.disabled = false; e.target.textContent = 'Publish Board'; }, 2000);
+    // REVISED: Publish button now opens the diff modal
+    document.getElementById('publish-board-btn')?.addEventListener('click', openPublishModal);
+
+    // NEW: Listeners for the new diff modal
+    const diffModal = document.getElementById('publish-diff-modal');
+    diffModal.querySelector('.close-button').addEventListener('click', closePublishModal);
+    document.getElementById('publish-selected-btn').addEventListener('click', handlePublishSelected);
+    document.getElementById('revert-selected-btn').addEventListener('click', handleRevertSelected);
+    document.getElementById('select-all-diff-checkbox').addEventListener('change', (e) => {
+        diffModal.querySelectorAll('.diff-checkbox').forEach(cb => cb.checked = e.target.checked);
     });
 
     // Initial call to render the page with default store values.
@@ -124,6 +130,12 @@ function onDataChanged() {
         return;
     }
 
+    // Fetch the published tiles once to establish a baseline for diffing
+    if (!document.body.dataset.publishedTilesFetched) {
+        document.body.dataset.publishedTilesFetched = 'true';
+        fetchPublishedTiles();
+    }
+
     // --- Data Loading Check ---
     // REVISED: Only wait for config. The tilesStore can be initially empty,
     // and the page will reactively render them when they load.
@@ -140,6 +152,7 @@ function onDataChanged() {
     renderGlobalConfig(mainControllerInterface);
     populateTileSelector();
     renderTiles();
+    calculateAndRenderDiff();
 
     // If a tile is selected, ensure its panel is up-to-date
     if (lastSelectedTileIndex !== null) {
@@ -170,6 +183,150 @@ function onDataChanged() {
         applyTileLockState();
         loadBoardImage(config.boardImageUrl || '');
     }
+}
+
+function getDeepObjectDiff(oldObj, newObj) {
+    const changes = [];
+    const allKeys = new Set([...Object.keys(oldObj || {}), ...Object.keys(newObj || {})]);
+
+    for (const key of allKeys) {
+        // Skip docId as it's metadata, not data
+        if (key === 'docId') continue;
+
+        const oldValue = oldObj ? oldObj[key] : undefined;
+        const newValue = newObj ? newObj[key] : undefined;
+
+        let areDifferent = false;
+        if (key === 'Overrides (JSON)') {
+            try {
+                const oldOverrides = oldValue ? JSON.parse(oldValue) : {};
+                const newOverrides = newValue ? JSON.parse(newValue) : {};
+                if (JSON.stringify(oldOverrides) !== JSON.stringify(newOverrides)) {
+                    areDifferent = true;
+                }
+            } catch (e) {
+                if (oldValue !== newValue) areDifferent = true;
+            }
+        } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+            areDifferent = true;
+        }
+
+        if (areDifferent) changes.push({ field: key, from: oldValue, to: newValue });
+    }
+    return changes;
+}
+
+async function fetchPublishedTiles() {
+    try {
+        const packedDoc = await fb.getDoc(fb.doc(db, 'tiles', 'packed'));
+        if (packedDoc.exists() && packedDoc.data().tiles) {
+            publishedTiles = packedDoc.data().tiles;
+        } else {
+            publishedTiles = []; // No published data yet
+        }
+        // Now that we have the baseline, calculate the initial diff
+        calculateAndRenderDiff();
+    } catch (error) {
+        console.error("Error fetching published tiles:", error);
+        publishedTiles = [];
+    }
+}
+
+function calculateAndRenderDiff() {
+    const rawTiles = tilesStore.get() || [];
+    
+    const rawMap = new Map(rawTiles.map(t => [t.docId, t]));
+    const pubMap = new Map(publishedTiles.map(t => [t.docId, t]));
+    const newDiff = [];
+
+    // 1. Check for modified and deleted tiles
+    pubMap.forEach((pubTile, docId) => {
+        const rawTile = rawMap.get(docId);
+        if (!rawTile) {
+            newDiff.push({ type: 'deleted', tile: pubTile });
+        } else {
+            const changes = getDeepObjectDiff(pubTile, rawTile);
+            if (changes.length > 0) {
+                newDiff.push({ type: 'modified', oldTile: pubTile, newTile: rawTile, changes });
+            }
+        }
+    });
+
+    // 2. Check for added tiles
+    rawMap.forEach((rawTile, docId) => {
+        if (!pubMap.has(docId)) {
+            newDiff.push({ type: 'added', tile: rawTile });
+        }
+    });
+
+    tileDiff = newDiff;
+
+    // Update UI indicator
+    const indicator = document.getElementById('publish-indicator');
+    if (indicator) {
+        indicator.style.display = tileDiff.length > 0 ? 'inline' : 'none';
+    }
+}
+
+function openPublishModal() {
+    if (tileDiff.length === 0) {
+        showMessage('No unpublished changes to publish.', false);
+        return;
+    }
+    populateDiffModal();
+    document.getElementById('publish-diff-modal').style.display = 'flex';
+}
+
+function closePublishModal() {
+    document.getElementById('publish-diff-modal').style.display = 'none';
+}
+
+function populateDiffModal() {
+    const container = document.getElementById('diff-container');
+    if (tileDiff.length === 0) {
+        container.innerHTML = '<p style="text-align: center;">All changes have been published or reverted.</p>';
+        return;
+    }
+
+    container.innerHTML = tileDiff.map(change => {
+        let contentHtml = '';
+        const tile = change.tile || change.newTile;
+
+        switch (change.type) {
+            case 'added':
+                contentHtml = `<div class="diff-summary"><strong>ADDED:</strong> Tile "${tile.Name}" (ID: ${tile.id})</div>`;
+                break;
+            case 'deleted':
+                contentHtml = `<div class="diff-summary"><strong>DELETED:</strong> Tile "${tile.Name}" (ID: ${tile.id})</div>`;
+                break;
+            case 'modified':
+                const allKeys = new Set([...Object.keys(change.oldTile), ...Object.keys(change.newTile)]);
+                const changesMap = new Map(change.changes.map(c => [c.field, c]));
+
+                const detailsHtml = [...allKeys].filter(key => key !== 'docId').map(key => {
+                    const changeDetail = changesMap.get(key);
+                    const value = change.newTile[key];
+
+                    if (changeDetail) {
+                        const from = JSON.stringify(changeDetail.from ?? '""', null, 2);
+                        const to = JSON.stringify(changeDetail.to ?? '""', null, 2);
+                        return `<li class="highlight"><strong>${key}:</strong> <span class="from">${from}</span> → <span class="to">${to}</span></li>`;
+                    } else {
+                        return `<li><strong>${key}:</strong> ${JSON.stringify(value ?? 'null', null, 2)}</li>`;
+                    }
+                }).join('');
+
+                contentHtml = `
+                    <div class="diff-summary"><strong>MODIFIED:</strong> Tile "${tile.Name}" (ID: ${tile.id})</div>
+                    <ul class="diff-details">${detailsHtml}</ul>
+                `;
+                break;
+        }
+        return `<div class="diff-item" data-doc-id="${tile.docId}" data-type="${change.type}">
+                    <input type="checkbox" class="diff-checkbox" style="margin-top: 4px; width: auto;">
+                    <div class="diff-item-content">${contentHtml}</div>
+                </div>`;
+    }).join('');
 }
 
 function handleGlobalConfigChange(event) {
@@ -449,4 +606,81 @@ function loadBoardImage(imageUrl) {
         boardContent.appendChild(Object.assign(document.createElement('div'), { className: 'error-message', innerHTML: `<strong>Board Image Failed to Load</strong><br><small>Check the URL in the config or try re-uploading.</small>` }));
     };
     boardImage.src = imageUrl;
+}
+
+function getSelectedDiffItems() {
+    const selectedChanges = [];
+    document.querySelectorAll('#diff-container .diff-checkbox:checked').forEach(checkbox => {
+        const itemEl = checkbox.closest('.diff-item');
+        const docId = itemEl.dataset.docId;
+        const change = tileDiff.find(d => (d.tile?.docId || d.newTile?.docId) === docId);
+        if (change) {
+            selectedChanges.push(change);
+        }
+    });
+    return selectedChanges;
+}
+
+async function handlePublishSelected() {
+    const selectedItems = getSelectedDiffItems();
+    if (selectedItems.length === 0) {
+        showMessage('No changes selected to publish.', true);
+        return;
+    }
+
+    showGlobalLoader();
+    try {
+        // Start with the current published tiles
+        const finalTilesMap = new Map(publishedTiles.map(t => [t.docId, t]));
+
+        // Apply changes
+        selectedItems.forEach(change => {
+            const docId = change.tile?.docId || change.newTile?.docId;
+            if (change.type === 'added' || change.type === 'modified') {
+                finalTilesMap.set(docId, change.newTile);
+            } else if (change.type === 'deleted') {
+                finalTilesMap.delete(docId);
+            }
+        });
+
+        const finalTilesArray = Array.from(finalTilesMap.values());
+        await publishTiles(finalTilesArray);
+
+        // After publishing, refetch to confirm and clear the diff.
+        await fetchPublishedTiles();
+        closePublishModal();
+        showMessage(`${selectedItems.length} change(s) published successfully!`, false);
+    } catch (e) {
+        showMessage('Error publishing changes: ' + e.message, true);
+    } finally {
+        hideGlobalLoader();
+    }
+}
+
+async function handleRevertSelected() {
+    const selectedItems = getSelectedDiffItems();
+    if (selectedItems.length === 0) {
+        showMessage('No changes selected to revert.', true);
+        return;
+    }
+    if (!confirm(`Are you sure you want to revert ${selectedItems.length} selected change(s)?`)) return;
+
+    showGlobalLoader();
+    try {
+        const promises = selectedItems.map(change => {
+            const docId = change.tile?.docId || change.newTile?.docId;
+            if (change.type === 'added') return deleteTile(docId);
+            if (change.type === 'deleted') return createTile(docId, change.tile);
+            if (change.type === 'modified') return saveTile(docId, change.oldTile);
+            return Promise.resolve();
+        });
+
+        await Promise.all(promises);
+        closePublishModal();
+        showMessage(`${selectedItems.length} change(s) reverted.`, false);
+    } catch (e) {
+        showMessage('Error reverting changes: ' + e.message, true);
+    } finally {
+        hideGlobalLoader();
+    }
 }
