@@ -171,10 +171,10 @@ function renderPage() {
     let teamData, scoreboardData; // Will be populated if needed
 
     // Check if essential data is loaded.
-    if (!config.pageTitle || Object.keys(allTeams).length === 0) {
-        showGlobalLoader();
-        return; // Wait for more data
-    }
+    // FIX: Relaxed check. Allow rendering if config object exists, even if empty or no teams.
+    // This ensures the board (or at least the empty state) renders on a fresh emulator.
+    // if (!config.pageTitle || Object.keys(allTeams).length === 0) { ... }
+    
     hideGlobalLoader();
 
     const adminWarningContainer = document.getElementById('admin-warning-container');
@@ -253,6 +253,14 @@ function renderPage() {
     }
 
     // If checks pass, proceed with normal rendering.
+    
+    // FIX: Explicitly update the board component's config.
+    // This ensures the background image and other config-dependent styles render 
+    // even if the sub-module renderBoard doesn't update it immediately.
+    if (boardComponent) {
+        boardComponent.config = config;
+    }
+
     renderBoard({ setupMode: config.setupModeEnabled }); // This function is now smarter and only passes data
     const scoreboardEl = document.getElementById('scoreboard-container');
     if (scoreboardData) {

@@ -411,8 +411,8 @@ class AppNavbar extends LitElement {
             return;
         }
 
-        // Construct the email from the username
-        const email = `${username.trim()}@fir-bingo-app.com`;
+        // Construct the email from the username (force lowercase to ensure consistent document IDs)
+        const email = `${username.trim().toLowerCase()}@fir-bingo-app.com`;
 
         let result = { success: false };
         if (action === 'signin') {

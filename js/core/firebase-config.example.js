@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc, arrayUnion, Timestamp, enableIndexedDbPersistence, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc, arrayUnion, Timestamp, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 // All necessary storage functions, including deleteObject
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile, signInWithEmailAndPassword, createUserWithEmailAndPassword, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -27,7 +27,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const db = getFirestore(app);
+
+// NEW: Initialize Firestore with multi-tab persistent cache enabled.
+// This replaces the deprecated `enableIndexedDbPersistence()` function.
+const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 
 // NEW: Connect to Emulators if on localhost (MUST happen before persistence)
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
@@ -36,15 +41,6 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
     connectAuthEmulator(auth, "http://127.0.0.1:9099");
     connectStorageEmulator(storage, "127.0.0.1", 9199);
 }
-
-// NEW: Enable Offline Persistence (Cache)
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.warn('Persistence failed: Multiple tabs open.');
-    } else if (err.code == 'unimplemented') {
-        console.warn('Persistence not supported by browser.');
-    }
-});
 
 // Get references to the services you need and export them
 export { db, auth, storage };
@@ -55,7 +51,7 @@ export { Timestamp };
 // Export specific Firebase functions for convenience, organized by service.
 export const fb = {
     // Firestore
-    doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc, arrayUnion, Timestamp, enableIndexedDbPersistence,
+    doc, getDoc, setDoc, updateDoc, collection, getDocs, writeBatch, serverTimestamp, onSnapshot, addDoc, query, where, orderBy, documentId, deleteDoc, arrayUnion, Timestamp,
     // Storage
     ref, uploadBytes, getDownloadURL, deleteObject,
     // Auth

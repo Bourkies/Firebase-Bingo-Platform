@@ -11,7 +11,7 @@ const privateTiles = atom([]);
 const publicTiles = atom([]);
 
 onMount(tilesStore, () => {
-    let unsubscribe = null;
+    let activeUnsubscribe = null; // Renamed for clarity
     let currentMode = null; // Track the current subscription mode to prevent redundant reconnects
 
     const handleStateChange = () => {
@@ -28,16 +28,16 @@ onMount(tilesStore, () => {
         }
 
         // OPTIMIZATION: If the mode hasn't changed, do not tear down the listener.
-        if (newMode === currentMode && unsubscribe) return;
+        if (newMode === currentMode && activeUnsubscribe) return;
         currentMode = newMode;
 
         // Clean up previous listener
-        if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        if (activeUnsubscribe) { activeUnsubscribe(); activeUnsubscribe = null; }
 
         // 1. SETUP MODE: Always listen to the full collection for real-time editing
         if (newMode === 'setup') {
             console.log('[tilesStore] Setup mode: Listening to raw collection.');
-            unsubscribe = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
+            activeUnsubscribe = fb.onSnapshot(fb.collection(db, 'tiles'), (snapshot) => {
                 // Filter out the special 'packed' document so it doesn't show up as a tile
                 const tiles = snapshot.docs
                     .filter(doc => doc.id !== 'packed')
@@ -63,21 +63,16 @@ onMount(tilesStore, () => {
             if (cached) tilesStore.set(JSON.parse(cached));
         } catch (e) { console.warn('Error reading tiles cache', e); }
 
-        unsubscribe = fb.onSnapshot(packedDocRef, (doc) => {
+        activeUnsubscribe = fb.onSnapshot(packedDocRef, (doc) => {
             if (doc.exists() && doc.data().tiles) {
                 const tilesData = doc.data().tiles;
                 tilesStore.set(tilesData);
                 localStorage.setItem(cacheKey, JSON.stringify(tilesData));
             } else {
-                console.warn('[tilesStore] Packed tiles not found.');
-                // Fallback: Only fall back to raw collection if we are allowed to see it (Uncensored).
-                if (newMode !== 'public') {
-                    unsubscribe = fb.onSnapshot(fb.collection(db, 'tiles'), (snap) => {
-                        tilesStore.set(snap.docs.filter(d => d.id !== 'packed').map(d => ({...d.data(), docId: d.id})));
-                    });
-                } else {
-                    tilesStore.set([]); // No public data available yet
-                }
+                // NO FALLBACK: If the packed document doesn't exist, it's an explicit state.
+                // The admin needs to publish the board. Reading the raw collection is too expensive for players.
+                console.warn('[tilesStore] Packed tiles document not found. Please use the "Publish Board" button on the Setup page to generate it.');
+                tilesStore.set([]);
             }
         });
     }
@@ -86,7 +81,7 @@ onMount(tilesStore, () => {
     const unsubConfig = configStore.subscribe(handleStateChange);
 
     return () => {
-        if (unsubscribe) unsubscribe();
+        if (activeUnsubscribe) activeUnsubscribe();
         unsubAuth();
         unsubConfig();
     };

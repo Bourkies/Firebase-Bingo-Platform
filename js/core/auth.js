@@ -84,7 +84,7 @@ export async function createUserWithEmail(email, password) {
 
 function listenToUserProfile(uid, initialDisplayName, email) {
     const userDocRef = fb.doc(db, 'users', email);
-    console.log(`[Auth] Setting up profile listener for user.`);
+    console.log(`[Auth] Setting up profile listener for user path: users/${email}`);
 
     unsubscribeUserProfile = fb.onSnapshot(userDocRef, async (docSnap) => {
         const oldTeam = userProfile?.team; // Store the old team before updating

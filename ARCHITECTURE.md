@@ -212,3 +212,27 @@ To minimize Firestore read costs and ensure scalability for 100+ concurrent user
 3.  **Local Storage Caching:**
     *   Used for `tiles`, `teams`, and `config`.
     *   Allows the board and UI to render instantly (0 latency) while the background listener checks for updates.
+
+## 10. Configuration Modes
+
+The platform supports several global configuration modes that alter the behavior and visibility of the board. These are managed in the **Global Config** section of the Setup page.
+
+### Board Visibility (`boardVisibility`)
+*   **Public**: The board is visible to everyone. Users can see all teams and their progress.
+*   **Private**: Users can only see the board and submissions for their *own* team. They cannot see other teams' progress.
+    *   *Note:* Admins and Event Mods **CAN NOT** see other team's progress (they still have access to other teams submissions in the admin page).
+
+### Pre-Event Censorship (`censorTilesBeforeEvent`)
+*   **Enabled**: Hides the `Name` and `Description` of all tiles from non-admin users.
+*   **Behavior**:
+    *   Tiles are displayed with generic text (e.g., "Censored").
+    *   Layout (position, size) is preserved so players can see the board structure.
+    *   Clicking a tile does not open the submission modal.
+*   **Purpose**: Allows admins to publish the board layout and teams before the event starts without revealing the challenges.
+
+### Setup Mode (`setupModeEnabled`)
+*   **Enabled**: Completely hides the board interface from non-admin users.
+*   **Behavior**:
+    *   **Admins/Mods**: See a warning banner ("SETUP MODE IS ON") but can interact with the board normally to test and configure it.
+    *   **Players**: See a "Maintenance / Not Started" message instead of the board.
+*   **Purpose**: For making major changes to the board structure or testing without users seeing broken states.
