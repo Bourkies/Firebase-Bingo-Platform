@@ -171,8 +171,11 @@ export class BingoBoard extends LitElement {
     render() {
         console.log('[BingoBoard] render: Re-rendering board.');
 
-        // NEW: Handle setup mode directly in the component
+        // NEW: Handle setup mode directly in the component. Check authState existence to avoid errors.
         if (this.setupMode && !this.authState?.isEventMod) {
+            // CLEAR STYLES: Ensure no stale image persists
+            this.style.backgroundImage = '';
+            this.style.aspectRatio = '1 / 1';
             return html`<div class="error-message" style="position: static; z-index: 0;">The event has not started or is currently being set up. Please check back later.</div>`;
         }
 
@@ -180,6 +183,9 @@ export class BingoBoard extends LitElement {
         // The component will automatically re-render when the tiles property is updated with new data.
         if (!this.config?.pageTitle) {
             console.log('[BingoBoard] render: No config, rendering empty.');
+            // CLEAR STYLES: Ensure no stale image persists
+            this.style.backgroundImage = '';
+            this.style.aspectRatio = '1 / 1';
             return html``;
         }
 
@@ -187,13 +193,18 @@ export class BingoBoard extends LitElement {
         if (imageUrl) {
             const img = new Image();
             img.onload = () => {
-                this.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-                this.style.backgroundImage = `url('${imageUrl}')`;
+                // GUARD: Only apply if the config still matches this image.
+                // This prevents a race condition where an old image loads after the board has been cleared.
+                if (this.config?.boardImageUrl === imageUrl) {
+                    this.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+                    this.style.backgroundImage = `url('${imageUrl}')`;
+                }
             };
             img.onerror = () => { this.style.aspectRatio = '1 / 1'; };
             img.src = imageUrl;
         } else {
             this.style.aspectRatio = '1 / 1';
+            this.style.backgroundImage = ''; // Clear image if config has none (reverts to CSS default)
         }
 
         return html`

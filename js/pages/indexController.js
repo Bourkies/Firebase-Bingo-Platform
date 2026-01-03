@@ -196,8 +196,13 @@ function renderPage() {
         // Hide the admin warning container in case it was visible
         if (adminWarningContainer) adminWarningContainer.style.display = 'none';
         // NEW: Pass the setupMode flag directly to renderBoard.
-        // This ensures the property is set consistently on every render.
-        renderBoard({ setupMode: true });
+        // UPDATED: Explicitly pass empty config and current authState to clear any stale cached data in the component.
+        if (boardComponent) {
+            boardComponent.config = {}; 
+            boardComponent.authState = authState;
+        }
+        renderBoard({ setupMode: true, config: {}, authState: authState, tiles: [] });
+        
         // Explicitly hide all other interactive elements
         document.getElementById('team-selector').style.display = 'none';
         document.getElementById('tile-search-container').style.display = 'none';
