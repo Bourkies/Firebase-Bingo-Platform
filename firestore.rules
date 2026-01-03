@@ -80,23 +80,9 @@ service cloud.firestore {
     }
 
     match /users/{userEmail} {
-      // Read is allowed if:
-      // 1. You are an admin/mod (can read/list anyone).
-      // 2. You are reading your own profile.
-      // 3. You are reading the profile of a teammate.
-      allow read: if isEventMod() || // Admins/Mods can read anyone.
-                     (isAuth() && request.auth.token.email == userEmail) || // Users can read their own profile (Doc ID is Email).
-                     (isAuth() && getUserData().team != null && getUserData().team == resource.data.team) || // Users can read teammate profiles.
-                     (isAuth() && isCaptainOfTeam(getUserData().team)); // Captains can read any user profile.
-      
-      // FIX: Add a 'list' rule to allow a user to query for their teammates.
-      // This is what allows the `where('team', '==', ...)` query to succeed for non-admins.
-      // A captain can also list users with no team (`team == null`).
-      allow list: if isEventMod() || // Admins/Mods can list anyone.
-                     // A captain can list all users. Write access is still restricted by the update rule.
-                     (isAuth() && isCaptainOfTeam(getUserData().team)) ||
-                     // Any authenticated user can list their own teammates.
-                     (isAuth() && request.query.where.team == getUserData().team);
+      // UPDATED: Allow any authenticated user to read/list user profiles.
+      // This is required for the public scoreboard to resolve player names from UIDs/Emails.
+      allow read: if isAuth();
 
       allow create: if request.auth.token.email == userEmail; // A user can create their own profile on first sign-in.
 

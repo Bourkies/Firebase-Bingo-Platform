@@ -120,7 +120,13 @@ function renderSubmissionsTable() {
 
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
-    const usersById = new Map(allUsers.map(u => [u.uid, u.displayName]));
+    
+    // NEW: Robust user lookup (UID + Email)
+    const usersMap = new Map();
+    allUsers.forEach(u => {
+        if (u.uid) usersMap.set(u.uid, u.displayName);
+        if (u.docId) usersMap.set(u.docId, u.displayName);
+    });
 
     const filteredSubmissions = allSubmissions.filter(sub => {
         if (sub.IsArchived) return false;
@@ -143,7 +149,7 @@ function renderSubmissionsTable() {
             const teamName = (allTeams[sub.Team]?.name || '').toLowerCase();
             
             // NEW: Search through looked-up player names
-            const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || '').join(' ').toLowerCase();
+            const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || '').join(' ').toLowerCase();
             const additionalNames = (sub.AdditionalPlayerNames || '').toLowerCase();
 
             const tileId = (sub.id || '').toLowerCase();
@@ -167,7 +173,7 @@ function renderSubmissionsTable() {
         const timestamp = formatCustomDateTime(date, useUtcTime);
 
         // NEW: Generate player name string from IDs
-        const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
+        const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || `[${String(id).substring(0,5)}]`).join(', ');
         const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
 
 
@@ -223,7 +229,12 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
 
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
-    const usersById = new Map(allUsers.map(u => [u.uid, u.displayName]));
+    
+    const usersMap = new Map();
+    allUsers.forEach(u => {
+        if (u.uid) usersMap.set(u.uid, u.displayName);
+        if (u.docId) usersMap.set(u.docId, u.displayName);
+    });
 
     document.getElementById('modal-submission-id').value = sub.docId;
     const teamName = allTeams[sub.Team]?.name || sub.Team;
@@ -231,7 +242,7 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     document.getElementById('modal-team').textContent = teamName;
 
     // NEW: Generate player name string from IDs
-    const playerNames = (sub.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
+    const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || `[${String(id).substring(0,5)}]`).join(', ');
     const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';

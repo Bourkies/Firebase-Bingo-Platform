@@ -228,8 +228,21 @@ function renderFeed(allUsers, allTeams) {
         const teamColor = teamColorMap[item.teamId] || 'var(--accent-color)';
         div.style.borderLeftColor = teamColor;
         const teamName = allTeams[item.teamId]?.name || item.teamId; 
-        const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
-        const playerNames = (item.playerIds || []).map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`).join(', ');
+        
+        // NEW: Create a robust lookup map that handles both UIDs and Emails (docId)
+        const usersMap = new Map();
+        allUsers.forEach(u => {
+            if (u.uid) usersMap.set(u.uid, u.displayName);
+            if (u.docId) usersMap.set(u.docId, u.displayName);
+            if (u.email) usersMap.set(u.email, u.displayName);
+        });
+
+        const playerNames = (item.playerIds || []).map(id => {
+            if (usersMap.has(id)) return usersMap.get(id);
+            // Fallback: If it's an email, show the username part. Otherwise show truncated ID.
+            const strId = String(id);
+            return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
+        }).join(', ');
         const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
         const tileNameDisplay = item.tileName || '';
 
