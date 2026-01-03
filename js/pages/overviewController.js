@@ -7,7 +7,7 @@ import { authStore } from '../stores/authStore.js';
 import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
 import { tilesStore } from '../stores/tilesStore.js';
-import { submissionsStore, startFeedListener } from '../stores/submissionsStore.js';
+import { startOverviewListener } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
@@ -17,8 +17,10 @@ let teamColorMap = {};
 let myScoreChart = null;
 let fullChartData = [];
 
-// NEW: Local store for the feed (Limited to 50 items)
-const feedStore = atom([]);
+// NEW: Local store for all overview data (Chart + Feed)
+const overviewStore = atom([]);
+let overviewUnsubscribe = null;
+let lastOverviewParams = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('feed-team-filter').addEventListener('change', handleFilterChange);
@@ -31,12 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     configStore.subscribe(onDataChanged);
     teamsStore.subscribe(onDataChanged);
     tilesStore.subscribe(onDataChanged);
-    submissionsStore.subscribe(onDataChanged); // Keep this if you need full scoreboard, but we will use feedStore for feed
-    feedStore.subscribe(onDataChanged);
+    overviewStore.subscribe(onDataChanged);
     usersStore.subscribe(onDataChanged);
-
-    // Start the optimized feed listener
-    startFeedListener(feedStore);
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -49,10 +47,8 @@ function onDataChanged() {
     const allTeams = teamsStore.get();
     const tiles = tilesStore.get();
     
-    // Use the optimized feed store for the feed logic
-    const feedSubmissions = feedStore.get();
-    // For scoreboard, we still fall back to full submissions (or you can switch to server-side scores later)
-    const allSubmissions = submissionsStore.get(); 
+    // Use the unified store for both feed and chart
+    const overviewSubmissions = overviewStore.get();
     const allUsers = usersStore.get();
 
     // NEW: Wait until both config and auth state are definitively loaded.
@@ -60,6 +56,19 @@ function onDataChanged() {
     if (!config.pageTitle || !authState.authChecked) {
         showGlobalLoader();
         return; // Wait for more data
+    }
+
+    // --- Manage Data Subscription ---
+    // Determine what data we need based on visibility settings
+    const isPublic = config.boardVisibility !== 'private';
+    const teamId = authState.profile?.team;
+    
+    // Only restart the listener if the parameters have changed
+    const paramsKey = `${isPublic}-${teamId}`;
+    if (paramsKey !== lastOverviewParams) {
+        if (overviewUnsubscribe) overviewUnsubscribe();
+        overviewUnsubscribe = startOverviewListener(overviewStore, { isPublic, teamId });
+        lastOverviewParams = paramsKey;
     }
 
     // Handle page visibility based on config and auth state
@@ -109,13 +118,13 @@ function onDataChanged() {
     }, {});
     const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
     const allTeamIds = Object.keys(allTeams);
-    const leaderboardData = calculateScoreboardData(allSubmissions, tiles, allTeams, config);
+    const leaderboardData = calculateScoreboardData(overviewSubmissions, tiles, allTeams, config);
 
     // Filter submissions for private boards before processing feed and chart data
     const isPrivate = config.boardVisibility === 'private';
-    let relevantSubmissions = feedSubmissions; // Use the limited feed data
+    let relevantSubmissions = overviewSubmissions; 
     if (isPrivate && authState.isLoggedIn && authState.profile?.team) {
-        relevantSubmissions = feedSubmissions.filter(sub => sub.Team === authState.profile.team);
+        relevantSubmissions = overviewSubmissions.filter(sub => sub.Team === authState.profile.team);
     }
 
     fullFeedData = relevantSubmissions
