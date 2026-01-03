@@ -270,7 +270,6 @@ async function handleAcknowledgeFeedback() {
     };
     await saveSubmission(existingSubmission.docId, dataToUpdate);
     showMessage('Feedback acknowledged. You can now edit and resubmit.', false);    
-    mainController.closeSubmissionModal(); // Use the controller interface to close
 }
 
 async function handleFormSubmit(event) {
