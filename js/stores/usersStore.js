@@ -7,31 +7,48 @@ export const usersStore = atom([]);
 
 onMount(usersStore, () => {
     let unsubscribeFirestore = null;
-    let lastIsEventMod = null; // NEW: Track previous state to prevent redundant reconnects
+    let lastQueryMode = null; // 'all', 'team', or 'none'
+    let lastTeamId = null;
 
     const unsubscribeAuth = authStore.subscribe(authState => {
         const isEventMod = !!authState.isEventMod;
         const isTeamCaptain = !!authState.isTeamCaptain;
-        const shouldListen = isEventMod || isTeamCaptain;
+        const userTeam = authState.profile?.team;
+        const isLoggedIn = authState.isLoggedIn;
 
-        // OPTIMIZATION: If the permission state hasn't changed, do nothing.
-        if (shouldListen === lastIsEventMod) return;
-        lastIsEventMod = shouldListen;
+        let queryMode = 'none';
+        if (isEventMod || isTeamCaptain) {
+            queryMode = 'all';
+        } else if (isLoggedIn && userTeam) {
+            queryMode = 'team';
+        }
+
+        // OPTIMIZATION: If the query parameters haven't changed, do nothing.
+        if (queryMode === lastQueryMode && (queryMode !== 'team' || userTeam === lastTeamId)) {
+            return;
+        }
+        lastQueryMode = queryMode;
+        lastTeamId = userTeam;
 
         if (unsubscribeFirestore) {
             unsubscribeFirestore();
             unsubscribeFirestore = null;
         }
 
-    // Only admins/mods/captains should listen to the full user list.
-    if (!shouldListen) {
-            // console.log('[usersStore] User is not an admin/mod/captain. Not listening to users collection.');
-        usersStore.set([]); // Clear data if permissions are lost
-        return;
-    }
+        if (queryMode === 'none') {
+            usersStore.set([]);
+            return;
+        }
 
-    console.log('[usersStore] User is admin/mod/captain. Listening to users collection.');
-    const usersQuery = fb.collection(db, 'users');
+        console.log(`[usersStore] Listening to users (Mode: ${queryMode}).`);
+        
+        let usersQuery;
+        if (queryMode === 'all') {
+            usersQuery = fb.collection(db, 'users');
+        } else {
+            usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', userTeam));
+        }
+
     unsubscribeFirestore = fb.onSnapshot(usersQuery, (snapshot) => {
         const source = snapshot.metadata.fromCache ? "local cache" : "server";
         console.log(`[usersStore] Users updated from ${source}. Count: ${snapshot.docs.length}`);
