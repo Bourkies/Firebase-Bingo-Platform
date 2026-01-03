@@ -129,6 +129,12 @@
     #submissions-table th { font-weight: bold; }
     #submissions-table tbody tr { cursor: pointer; transition: background-color 0.2s; }
     #submissions-table tbody tr:hover { background-color: var(--hover-bg-color); }
+    /* Sorting Styles */
+    #submissions-table th { cursor: pointer; user-select: none; position: relative; }
+    #submissions-table th:hover { background-color: var(--hover-bg-color); }
+    #submissions-table th::after { content: ''; display: inline-block; margin-left: 5px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; vertical-align: middle; opacity: 0.3; }
+    #submissions-table th.sort-asc::after { border-bottom: 4px solid var(--primary-text); opacity: 1; }
+    #submissions-table th.sort-desc::after { border-top: 4px solid var(--primary-text); opacity: 1; }
     .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
     .status-Verified { background-color: var(--success-color); }
     .status-Submitted { background-color: var(--status-submitted-color); }
@@ -247,7 +253,15 @@
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="submissions-table">
-                        <thead><tr><th>Status</th><th>Tile ID</th><th>Tile</th><th>Team</th><th>Player(s)</th><th>Submitted</th></tr></thead>
+                        <thead><tr>
+                            <th data-column="status">Status</th>
+                            <th data-column="id">Tile ID</th>
+                            <th data-column="tileName">Tile</th>
+                            <th data-column="teamName">Team</th>
+                            <th data-column="playerNames">Player(s)</th>
+                            <th data-column="submitted">Submitted</th>
+                            <th data-column="lastEdited">Last Edited</th>
+                        </tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
