@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
                 currentSort.column = column;
-                currentSort.direction = ['submitted', 'lastEdited'].includes(column) ? 'desc' : 'asc';
+                currentSort.direction = ['created', 'lastEdited'].includes(column) ? 'desc' : 'asc';
             }
             renderSubmissionsTable();
         });
@@ -183,7 +183,7 @@ function renderSubmissionsTable() {
             if (col === 'tileName') return tilesByVisibleId.get(sub.id)?.Name || '';
             if (col === 'teamName') return allTeams[sub.Team]?.name || sub.Team || '';
             if (col === 'playerNames') return (sub.PlayerIDs || []).map(id => usersMap.get(id) || '').join(', ');
-            if (col === 'submitted') return sub.CompletionTimestamp || sub.Timestamp || new Date(0);
+            if (col === 'created') return sub.Timestamp || new Date(0);
             if (col === 'lastEdited') return getLastEdited(sub);
             return '';
         };
@@ -220,7 +220,7 @@ function renderSubmissionsTable() {
         const status = getSubmissionStatus(sub);
         const tileName = tilesByVisibleId.get(sub.id)?.Name || sub.id;
         const teamName = allTeams[sub.Team]?.name || sub.Team;
-        const date = sub.CompletionTimestamp || sub.Timestamp; // Already a Date object
+        const date = sub.Timestamp; // Already a Date object
         const timestamp = formatCustomDateTime(date, useUtcTime);
         const lastEdited = formatCustomDateTime(getLastEdited(sub), useUtcTime);
 
@@ -236,7 +236,7 @@ function renderSubmissionsTable() {
                 <td data-label="Tile" title="${tileName}">${tileName}</td>
                 <td data-label="Team">${teamName}</td>
                 <td data-label="Player(s)" title="${finalPlayerString}">${finalPlayerString}</td>
-                <td data-label="Submitted">${timestamp}</td>
+                <td data-label="Created">${timestamp}</td>
                 <td data-label="Last Edited">${lastEdited}</td>
             </tr>
         `;
