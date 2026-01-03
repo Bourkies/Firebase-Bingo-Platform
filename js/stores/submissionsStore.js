@@ -85,6 +85,41 @@ export function startFeedListener(storeToUpdate) {
 }
 
 /**
+ * Starts a listener for the Overview page.
+ * Optimizes reads by only fetching COMPLETED submissions (ignoring drafts)
+ * and respecting the board visibility setting.
+ * @param {object} storeToUpdate - The Nano Store atom to update.
+ * @param {object} options - { isPublic: boolean, teamId: string }
+ * @returns {function} - Unsubscribe function.
+ */
+export function startOverviewListener(storeToUpdate, { isPublic, teamId }) {
+    let q;
+    const collectionRef = fb.collection(db, 'submissions');
+
+    if (!isPublic) {
+        // Private Board: Load only the user's team (Admins see as player)
+        if (!teamId) {
+            storeToUpdate.set([]);
+            return () => {};
+        }
+        q = fb.query(collectionRef, fb.where('Team', '==', teamId));
+    } else {
+        // Public Board: Load all COMPLETED submissions.
+        // Optimization: We filter 'IsComplete == true' to avoid reading drafts.
+        // We do NOT limit the count because the Chart/Leaderboard need full history.
+        q = fb.query(collectionRef, fb.where('IsComplete', '==', true));
+    }
+
+    return fb.onSnapshot(q, (snapshot) => {
+        const subs = snapshot.docs.map(doc => processSubmissionDoc(doc));
+        storeToUpdate.set(subs);
+    }, (error) => {
+        console.error("[SubmissionsStore] Error in overview listener:", error);
+        storeToUpdate.set([]);
+    });
+}
+
+/**
  * Saves or creates a submission. Handles both new drafts and updates.
  * @param {string|null} docId - The document ID to update, or null to create a new one.
  * @param {object} data - The submission data to save. 

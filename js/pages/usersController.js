@@ -306,6 +306,15 @@ async function handleTeamDetailsChange(event) {
         return;
     }
 
+    // Check for duplicate name (excluding current team)
+    const allTeams = teamsStore.get();
+    const nameExists = Object.values(allTeams).some(t => t.id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
+    if (nameExists) {
+        showMessage('Team name must be unique.', true);
+        event.target.value = allTeams[teamId].name; // Revert input
+        return;
+    }
+
     showGlobalLoader();
     try {
         await updateTeam(teamId, { name: newName, captainId: newCaptainId });
@@ -326,6 +335,15 @@ async function handleTeamManagementClick(event) {
         if (newName && newName.trim()) {
             showGlobalLoader();
             const allTeams = teamsStore.get();
+            
+            // Check for duplicate name
+            const nameExists = Object.values(allTeams).some(t => t.name.toLowerCase() === newName.trim().toLowerCase());
+            if (nameExists) {
+                hideGlobalLoader();
+                showMessage('Team name must be unique.', true);
+                return;
+            }
+
             const teamIds = Object.keys(allTeams);
 
             // Find the highest existing team number from IDs like "team01", "team02", etc.

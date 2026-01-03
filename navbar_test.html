@@ -124,8 +124,8 @@
         // This page is now a consumer of the global stores initialized by the navbar.
         // Its only job is to subscribe to those stores and render the data it receives.
 
-        import { initializeApp } from './js/app-init.js';
-        initializeApp();
+        import { initAuth } from './js/core/auth.js';
+        initAuth();
 
         import './js/components/Navbar.js';
         // NEW: Import the stores we want to listen to.

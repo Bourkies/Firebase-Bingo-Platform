@@ -7,35 +7,57 @@ export const usersStore = atom([]);
 
 onMount(usersStore, () => {
     let unsubscribeFirestore = null;
-    let lastIsEventMod = null; // NEW: Track previous state to prevent redundant reconnects
+    let lastQueryMode = null; // 'all', 'team', or 'none'
+    let lastTeamId = null;
 
     const unsubscribeAuth = authStore.subscribe(authState => {
         const isEventMod = !!authState.isEventMod;
+        const isTeamCaptain = !!authState.isTeamCaptain;
+        const userTeam = authState.profile?.team;
+        const isLoggedIn = authState.isLoggedIn;
 
-        // OPTIMIZATION: If the permission state hasn't changed, do nothing.
-        if (isEventMod === lastIsEventMod) return;
-        lastIsEventMod = isEventMod;
+        // NEW: Allow loading all users on the public overview page so names resolve correctly
+        const isOverviewPage = window.location.pathname.toLowerCase().includes('overview');
+
+        let queryMode = 'none';
+        if (isEventMod || isTeamCaptain || isOverviewPage) {
+            queryMode = 'all';
+        } else if (isLoggedIn && userTeam) {
+            queryMode = 'team';
+        }
+
+        // OPTIMIZATION: If the query parameters haven't changed, do nothing.
+        if (queryMode === lastQueryMode && (queryMode !== 'team' || userTeam === lastTeamId)) {
+            return;
+        }
+        lastQueryMode = queryMode;
+        lastTeamId = userTeam;
 
         if (unsubscribeFirestore) {
             unsubscribeFirestore();
             unsubscribeFirestore = null;
         }
 
-    // Only admins/mods should listen to the full user list.
-    if (!isEventMod) {
-            // console.log('[usersStore] User is not an admin/mod. Not listening to users collection.');
-        usersStore.set([]); // Clear data if permissions are lost
-        return;
-    }
+        if (queryMode === 'none') {
+            usersStore.set([]);
+            return;
+        }
 
-    console.log('[usersStore] User is admin/mod. Listening to users collection.');
-    const usersQuery = fb.collection(db, 'users');
+        console.log(`[usersStore] Listening to users (Mode: ${queryMode}).`);
+        
+        let usersQuery;
+        if (queryMode === 'all') {
+            usersQuery = fb.collection(db, 'users');
+        } else {
+            usersQuery = fb.query(fb.collection(db, 'users'), fb.where('team', '==', userTeam));
+        }
+
     unsubscribeFirestore = fb.onSnapshot(usersQuery, (snapshot) => {
         const source = snapshot.metadata.fromCache ? "local cache" : "server";
         console.log(`[usersStore] Users updated from ${source}. Count: ${snapshot.docs.length}`);
         const users = snapshot.docs.map(doc => ({
             ...doc.data(),
-            uid: doc.id
+            docId: doc.id
         }));
         usersStore.set(users);
     }, (error) => {
@@ -55,15 +77,15 @@ onMount(usersStore, () => {
 
 /**
  * Updates a specific user document in Firestore.
- * @param {string} uid - The ID of the user to update.
+ * @param {string} docId - The Document ID (Email) of the user to update.
  * @param {object} data - An object containing the fields to update.
  * @returns {Promise<void>}
  */
-export async function updateUser(uid, data) {
-    if (!uid) {
-        throw new Error("User ID is required to update a user.");
+export async function updateUser(docId, data) {
+    if (!docId) {
+        throw new Error("User Document ID is required to update a user.");
     }
-    const userRef = fb.doc(db, 'users', uid);
+    const userRef = fb.doc(db, 'users', docId);
     return fb.updateDoc(userRef, data);
 }
 

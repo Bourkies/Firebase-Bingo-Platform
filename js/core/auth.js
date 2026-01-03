@@ -14,16 +14,21 @@ let authChangeListeners = [];
 let authStateHasBeenChecked = false;
 
 export function initAuth(callback) {
-    if (!authChangeListeners.includes(callback)) {
+    if (callback && !authChangeListeners.includes(callback)) {
         authChangeListeners.push(callback);
     }
     // If auth is already initialized, immediately call back with the current state.
     if (isAuthInitialized) {
-        callback(getAuthState());
+        if (callback) callback(getAuthState());
         return;
     }
     isAuthInitialized = true;
 
+
+    // Subscribe to teamsStore to ensure auth state (captaincy) updates when teams load
+    teamsStore.subscribe(() => {
+        if (currentUser) notifyListeners();
+    });
 
     fb.onAuthStateChanged(auth, async (user) => {
         // Clean up any existing profile listener when auth state changes
@@ -192,13 +197,24 @@ export function getAuthState() {
 
     const newTeam = fullProfile?.team;
 
+    // Calculate captain status dynamically
+    const allTeams = teamsStore.get() || {};
+    let isTeamCaptain = false;
+    if (fullProfile && fullProfile.team && allTeams[fullProfile.team]) {
+        const team = allTeams[fullProfile.team];
+        // Check both UID and Email to handle potential schema inconsistencies
+        if (team.captainId === fullProfile.uid || team.captainId === fullProfile.email) {
+            isTeamCaptain = true;
+        }
+    }
+
     return {
         isLoggedIn: isLoggedIn,
         user: currentUser,
         profile: fullProfile,
         isAdmin: fullProfile?.isAdmin === true,
         isEventMod: fullProfile?.isAdmin === true || fullProfile?.isEventMod === true,
-        isTeamCaptain: currentStoreState.isTeamCaptain, // The value is now derived in app-init.js
+        isTeamCaptain: isTeamCaptain,
         teamChanged: oldTeam !== undefined && oldTeam !== newTeam,
         authChecked: authStateHasBeenChecked // NEW: Signal that the initial auth check is done.
     };

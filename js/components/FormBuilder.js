@@ -111,6 +111,7 @@ function createField(key, schema, value, options = {}) { // This is now a Lit te
                             step=${schema.step}
                             data-key=${key}
                             data-status=${status}
+                            data-unit=${schema.unit}
                             style="width: 70px;"
                         >
                     </div>

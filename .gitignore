@@ -24,8 +24,8 @@ tools/homie_hunt_creator/output/*
 !tools/homie_hunt_creator/HHC_config.example.json
 
 # Local Development / Seeds
-dev/seed.html
-dev/seedController.js
+# dev/seed.html
+# dev/seedController.js
 
 
 # Logs

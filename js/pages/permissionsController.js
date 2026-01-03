@@ -127,8 +127,8 @@ function renderUserManagement() {
                 <td data-label="Display Name">${user.displayName || ''}</td>
                 <td data-label="Login Name">${loginName}</td>
                 <td data-label="Team">${teamName}</td>
-                <td data-label="Is Mod"><input type="checkbox" class="user-field mod-checkbox" data-uid="${user.uid}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
-                <td data-label="Is Admin" ${adminTooltip}><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
+                <td data-label="Is Mod"><input type="checkbox" class="user-field mod-checkbox" data-doc-id="${user.docId}" data-field="isEventMod" ${user.isEventMod ? 'checked' : ''} ${!canEditRoles || isModLockedByAdmin ? 'disabled' : ''}></td>
+                <td data-label="Is Admin" ${adminTooltip}><input type="checkbox" class="user-field" data-doc-id="${user.docId}" data-field="isAdmin" ${user.isAdmin ? 'checked' : ''} ${!canEditAdmin ? 'disabled' : ''}></td>
             </tr>`;
     }).join('');
 
@@ -148,11 +148,12 @@ function renderUserManagement() {
 async function handleUserFieldChange(e) {
     if (e.target.disabled) return;
 
-    const uid = e.target.dataset.uid;
+    const docId = e.target.dataset.docId;
     const field = e.target.dataset.field;
     const value = e.target.checked;
     const dataToUpdate = { [field]: value };    
-    const user = allUsers.find(u => u.uid === uid);
+    const allUsers = usersStore.get();
+    const user = allUsers.find(u => u.docId === docId);
 
     // NEW: If making a user an admin, also make them a mod.
     if (field === 'isAdmin' && value) {
@@ -167,13 +168,13 @@ async function handleUserFieldChange(e) {
 
     try {
         showGlobalLoader();
-        await updateUser(uid, dataToUpdate);
+        await updateUser(docId, dataToUpdate);
         const role = field === 'isAdmin' ? 'Admin' : 'Event Mod';
         const action = value ? 'granted' : 'revoked';
         showMessage(`${role} role ${action} for ${user.displayName}.`, false);
         // The real-time store listener will handle the UI re-render.
     } catch (error) {
-        console.error(`Failed to update user ${uid}:`, error);
+        console.error(`Failed to update user ${docId}:`, error);
         alert(`Update failed: ${error.message}`);
         // Revert the checkbox on failure
         e.target.checked = !value;
