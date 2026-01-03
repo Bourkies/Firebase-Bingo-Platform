@@ -36,6 +36,7 @@
     <h1>Emulator Data Seeder</h1>
     <p class="warning">⚠️ <strong>WARNING:</strong> This tool modifies the connected database directly.<br>If used in production, it will overwrite live data.</p>
     <div id="admin-warning" style="display:none; color: #ff4444; font-weight: bold; text-align: center; margin-bottom: 1rem; padding: 1rem; border: 1px solid #ff4444; background: rgba(255, 68, 68, 0.1); border-radius: 8px;">⛔ ACCESS DENIED: You must be an Admin to use this tool.</div>
+    <div id="config-warning" style="display:none; color: #ffa500; font-weight: bold; text-align: center; margin-bottom: 1rem; padding: 1rem; border: 1px solid #ffa500; background: rgba(255, 165, 0, 0.1); border-radius: 8px;"></div>
     
     <div class="stats">
         <div class="stat-item"><span id="count-teams" class="stat-value">-</span><span id="seed-teams-count" class="stat-sub">(- seed)</span><span>Teams</span></div>
@@ -83,6 +84,7 @@
         import '../js/components/Navbar.js';
         import { seedTeams, seedUsers, seedSubmissions, deleteSeedTeams, deleteSeedUsers, deleteSeedSubmissions, getCounts, forceDebugSubmission, getExistingTeams } from '../dev/seedController.js';
         import { authStore } from '../js/stores/authStore.js';
+        import { configStore } from '../js/stores/configStore.js';
         
         let dataLoaded = false;
 
@@ -105,6 +107,23 @@
                     refreshStats(); // Refresh stats now that we know user is an admin
                     loadTeams(); // Load teams now that we know user is an admin
                 }
+            }
+        });
+
+        // Listen for config changes to warn about Setup Mode / Censorship
+        configStore.subscribe(state => {
+            const { config } = state;
+            const warningEl = document.getElementById('config-warning');
+            const warnings = [];
+            
+            if (config.setupModeEnabled) warnings.push("⚠️ Setup Mode is ENABLED (Simulated users may be blocked from writing)");
+            if (config.censorTilesBeforeEvent) warnings.push("⚠️ Pre-Event Censorship is ENABLED (Tiles may be hidden in UI)");
+            
+            if (warnings.length > 0) {
+                warningEl.style.display = 'block';
+                warningEl.innerHTML = `<strong>Configuration Notice:</strong><br>${warnings.join('<br>')}`;
+            } else {
+                warningEl.style.display = 'none';
             }
         });
 

@@ -3,6 +3,7 @@ import { authStore } from '../js/stores/authStore.js';
 // Import Firebase App and Auth directly to create a secondary instance
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, connectAuthEmulator, signInWithEmailAndPassword, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, connectFirestoreEmulator, writeBatch, doc, collection, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const SEED_DEFINITIONS = [
     { suffix: 'Red' },
@@ -259,13 +260,31 @@ export async function seedSubmissions(log) {
 
     log("--- Seeding Submissions ---");
     
-    // We need tiles to reference
-    const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
-    if (tilesSnap.empty) {
+    // We need tiles to reference. Try reading from packed document first (more efficient).
+    let tiles = [];
+    try {
+        const packedDoc = await fb.getDoc(fb.doc(db, 'tiles', 'packed'));
+        if (packedDoc.exists() && packedDoc.data().tiles) {
+            tiles = packedDoc.data().tiles;
+            log(`Loaded ${tiles.length} tiles from 'tiles/packed'.`);
+        }
+    } catch (e) {
+        log(`Warning: Could not read 'tiles/packed' (${e.message}).`);
+    }
+
+    // Fallback to individual documents if packed list is missing
+    if (tiles.length === 0) {
+        log("Packed tiles empty or missing. Falling back to individual documents...");
+        const tilesSnap = await fb.getDocs(fb.collection(db, 'tiles'));
+        tiles = tilesSnap.docs.filter(d => d.id !== 'packed').map(d => d.data());
+    }
+
+    tiles = tiles.filter(t => t.id); // Ensure valid ID
+
+    if (tiles.length === 0) {
         log("ERROR: No tiles found. Please Import Tiles via the Setup page first.");
         return;
     }
-    const tiles = tilesSnap.docs.map(d => d.data());
 
     // We need users to reference
     const usersSnap = await fb.getDocs(fb.collection(db, 'users'));
@@ -279,174 +298,171 @@ export async function seedSubmissions(log) {
         return;
     }
 
-    // Get existing submissions to avoid duplicates
+    // Fetch Existing Submissions (to avoid duplicates)
     const existingSubsSnap = await fb.getDocs(fb.collection(db, 'submissions'));
-    const existingKeys = new Set(existingSubsSnap.docs.map(d => `${d.data().Team}_${d.data().id}`));
-
-    // Identify seed teams to limit seeding scope
-    const seedTeamIds = new Set(seedPlayers.map(u => u.team));
-
-    // Track completed tiles per team in memory for prerequisite checking
-    const teamCompletedTiles = {}; 
+    // Map: TeamID -> Set(TileIDs)
+    const existingTeamTiles = {};
     existingSubsSnap.docs.forEach(d => {
         const data = d.data();
-        if (data.IsComplete && seedTeamIds.has(data.Team)) {
-            if (!teamCompletedTiles[data.Team]) teamCompletedTiles[data.Team] = new Set();
-            teamCompletedTiles[data.Team].add(data.id);
-        }
+        if (!existingTeamTiles[data.Team]) existingTeamTiles[data.Team] = new Set();
+        existingTeamTiles[data.Team].add(data.id);
     });
 
-    // Calculate Limits
+    // Group seed players by team
+    const seedUsersByTeam = {};
+    seedPlayers.forEach(u => {
+        if (!seedUsersByTeam[u.team]) seedUsersByTeam[u.team] = [];
+        seedUsersByTeam[u.team].push(u);
+    });
+
     const totalTiles = tiles.length;
     const maxPerTeam = Math.floor(totalTiles * 0.8); // 80% cap
     log(`Seeding Logic: Max ${maxPerTeam} submissions per team (80% of ${totalTiles} tiles).`);
-
-    const batchSize = 400;
-    let batch = fb.writeBatch(db);
-    let count = 0;
-    let total = 0;
 
     // Helper to check prerequisites
     const isTileUnlocked = (tile, completedSet) => {
         if (!tile.Prerequisites) return true;
         let prereqs = [];
         try {
-            // Handle JSON or CSV
             if (tile.Prerequisites.trim().startsWith('[')) {
                 prereqs = JSON.parse(tile.Prerequisites);
             } else {
                 prereqs = tile.Prerequisites.split(',').map(s => s.trim()).filter(s => s);
-                if (prereqs.length > 0) prereqs = [prereqs]; // Convert CSV to single group
+                if (prereqs.length > 0) prereqs = [prereqs];
             }
-        } catch (e) { return true; } // Fail open if parse error
+        } catch (e) { return true; }
 
         if (!Array.isArray(prereqs) || prereqs.length === 0) return true;
-
-        // Check if ANY group is satisfied (OR logic)
-        return prereqs.some(group => {
-            // Check if ALL items in group are satisfied (AND logic)
-            return group.every(reqId => completedSet && completedSet.has(reqId));
-        });
+        return prereqs.some(group => group.every(reqId => completedSet && completedSet.has(reqId)));
     };
 
-    // Simulation Loop: Run multiple passes to allow prerequisite chains to fill
-    // We iterate until we can't add more or hit a safety limit
-    let madeProgress = true;
-    let round = 0;
-
-    while (madeProgress && round < 10) {
-        madeProgress = false;
-        round++;
-        log(`--- Simulation Round ${round + 1} ---`);
+    // Process each team
+    for (const [teamId, teamUsers] of Object.entries(seedUsersByTeam)) {
+        log(`Processing Team: ${teamId} (${teamUsers.length} players)...`);
         
-        // Shuffle players to distribute submissions randomly
-        const shuffledPlayers = [...seedPlayers].sort(() => Math.random() - 0.5);
+        const actor = teamUsers[0];
+        const appName = `SeedSub_${teamId}_${Date.now()}`;
+        const secondaryApp = initializeApp(auth.app.options, appName);
+        const secondaryAuth = getAuth(secondaryApp);
+        const secondaryDb = getFirestore(secondaryApp);
 
-        for (const user of shuffledPlayers) {
-            const teamId = user.team;
-            const completedSet = teamCompletedTiles[teamId] || new Set();
-
-            // Check 80% cap
-            if (completedSet.size >= maxPerTeam) continue;
-
-            // Find unlocked candidates
-            const candidates = tiles.filter(t => 
-                !existingKeys.has(`${teamId}_${t.id}`) && isTileUnlocked(t, completedSet)
-            );
-
-            if (candidates.length === 0) continue;
-            const tile = candidates[Math.floor(Math.random() * candidates.length)];
-
-            existingKeys.add(`${teamId}_${tile.id}`);
-            madeProgress = true; // We added something, so another round might unlock more
-
-        // Determine State
-        const rand = Math.random();
-        let state = 'draft';
-        if (rand > 0.8) state = 'verified';
-        else if (rand > 0.6) state = 'flagged';
-        else if (rand > 0.3) state = 'submitted';
-        
-        const isComplete = state !== 'draft';
-        const isAdminVerified = state === 'verified';
-        const requiresAction = state === 'flagged';
-
-        // Update memory for next iteration
-        if (isComplete) {
-            if (!teamCompletedTiles[teamId]) teamCompletedTiles[teamId] = new Set();
-            teamCompletedTiles[teamId].add(tile.id);
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            connectAuthEmulator(secondaryAuth, "http://127.0.0.1:9099", { disableWarnings: true });
+            connectFirestoreEmulator(secondaryDb, '127.0.0.1', 8080);
         }
 
-        // Generate History
-        const history = [];
-        const timestamp = fb.Timestamp.now();
-        
-        // 1. Initial Submission
-        history.push({
-            timestamp: timestamp,
-            user: { uid: user.uid, name: user.displayName },
-            action: state === 'draft' ? 'Create Draft' : 'Create Submission',
-            changes: [{ field: 'IsComplete', from: false, to: isComplete }]
-        });
+        try {
+            await signInWithEmailAndPassword(secondaryAuth, actor.email, 'password123');
+            
+            const completedSet = existingTeamTiles[teamId] || new Set();
+            let batch = writeBatch(secondaryDb);
+            let batchCount = 0;
+            let totalCreated = 0;
+            let round = 0;
+            let madeProgress = true;
 
-        // 2. Admin Action (if applicable)
-        let adminFeedback = '';
-        if (state === 'flagged') {
-            adminFeedback = "Screenshot is blurry. Please re-upload.";
-            history.push({
-                timestamp: timestamp,
-                user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                action: 'Flag Submission',
-                changes: [{ field: 'RequiresAction', from: false, to: true }]
-            });
-        } else if (state === 'verified') {
-            history.push({
-                timestamp: timestamp,
-                user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                action: 'Verify Submission',
-                changes: [{ field: 'AdminVerified', from: false, to: true }]
-            });
-        }
-        
-        // Generate Evidence (1 or 2 items)
-        const evidenceCount = Math.random() > 0.8 ? 2 : 1;
-        const evidence = [];
-        for(let k=0; k<evidenceCount; k++) {
-            evidence.push({ link: 'https://via.placeholder.com/150', name: `Seed Proof ${k+1}` });
-        }
+            while (madeProgress && round < 10) {
+                madeProgress = false;
+                round++;
+                
+                const shuffledUsers = [...teamUsers].sort(() => Math.random() - 0.5);
 
-        const subData = {
-            id: tile.id, // The tile ID (e.g., "A1")
-            Team: user.team,
-            PlayerIDs: [user.uid],
-            AdditionalPlayerNames: '',
-            Evidence: JSON.stringify(evidence),
-            Notes: `Seeded submission (${state})`,
-            IsComplete: isComplete,
-            AdminVerified: isAdminVerified,
-            RequiresAction: requiresAction,
-            AdminFeedback: adminFeedback,
-            IsArchived: false,
-            Timestamp: timestamp,
-            CompletionTimestamp: isComplete ? timestamp : null,
-            history: history
-        };
+                for (const user of shuffledUsers) {
+                    if (completedSet.size >= maxPerTeam) break;
 
-        const ref = fb.doc(fb.collection(db, 'submissions'));
-        batch.set(ref, subData);
+                    const candidates = tiles.filter(t => 
+                        !completedSet.has(t.id) && isTileUnlocked(t, completedSet)
+                    );
 
-        count++;
-        total++;
-        if (count >= batchSize) {
-            await batch.commit();
-            batch = fb.writeBatch(db);
-            count = 0;
-            log(`Committed ${total} submissions...`);
+                    if (candidates.length === 0) continue;
+                    
+                    const tile = candidates[Math.floor(Math.random() * candidates.length)];
+                    
+                    completedSet.add(tile.id);
+                    madeProgress = true;
+
+                    // Generate Data
+                    const rand = Math.random();
+                    let state = 'draft';
+                    if (rand > 0.8) state = 'verified';
+                    else if (rand > 0.6) state = 'flagged';
+                    else if (rand > 0.3) state = 'submitted';
+                    
+                    const isComplete = state !== 'draft';
+                    const isAdminVerified = state === 'verified';
+                    const requiresAction = state === 'flagged';
+                    let adminFeedback = state === 'flagged' ? "Screenshot is blurry. Please re-upload." : '';
+
+                    const timestamp = Timestamp.now();
+                    const history = [{
+                        timestamp: timestamp,
+                        user: { uid: user.uid, name: user.displayName },
+                        action: state === 'draft' ? 'Create Draft' : 'Create Submission',
+                        changes: [{ field: 'IsComplete', from: false, to: isComplete }]
+                    }];
+
+                    if (state === 'flagged') {
+                        history.push({
+                            timestamp: timestamp,
+                            user: { uid: 'admin_bot', name: 'AutoAdmin' },
+                            action: 'Flag Submission',
+                            changes: [{ field: 'RequiresAction', from: false, to: true }]
+                        });
+                    } else if (state === 'verified') {
+                        history.push({
+                            timestamp: timestamp,
+                            user: { uid: 'admin_bot', name: 'AutoAdmin' },
+                            action: 'Verify Submission',
+                            changes: [{ field: 'AdminVerified', from: false, to: true }]
+                        });
+                    }
+                    
+                    const evidenceCount = Math.random() > 0.8 ? 2 : 1;
+                    const evidence = [];
+                    for(let k=0; k<evidenceCount; k++) {
+                        evidence.push({ link: 'https://via.placeholder.com/150', name: `Seed Proof ${k+1}` });
+                    }
+
+                    const subData = {
+                        id: tile.id,
+                        Team: teamId,
+                        PlayerIDs: [user.uid],
+                        AdditionalPlayerNames: '',
+                        Evidence: JSON.stringify(evidence),
+                        Notes: `Seeded submission (${state})`,
+                        IsComplete: isComplete,
+                        AdminVerified: isAdminVerified,
+                        RequiresAction: requiresAction,
+                        AdminFeedback: adminFeedback,
+                        IsArchived: false,
+                        Timestamp: timestamp,
+                        CompletionTimestamp: isComplete ? timestamp : null,
+                        history: history
+                    };
+
+                    const ref = doc(collection(secondaryDb, 'submissions'));
+                    batch.set(ref, subData);
+                    batchCount++;
+                    totalCreated++;
+
+                    if (batchCount >= 400) {
+                        await batch.commit();
+                        batch = writeBatch(secondaryDb);
+                        batchCount = 0;
+                    }
+                }
             }
+            if (batchCount > 0) await batch.commit();
+            log(`  > Created ${totalCreated} submissions for ${teamId}.`);
+
+        } catch (e) {
+            log(`  > ERROR seeding ${teamId}: ${e.message}`);
+            console.error(e);
+        } finally {
+            await deleteApp(secondaryApp);
         }
     }
-    if (count > 0) await batch.commit();
-    log(`Done! Created ${total} submissions.`);
+    log("Submission seeding complete.");
 }
 
 export async function getCounts() {
