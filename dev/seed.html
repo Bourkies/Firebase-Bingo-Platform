@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emulator Data Seeder</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "nanostores": "https://esm.sh/nanostores",
+            "lit": "https://esm.sh/lit",
+            "lit/": "https://esm.sh/lit/",
+            "lit-html/": "https://esm.sh/lit-html/"
+        }
+    }
+    </script>
+    <script src="../js/theme-loader.js"></script>
+    <link rel="stylesheet" href="../css/theme.css">
+    <style>
+        body { padding: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; background-color: var(--bg-color); color: var(--primary-text); }
+        button { padding: 1rem 2rem; font-size: 1.2rem; cursor: pointer; background: var(--accent-color); color: white; border: none; border-radius: 4px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #log { width: 100%; max-width: 800px; height: 400px; overflow-y: auto; background: #111; color: #0f0; font-family: monospace; padding: 1rem; border-radius: 8px; }
+        .warning { color: #ff4444; font-weight: bold; border: 1px solid #ff4444; padding: 1rem; border-radius: 8px; background: rgba(255, 68, 68, 0.1); }
+        .stats { display: flex; gap: 2rem; margin-bottom: 1rem; font-family: monospace; font-size: 1.1rem; }
+        .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: var(--accent-color); }
+        .stat-sub { font-size: 0.9rem; color: #888; }
+        .config-section { background: var(--surface-color); padding: 1rem; border-radius: 8px; width: 100%; max-width: 800px; margin-bottom: 1rem; border: 1px solid var(--border-color); }
+        .team-list { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+        .team-checkbox { display: flex; align-items: center; gap: 0.5rem; background: var(--bg-color); padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+    <app-navbar></app-navbar>
+    <h1>Emulator Data Seeder</h1>
+    <p class="warning">⚠️ <strong>WARNING:</strong> This tool modifies the connected database directly.<br>If used in production, it will overwrite live data.</p>
+    <div id="admin-warning" style="display:none; color: #ff4444; font-weight: bold; text-align: center; margin-bottom: 1rem; padding: 1rem; border: 1px solid #ff4444; background: rgba(255, 68, 68, 0.1); border-radius: 8px;">⛔ ACCESS DENIED: You must be an Admin to use this tool.</div>
+    
+    <div class="stats">
+        <div class="stat-item"><span id="count-teams" class="stat-value">-</span><span id="seed-teams-count" class="stat-sub">(- seed)</span><span>Teams</span></div>
+        <div class="stat-item"><span id="count-users" class="stat-value">-</span><span id="seed-users-count" class="stat-sub">(- seed)</span><span>Users</span></div>
+        <div class="stat-item"><span id="count-subs" class="stat-value">-</span><span id="seed-subs-count" class="stat-sub">(- seed)</span><span>Submissions</span></div>
+        <div class="stat-item"><span id="count-tiles" class="stat-value">-</span><span>Tiles</span></div>
+    </div>
+
+    <div class="config-section">
+        <h3>User Seeding Config</h3>
+        <label>Default Password: <input type="text" id="seed-password" value="password123" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #555; background: #222; color: white;"></label>
+        <div style="margin-top: 1rem;"><strong>Select Teams for New Users:</strong></div>
+        <div id="team-checkboxes" class="team-list">
+            Loading teams...
+        </div>
+        <button id="refresh-teams-btn" style="font-size: 0.8rem; padding: 0.5rem;">Refresh Team List</button>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <button id="seed-teams-btn">1. Seed Default Teams</button>
+        <button id="seed-users-btn">2. Seed 50 Users</button>
+        <button id="seed-submissions-btn">3. Seed Submissions (Auto)</button>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button id="del-teams-btn" style="background-color: #d32f2f; font-size: 1rem;">Delete Seed Teams</button>
+        <button id="del-users-btn" style="background-color: #d32f2f; font-size: 1rem;">Delete Seed Users</button>
+        <button id="del-subs-btn" style="background-color: #d32f2f; font-size: 1rem;">Delete Seed Subs</button>
+    </div>
+    
+    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #333; display: flex; gap: 10px; align-items: center;">
+        <label>Debug Single Submission:</label>
+        <input type="text" id="debug-team-id" placeholder="Team ID (e.g. team_red)" style="padding: 0.5rem;">
+        <input type="text" id="debug-tile-id" placeholder="Tile ID (e.g. A1)" style="padding: 0.5rem;">
+        <button id="seed-debug-btn" style="font-size: 1rem; padding: 0.5rem 1rem; background-color: #444;">Force Create</button>
+    </div>
+
+    <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 800px;">
+        <span style="font-weight: bold; color: #888;">Console Output:</span>
+        <label style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--primary-text);"><input type="checkbox" id="debug-mode"> Verbose Logging</label>
+    </div>
+    <div id="log">Waiting for action...</div>
+
+    <script type="module">
+        import '../js/components/Navbar.js';
+        import { seedTeams, seedUsers, seedSubmissions, deleteSeedTeams, deleteSeedUsers, deleteSeedSubmissions, getCounts, forceDebugSubmission, getExistingTeams } from '../dev/seedController.js';
+        import { authStore } from '../js/stores/authStore.js';
+        
+        let dataLoaded = false;
+
+        // Listen for auth changes to enable/disable UI
+        authStore.subscribe(state => {
+            const warning = document.getElementById('admin-warning');
+            const buttons = document.querySelectorAll('button'); // Selects all buttons in main DOM
+            
+            // Disable buttons if auth is loading OR if user is not admin
+            if (!state.authChecked || !state.isAdmin) {
+                buttons.forEach(b => b.disabled = true);
+                if (state.authChecked) warning.style.display = 'block'; // Only show warning after check completes
+                dataLoaded = false; // Reset if user logs out or loses admin
+            } else {
+                warning.style.display = 'none';
+                buttons.forEach(b => b.disabled = false);
+                
+                if (!dataLoaded) {
+                    dataLoaded = true;
+                    refreshStats(); // Refresh stats now that we know user is an admin
+                    loadTeams(); // Load teams now that we know user is an admin
+                }
+            }
+        });
+
+        async function refreshStats() {
+            const counts = await getCounts();
+            document.getElementById('count-teams').textContent = counts.teams;
+            document.getElementById('seed-teams-count').textContent = `(${counts.seedTeams} seed)`;
+            document.getElementById('count-users').textContent = counts.users;
+            document.getElementById('seed-users-count').textContent = `(${counts.seedUsers} seed)`;
+            document.getElementById('count-subs').textContent = counts.submissions;
+            document.getElementById('seed-subs-count').textContent = `(${counts.seedSubmissions} seed)`;
+            document.getElementById('count-tiles').textContent = counts.tiles;
+        }
+
+        async function loadTeams() {
+            const container = document.getElementById('team-checkboxes');
+            try {
+                const teams = await getExistingTeams();
+                if (teams.length === 0) {
+                    container.innerHTML = '<span style="color: orange;">No teams found. Run "Seed Teams" first.</span>';
+                    return;
+                }
+                container.innerHTML = teams.map(t => {
+                    const isSeed = t.name.startsWith('seed_');
+                    return `
+                    <label class="team-checkbox">
+                        <input type="checkbox" class="team-select" value="${t.id}" ${isSeed ? 'checked' : ''}>
+                        <span style="color: ${t.color}">${t.name}</span>
+                    </label>
+                `}).join('');
+            } catch (e) {
+                container.textContent = "Error loading teams.";
+            }
+        }
+
+        document.getElementById('refresh-teams-btn').onclick = loadTeams;
+
+        document.getElementById('seed-teams-btn').onclick = async () => {
+            if(!confirm("Generate default seed teams? This will add missing teams and preserve existing ones.")) return;
+            await seedTeams(log);
+            refreshStats();
+            loadTeams();
+        };
+        document.getElementById('seed-users-btn').onclick = async () => {
+            const password = document.getElementById('seed-password').value;
+            const selectedTeams = Array.from(document.querySelectorAll('.team-select:checked')).map(cb => cb.value);
+            const verbose = document.getElementById('debug-mode').checked;
+            
+            if(!confirm(`Create 50 seed users with password "${password}"?`)) return;
+            await seedUsers(log, selectedTeams, password, verbose);
+            refreshStats();
+        };
+        document.getElementById('seed-submissions-btn').onclick = async () => {
+            if(!confirm("Generate random submissions? This will fill up to 80% of the board for seed teams.")) return;
+            await seedSubmissions(log);
+            refreshStats();
+        };
+        document.getElementById('del-teams-btn').onclick = async () => {
+            await deleteSeedTeams(log);
+            refreshStats();
+            loadTeams();
+        };
+        document.getElementById('del-users-btn').onclick = async () => {
+            await deleteSeedUsers(log);
+            refreshStats();
+        };
+        document.getElementById('del-subs-btn').onclick = async () => {
+            await deleteSeedSubmissions(log);
+            refreshStats();
+        };
+        document.getElementById('seed-debug-btn').onclick = async () => {
+            const team = document.getElementById('debug-team-id').value;
+            const tile = document.getElementById('debug-tile-id').value;
+            if(!team || !tile) return alert("Please enter Team ID and Tile ID");
+            await forceDebugSubmission(team, tile, log);
+            refreshStats();
+        };
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.insertAdjacentHTML('beforeend', `<div>${msg}</div>`);
+            el.scrollTop = el.scrollHeight;
+        }
+    </script>
+</body>
+</html>

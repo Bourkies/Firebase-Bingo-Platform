@@ -194,6 +194,57 @@ The `firestore.rules` file enforces Role-Based Access Control (RBAC) using custo
     *   **Submissions:** Players can only create/update submissions for their assigned team.
     *   **Users:** Users can only update specific fields (displayName, email) on their own profile.
 
+## 11. Board Logic & Tile Statuses
+
+The board logic determines the visual state of a tile based on the user's team and the tile's submission status.
+
+### Tile Status Lifecycle
+1.  **Locked**: The tile cannot be interacted with. This occurs if the tile has prerequisites (defined in `Prerequisites` field) that the team has not yet completed.
+2.  **Unlocked**: Prerequisites are met (or none exist), but no submission has been made. The tile is clickable.
+3.  **Draft** (Internal: `Partially Complete`): A player has started a submission (saved notes/evidence) but has not marked it as complete (`IsComplete: false`).
+4.  **Submitted** (Internal: `IsComplete`): The team has claimed the tile. It is pending review.
+5.  **Requires Action**: An Admin or Event Mod has reviewed the submission and requested changes (e.g., broken link, wrong screenshot). The submission is effectively "returned" to the team.
+6.  **Verified** (Internal: `AdminVerified`): An Admin or Event Mod has confirmed the submission is valid. Points are awarded (depending on config). The tile is locked and cannot be edited further.
+
+### Board Visibility Modes
+*   **Public Board**: Users see the status of tiles for *all* teams.
+*   **Private Board**: Users only see the status of tiles for *their own* team.
+*   **Setup Mode**: The board is hidden from all non-admin users.
+*   **Censored Mode**: Tile names and descriptions are hidden until the event starts, but the grid layout is visible.
+
+### Prerequisite Logic
+*   **Format**: Prerequisites are stored as a JSON array of arrays (CNF) or a simple CSV string.
+*   **Evaluation**: A tile is unlocked if *at least one* group of prerequisites is fully satisfied (OR logic between groups, AND logic within a group).
+*   **Visualization**: In Setup Mode, lines are drawn between tiles to visualize these dependencies.
+
+## 12. User Lifecycle & Permissions
+
+The platform enforces a strict "Self-Service" model for user creation to maintain security and data integrity.
+
+### User Creation
+*   **Mechanism:** A user must create their own Firestore profile immediately after Authentication.
+*   **Rule:** `allow create: if request.auth.token.email == userEmail`
+*   **Implication:** Admins *cannot* manually create user profiles for others via the database console or scripts unless those scripts authenticate *as* the new user.
+
+### User Updates
+*   **Self:** Users can update their `displayName` (if `isNameLocked` is false).
+*   **Admin:** Can update any field, including Roles (`isAdmin`, `isEventMod`) and `team`.
+*   **Captain:** Can update the `team` field for users (assigning/removing them from their own team).
+
+### User Deletion
+*   **Auth Account:** Deleting the Firebase Auth account prevents future logins.
+*   **Firestore Profile:** The user's profile document in `users` is **retained** by default to preserve data integrity for Submissions and History logs.
+*   **Cleanup:** Admins can explicitly delete user documents if necessary (e.g., removing seed data or GDPR requests), but this is a manual administrative action.
+
+### Account Recreation (Relinking)
+*   **Behavior:** If a user deletes their Auth account but their Firestore profile is retained, creating a new Auth account with the *same email address* will automatically relink to the existing Firestore profile.
+*   **Data Preservation:** The user will regain access to their team assignment, history, and permissions (unless manually revoked by an Admin).
+
+### Profile Regeneration (Orphaned Auth)
+*   **Scenario:** A user logs in successfully (Auth account exists), but their Firestore profile document is missing (e.g., manually deleted by an Admin).
+*   **Behavior:** The application detects the missing profile upon login and automatically generates a new, default profile.
+*   **Implication:** The user retains their Auth UID. Since submissions reference UIDs, historical data remains linked, but the user will lose their Team assignment and Roles (Admin/Mod) until manually re-assigned.
+
 ## 8. Documentation Maintenance
 
 *   **`README.md`**: Serves as the entry point for developers and administrators. It **must** be kept up-to-date with any changes to the project structure, setup instructions, or key features.

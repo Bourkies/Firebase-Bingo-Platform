@@ -121,6 +121,9 @@ service cloud.firestore {
           (resource.data.get('isNameLocked', false) == false || request.resource.data.displayName == resource.data.displayName) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hasSetDisplayName', 'email'])
         );
+
+      // Admin can delete users (e.g. for cleanup/seeding).
+      allow delete: if isAdmin();
     }
   }
 }
