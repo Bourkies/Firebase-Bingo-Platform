@@ -31,6 +31,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
 
+    // NEW: Mobile sort listener
+    document.getElementById('sort-filter').addEventListener('change', (e) => {
+        const [col, dir] = e.target.value.split('-');
+        if (col && dir) {
+            currentSort.column = col;
+            currentSort.direction = dir;
+            renderSubmissionsTable();
+        }
+    });
+
     // Setup sort listeners
     document.querySelectorAll('#submissions-table th').forEach(th => {
         th.addEventListener('click', () => {
@@ -211,6 +221,12 @@ function renderSubmissionsTable() {
             th.classList.add(`sort-${currentSort.direction}`);
         }
     });
+
+    // Sync mobile sort dropdown
+    const sortDropdown = document.getElementById('sort-filter');
+    if (sortDropdown) {
+        sortDropdown.value = `${currentSort.column}-${currentSort.direction}`;
+    }
 
     if (filteredSubmissions.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';

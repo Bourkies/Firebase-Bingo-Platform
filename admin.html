@@ -147,8 +147,12 @@
         #submissions-table th.col-id { width: 65px; }
     }
 
+    .mobile-sort-control { display: none; }
+
     /* NEW: Responsive Table Styles */
     @media screen and (max-width: 800px) {
+        .mobile-sort-control { display: flex; width: 100%; }
+        .mobile-sort-control select { flex-grow: 1; }
         #submissions-table { table-layout: auto; } /* Allow table to be flexible */
         #submissions-table thead { display: none; } /* Hide table headers */
         #submissions-table tbody, #submissions-table tr, #submissions-table td { display: block; width: 100%; box-sizing: border-box; }
@@ -255,6 +259,23 @@
                     <div class="filter-group">
                         <label>Time:</label>
                         <div class="checkbox-filter-group"><input type="checkbox" id="utc-time-toggle"><label for="utc-time-toggle">Show UTC</label></div>
+                    </div>
+                    <div class="filter-group mobile-sort-control">
+                        <label for="sort-filter">Sort By:</label>
+                        <select id="sort-filter">
+                            <option value="lastEdited-desc">Last Edited (Newest)</option>
+                            <option value="lastEdited-asc">Last Edited (Oldest)</option>
+                            <option value="created-desc">Created (Newest)</option>
+                            <option value="created-asc">Created (Oldest)</option>
+                            <option value="status-asc">Status (A-Z)</option>
+                            <option value="status-desc">Status (Z-A)</option>
+                            <option value="id-asc">Tile ID (A-Z)</option>
+                            <option value="id-desc">Tile ID (Z-A)</option>
+                            <option value="tileName-asc">Tile Name (A-Z)</option>
+                            <option value="tileName-desc">Tile Name (Z-A)</option>
+                            <option value="teamName-asc">Team (A-Z)</option>
+                            <option value="teamName-desc">Team (Z-A)</option>
+                        </select>
                     </div>
                 </div>
                 <div style="overflow-x: auto;">
