@@ -303,6 +303,7 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     document.getElementById('modal-submission-id').value = sub.docId;
     const teamName = allTeams[sub.Team]?.name || sub.Team;
     document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId.get(sub.id)?.Name || 'Unknown Tile'}`;
+    document.getElementById('modal-tile-description').textContent = tilesByVisibleId.get(sub.id)?.Description || '';
     document.getElementById('modal-team').textContent = teamName;
 
     // NEW: Generate player name string from IDs
