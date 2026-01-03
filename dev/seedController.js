@@ -394,6 +394,14 @@ export async function seedSubmissions(log) {
                     let adminFeedback = state === 'flagged' ? "Screenshot is blurry. Please re-upload." : '';
 
                     const timestamp = Timestamp.now();
+                    
+                    // Generate Doc ID: YYMMDD-TeamID-TileID
+                    const date = timestamp.toDate();
+                    const year = date.getUTCFullYear().toString().slice(-2);
+                    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+                    const day = date.getUTCDate().toString().padStart(2, '0');
+                    const docId = `${year}${month}${day}-${teamId}-${tile.id}`;
+
                     const history = [{
                         timestamp: timestamp,
                         user: { uid: user.uid, name: user.displayName },
@@ -405,14 +413,17 @@ export async function seedSubmissions(log) {
                         history.push({
                             timestamp: timestamp,
                             user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                            action: 'Flag Submission',
-                            changes: [{ field: 'RequiresAction', from: false, to: true }]
+                            action: 'Admin Update',
+                            changes: [
+                                { field: 'RequiresAction', from: false, to: true },
+                                { field: 'AdminFeedback', from: '""', to: `"${adminFeedback}"` }
+                            ]
                         });
                     } else if (state === 'verified') {
                         history.push({
                             timestamp: timestamp,
                             user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                            action: 'Verify Submission',
+                            action: 'Admin Update',
                             changes: [{ field: 'AdminVerified', from: false, to: true }]
                         });
                     }
@@ -440,7 +451,7 @@ export async function seedSubmissions(log) {
                         history: history
                     };
 
-                    const ref = doc(collection(secondaryDb, 'submissions'));
+                    const ref = doc(secondaryDb, 'submissions', docId);
                     batch.set(ref, subData);
                     batchCount++;
                     totalCreated++;
@@ -506,6 +517,12 @@ export async function forceDebugSubmission(teamId, tileId, log) {
     
     log(`Forcing submission for ${teamId} - ${tileId}...`);
     
+    const now = new Date();
+    const year = now.getUTCFullYear().toString().slice(-2);
+    const month = (now.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = now.getUTCDate().toString().padStart(2, '0');
+    const docId = `${year}${month}${day}-${teamId}-${tileId}`;
+
     const subData = {
         id: tileId,
         Team: teamId,
@@ -522,8 +539,8 @@ export async function forceDebugSubmission(teamId, tileId, log) {
         history: []
     };
 
-    await fb.addDoc(fb.collection(db, 'submissions'), subData);
-    log("Forced submission created.");
+    await fb.setDoc(fb.doc(db, 'submissions', docId), subData);
+    log(`Forced submission created (${docId}).`);
 }
 
 async function deleteCollectionSubset(collectionName, filterFn, log, skipSafety = false) {
