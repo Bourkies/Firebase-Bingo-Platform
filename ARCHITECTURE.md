@@ -67,7 +67,6 @@ Stores team definitions.
 | :--- | :--- | :--- |
 | `id` | String | Unique Team ID (matches Doc ID). |
 | `name` | String | Display name of the team. |
-| `color` | String | Hex color code used for charts and UI accents. |
 | `captainId` | String | docid of the user designated as team captain. |
 
 ### Collection: `tiles`

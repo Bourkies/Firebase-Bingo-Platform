@@ -6,18 +6,18 @@ import { getAuth, createUserWithEmailAndPassword, signOut, connectAuthEmulator, 
 import { getFirestore, doc, setDoc, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const SEED_DEFINITIONS = [
-    { suffix: 'Red', color: '#ff4444' },
-    { suffix: 'Blue', color: '#4444ff' },
-    { suffix: 'Green', color: '#44ff44' },
-    { suffix: 'Yellow', color: '#ffff44' },
-    { suffix: 'Purple', color: '#9c27b0' },
-    { suffix: 'Orange', color: '#ff9800' },
-    { suffix: 'Cyan', color: '#00bcd4' },
-    { suffix: 'Pink', color: '#e91e63' },
-    { suffix: 'Teal', color: '#009688' },
-    { suffix: 'Lime', color: '#cddc39' },
-    { suffix: 'Indigo', color: '#3f51b5' },
-    { suffix: 'Brown', color: '#795548' }
+    { suffix: 'Red' },
+    { suffix: 'Blue' },
+    { suffix: 'Green' },
+    { suffix: 'Yellow' },
+    { suffix: 'Purple' },
+    { suffix: 'Orange' },
+    { suffix: 'Cyan' },
+    { suffix: 'Pink' },
+    { suffix: 'Teal' },
+    { suffix: 'Lime' },
+    { suffix: 'Indigo' },
+    { suffix: 'Brown' }
 ];
 
 function checkSafety() {
@@ -104,7 +104,6 @@ export async function seedTeams(log) {
         const teamData = {
             id: newId,
             name: teamName,
-            color: def.color,
             captainId: null
         };
 
