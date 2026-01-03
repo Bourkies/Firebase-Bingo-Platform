@@ -3,7 +3,6 @@ import { authStore } from '../js/stores/authStore.js';
 // Import Firebase App and Auth directly to create a secondary instance
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signOut, connectAuthEmulator, signInWithEmailAndPassword, deleteUser } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const SEED_DEFINITIONS = [
     { suffix: 'Red' },
@@ -48,23 +47,29 @@ function getSeedUserInfo(i) {
     let isAdmin = false;
     let isEventMod = false;
     let isCaptain = false;
+    let prettyRole = 'Player';
 
     if (i <= 2) {
-        role = 'admin-only'; isAdmin = true; isEventMod = true;
+        role = 'admin'; isAdmin = true; isEventMod = true;
+        prettyRole = 'Admin';
     } else if (i <= 5) {
-        role = 'mod-only'; isEventMod = true;
+        role = 'mod'; isEventMod = true;
+        prettyRole = 'Mod';
     } else {
         if (i >= 46) {
             role = 'player-mod-admin'; isAdmin = true; isEventMod = true;
+            prettyRole = 'Player Mod Admin';
         } else if (i >= 41) {
             role = 'player-mod'; isEventMod = true;
+            prettyRole = 'Player Mod';
         } else if (i % 10 === 0) {
             role = 'captain'; isCaptain = true;
+            prettyRole = 'Captain';
         }
     }
 
     const username = `seed-${String(i).padStart(2, '0')}-${role}`;
-    return { username, email: `${username}@fir-bingo-app.com`, role, isAdmin, isEventMod, isCaptain };
+    return { username, email: `${username}@fir-bingo-app.com`, role, isAdmin, isEventMod, isCaptain, prettyRole };
 }
 
 export async function seedTeams(log) {
@@ -121,25 +126,34 @@ export async function seedTeams(log) {
     }
 }
 
+const toRestValue = (val) => {
+    if (val === null) return { nullValue: null };
+    if (typeof val === 'boolean') return { booleanValue: val };
+    if (typeof val === 'number') return Number.isInteger(val) ? { integerValue: val } : { doubleValue: val };
+    return { stringValue: String(val) };
+};
+
 export async function seedUsers(log, selectedTeamIds = [], password = 'password123') {
     try { checkSafety(); } catch(e) { alert(e.message); return; }
     
     log("--- Seeding Users (This may take a moment) ---");
     log(`Target Teams: ${selectedTeamIds.length > 0 ? selectedTeamIds.join(', ') : 'None (Admin/Mod only)'}`);
 
-    // Initialize a secondary app to create users without logging out the admin
-    const secondaryApp = initializeApp(auth.app.options, "SecondaryApp");
-    const secondaryAuth = getAuth(secondaryApp);
-    const secondaryDb = getFirestore(secondaryApp);
+    const projectId = auth.app.options.projectId;
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
-    // CRITICAL FIX: Connect secondary app to emulators if running locally
-    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        connectAuthEmulator(secondaryAuth, "http://127.0.0.1:9099", { disableWarnings: true });
-        connectFirestoreEmulator(secondaryDb, '127.0.0.1', 8080);
-    }
-    
     // Create 50 users
     for (let i = 1; i <= 50; i++) {
+        // NEW: Initialize a fresh app PER USER to prevent Firestore connection hangs in emulator
+        // This avoids the "Backend didn't respond" error caused by rapid auth switching on a single client
+        const appName = `SeedApp_${i}_${Date.now()}`;
+        const secondaryApp = initializeApp(auth.app.options, appName);
+        const secondaryAuth = getAuth(secondaryApp);
+
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            connectAuthEmulator(secondaryAuth, "http://127.0.0.1:9099", { disableWarnings: true });
+        }
+
         const info = getSeedUserInfo(i);
         let teamId = '';
 
@@ -148,40 +162,65 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
             teamId = selectedTeamIds[(i - 6) % selectedTeamIds.length];
         }
 
-        const { username, email, isAdmin, isEventMod, isCaptain } = info;
+        const { username, email, isAdmin, isEventMod, isCaptain, prettyRole } = info;
 
         let uid;
+        let userObj;
         const startUser = Date.now();
         try {
             log(`[${i}/50] Processing ${username}...`);
+            console.log(`[SeedController] Processing ${username} (${i}/50)`);
+
             // 1. Create or Get Auth User
             // Use secondaryAuth to keep main session active
             const startAuth = Date.now();
             try {
+                log(`  > Creating Auth user...`);
                 const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
                 uid = cred.user.uid;
+                userObj = cred.user;
                 log(`  > Auth created (${Date.now() - startAuth}ms).`);
             } catch (authError) {
                 if (authError.code === 'auth/email-already-in-use') {
                     // If exists, try to sign in to get UID
+                    log(`  > Email exists, signing in...`);
                     const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
                     uid = cred.user.uid;
+                    userObj = cred.user;
                     log(`  > Auth exists. Signed in (${Date.now() - startAuth}ms).`);
                 } else { throw authError; }
             }
 
-            // 2. Create Firestore Profile (As the new user using secondaryDb)
+            // 2. Create Firestore Profile (As the new user using REST API to avoid SDK hangs)
             // This satisfies the rule: allow create: if request.auth.token.email == userEmail
             const startProfile = Date.now();
-            await setDoc(doc(secondaryDb, 'users', email), {
-                uid: uid,
-                email: email,
-                displayName: `Player ${i}`,
-                team: teamId,
-                isAdmin: false, // Cannot make self admin
-                isEventMod: false, // Cannot make self mod
-                hasSetDisplayName: true
+            log(`  > Creating Firestore profile...`);
+            
+            const token = await userObj.getIdToken();
+            const url = isLocal 
+                ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents/users/${email}`
+                : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${email}`;
+
+            const body = {
+                fields: {
+                    uid: toRestValue(uid),
+                    email: toRestValue(email),
+                    displayName: toRestValue(`Seed ${i} ${prettyRole}`),
+                    team: toRestValue(teamId),
+                    isAdmin: toRestValue(false),
+                    isEventMod: toRestValue(false),
+                    hasSetDisplayName: toRestValue(true)
+                }
+            };
+
+            const res = await fetch(url, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             });
+
+            if (!res.ok) throw new Error(`REST API Error: ${res.status} ${await res.text()}`);
+            
             log(`  > Profile created (${Date.now() - startProfile}ms).`);
 
             // 3. Assign Captaincy (As Admin)
@@ -200,21 +239,18 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
 
             log(`Created ${username} (${teamId || 'No Team'}) - Total: ${Date.now() - startUser}ms`);
             
-            // Explicitly sign out to clean up connection state
-            await signOut(secondaryAuth);
-
-            // Add a small delay to prevent emulator transport errors
-            await new Promise(r => setTimeout(r, 100));
-
         } catch (e) {
+            console.error(`[SeedController] Error processing ${username}:`, e);
             if (e.code === 'auth/wrong-password') {
                 log(`Skipping ${username}: Auth exists but password mismatch.`);
             } else {
                 log(`Error creating ${username}: ${e.message}`);
             }
+        } finally {
+            // Clean up the app instance immediately
+            await deleteApp(secondaryApp);
         }
     }
-    await deleteApp(secondaryApp); // Cleanup
     log("User seeding complete.");
 }
 
