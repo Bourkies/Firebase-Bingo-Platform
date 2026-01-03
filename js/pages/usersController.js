@@ -95,7 +95,10 @@ function onDataChanged() {
 
     // Determine captain's team ID if applicable
     if (authState.isTeamCaptain) {
-        captainTeamId = Object.keys(allTeams).find(teamId => allTeams[teamId].captainId === authState.user?.uid) || null;
+        captainTeamId = Object.keys(allTeams).find(teamId => {
+            const capId = allTeams[teamId].captainId;
+            return capId === authState.user?.email || capId === authState.user?.uid;
+        }) || null;
     }
 
     // --- Render Page ---
@@ -181,11 +184,11 @@ function renderUsersTable() {
 
         return `
             <tr>
-                <td data-label="Display Name"><input type="text" class="user-field" data-uid="${user.uid}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked || !authState.isEventMod ? 'disabled' : ''}></td>
+                <td data-label="Display Name"><input type="text" class="user-field" data-doc-id="${user.docId}" data-field="displayName" value="${user.displayName || ''}" ${isNameLocked || !authState.isEventMod ? 'disabled' : ''}></td>
                 <td data-label="Login Name">${loginName}</td>
                 <td data-label="Team">${currentTeamName}</td>
                 <td data-label="User ID" style="font-family: monospace; font-size: 0.8em; color: var(--secondary-text);">${user.uid}</td>
-                <td data-label="Lock Name"><input type="checkbox" class="user-field" data-uid="${user.uid}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''} ${!authState.isEventMod ? 'disabled' : ''}></td>
+                <td data-label="Lock Name"><input type="checkbox" class="user-field" data-doc-id="${user.docId}" data-field="isNameLocked" ${isNameLocked ? 'checked' : ''} ${!authState.isEventMod ? 'disabled' : ''}></td>
             </tr>
         `;
     }).join('');
@@ -233,10 +236,16 @@ function renderTeamManagement() {
     const allUsers = usersStore.get();
     const container = document.getElementById('teams-management-container');
 
+    // FIX: Guard clause for race condition where teams load before users
+    if (allUsers.length === 0) {
+        container.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--secondary-text);">Loading user data...</p>';
+        return;
+    }
+
     // NEW: Get unassigned users once for all teams to use.
     const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
     const unassignedUsersHTML = unassignedUsers.length > 0 ? unassignedUsers.map(u => `
-        <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}"><span>${u.displayName}</span><button class="add-member-btn" data-uid="${u.uid}">Add</button></li>`).join('') : '<li class="no-results-message">No unassigned users available.</li>';
+        <li class="add-member-item" data-display-name="${u.displayName.toLowerCase()}"><span>${u.displayName}</span><button class="add-member-btn" data-doc-id="${u.docId}">Add</button></li>`).join('') : '<li class="no-results-message">No unassigned users available.</li>';
     const sortedTeams = Object.entries(allTeams).sort((a, b) => a[0].localeCompare(b[0]));
 
     // Create options for captain selection, excluding users already captaining another team.
@@ -246,13 +255,13 @@ function renderTeamManagement() {
         // NEW: Get members for this specific team
         const teamMembers = allUsers.filter(u => u.team === id);
         const teamMembersHTML = teamMembers.length > 0 ? teamMembers.map(m => `
-            <li class="team-member-item"><span>${m.displayName}</span><button class="remove-member-btn" data-uid="${m.uid}">Remove</button></li>`).join('') : '<li>No members assigned.</li>';
+            <li class="team-member-item"><span>${m.displayName}</span><button class="remove-member-btn" data-doc-id="${m.docId}">Remove</button></li>`).join('') : '<li>No members assigned.</li>';
 
         // Captain options are per-team, consisting of its members.
         const captainOptions = teamMembers
             .map(u => {
-                const isCaptainOfOtherTeam = existingCaptainIds.has(u.uid) && u.uid !== team.captainId;
-                return `<option value="${u.uid}" ${isCaptainOfOtherTeam ? 'disabled' : ''}>${u.displayName}${isCaptainOfOtherTeam ? ' (Cap of other team)' : ''}</option>`;
+                const isCaptainOfOtherTeam = (existingCaptainIds.has(u.docId) || existingCaptainIds.has(u.uid)) && u.docId !== team.captainId && u.uid !== team.captainId;
+                return `<option value="${u.docId}" ${isCaptainOfOtherTeam ? 'disabled' : ''}>${u.displayName}${isCaptainOfOtherTeam ? ' (Cap of other team)' : ''}</option>`;
             }).join('');
 
         return `
@@ -285,7 +294,23 @@ function renderTeamManagement() {
     sortedTeams.forEach(([id, team]) => {
         const select = container.querySelector(`#captain-select-${id}`);
         if (select) {
-            select.value = team.captainId || '';
+            // Handle both DocID (new) and UID (legacy) for captainId
+            if (team.captainId) {
+                const captainUser = allUsers.find(u => u.docId === team.captainId || u.uid === team.captainId);
+                // Ensure the captain is actually in the list (member of the team)
+                if (captainUser && captainUser.team === id) {
+                    select.value = captainUser.docId;
+                    if (select.value === '' && captainUser.docId) {
+                         console.warn(`[UsersController] Captain ${team.captainId} is in team ${id} but not in dropdown options.`);
+                    }
+                } else {
+                    if (captainUser) console.warn(`[UsersController] Captain ${team.captainId} found but is in team ${captainUser.team}, not ${id}.`);
+                    else console.warn(`[UsersController] Captain ${team.captainId} set in team ${id} but user not found in usersStore.`);
+                    select.value = '';
+                }
+            } else {
+                select.value = '';
+            }
         }
     });
 }
@@ -297,28 +322,50 @@ async function handleTeamDetailsChange(event) {
     if (!teamCard) return;
 
     const teamId = teamCard.dataset.teamId;
-    const newName = teamCard.querySelector('.team-name-input').value.trim();
-    const newCaptainId = teamCard.querySelector('.captain-select').value || null;
+    
+    // FIX: Get values robustly. If the target is the input/select, use its value directly.
+    const newName = target.classList.contains('team-name-input') ? target.value.trim() : teamCard.querySelector('.team-name-input').value.trim();
+    
+    // FIX: Handle empty string -> null conversion for captainId
+    let newCaptainId;
+    if (target.classList.contains('captain-select')) {
+        newCaptainId = target.value || null;
+    } else {
+        newCaptainId = teamCard.querySelector('.captain-select').value || null;
+    }
+
+    console.log(`[UsersController] Updating team ${teamId}: Name="${newName}", Captain="${newCaptainId}". Current Store Captain: ${teamsStore.get()[teamId]?.captainId}`);
 
     if (!newName) {
         showMessage('Team name cannot be empty.', true);
-        event.target.value = teamsStore.get()[teamId].name; // Revert
+        // Revert the specific field that triggered the change
+        if (target.classList.contains('team-name-input')) target.value = teamsStore.get()[teamId].name;
+        if (target.classList.contains('captain-select')) {
+            const team = teamsStore.get()[teamId];
+            const captainUser = usersStore.get().find(u => u.docId === team.captainId || u.uid === team.captainId);
+            target.value = captainUser ? captainUser.docId : '';
+        }
         return;
     }
 
     // Check for duplicate name (excluding current team)
     const allTeams = teamsStore.get();
-    const nameExists = Object.values(allTeams).some(t => t.id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
+    const nameExists = Object.entries(allTeams).some(([id, t]) => id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
     if (nameExists) {
         showMessage('Team name must be unique.', true);
-        event.target.value = allTeams[teamId].name; // Revert input
+        if (target.classList.contains('team-name-input')) target.value = allTeams[teamId].name;
+        if (target.classList.contains('captain-select')) {
+            const team = allTeams[teamId];
+            const captainUser = usersStore.get().find(u => u.docId === team.captainId || u.uid === team.captainId);
+            target.value = captainUser ? captainUser.docId : '';
+        }
         return;
     }
 
     showGlobalLoader();
     try {
         await updateTeam(teamId, { name: newName, captainId: newCaptainId });
-        showMessage(`Team "${newName}" updated successfully.`, false);
+        showMessage(`Team updated successfully.`, false);
     } catch (error) {
         console.error(`Failed to update team ${teamId}:`, error);
         showMessage(`Error updating team: ${error.message}`, true);
@@ -329,6 +376,15 @@ async function handleTeamDetailsChange(event) {
 
 async function handleTeamManagementClick(event) {
     const target = event.target;
+
+    // NEW: Handle Member Add/Remove (Merged from monkey-patch)
+    if (target.classList.contains('add-member-btn') || target.classList.contains('remove-member-btn')) {
+        const teamId = target.closest('.team-card').dataset.teamId;
+        const docId = target.dataset.docId;
+        const action = target.classList.contains('add-member-btn') ? 'add' : 'remove';
+        handleMemberUpdate(teamId, docId, action);
+        return;
+    }
 
     if (target.id === 'add-team-btn') {
         const newName = prompt('Enter the name for the new team:');
@@ -398,7 +454,7 @@ async function executeDeleteTeam() {
 
     try {
         const membersToUnassign = usersStore.get().filter(user => user.team === teamId);
-        const userUpdatePromises = membersToUnassign.map(member => updateUser(member.uid, { team: null }));
+        const userUpdatePromises = membersToUnassign.map(member => updateUser(member.docId, { team: null }));
 
         await Promise.all(userUpdatePromises);
         await deleteTeam(teamId);
@@ -439,18 +495,18 @@ function validateDeleteInput() {
 async function handleFieldChange(e) {
     const target = e.target;
     if (target.classList.contains('user-field')) {
-        const uid = target.dataset.uid;
+        const docId = target.dataset.docId;
         const field = target.dataset.field;
         const value = target.type === 'checkbox' ? target.checked : target.value;
 
         showGlobalLoader();
         try {
-            const user = usersStore.get().find(u => u.uid === uid);
-            await updateUser(uid, { [field]: value });
+            const user = usersStore.get().find(u => u.docId === docId);
+            await updateUser(docId, { [field]: value });
             const fieldLabel = field === 'displayName' ? 'Display Name' : 'Name Lock';
             showMessage(`Updated ${user.displayName}'s ${fieldLabel}.`, false);
         } catch (error) {
-            console.error(`Failed to update user ${uid}:`, error);
+            console.error(`Failed to update user ${docId}:`, error);
             showMessage(`Update failed: ${error.message}`, true);
         } finally {
             hideGlobalLoader();
@@ -482,11 +538,11 @@ function handleMemberSearch(event) {
     }
 }
 
-async function handleMemberUpdate(teamId, userId, action) {
+async function handleMemberUpdate(teamId, docId, action) {
     const newTeamId = action === 'add' ? teamId : null;
     const allUsers = usersStore.get();
     const allTeams = teamsStore.get();
-    const user = allUsers.find(u => u.uid === userId);
+    const user = allUsers.find(u => u.docId === docId);
 
     if (!user) return;
 
@@ -496,27 +552,17 @@ async function handleMemberUpdate(teamId, userId, action) {
 
     showGlobalLoader();
     try {
-        await updateUser(userId, { team: newTeamId });
+        await updateUser(docId, { team: newTeamId });
+        // Check against both docId (Email) and uid (Legacy) for captaincy
+        const currentCaptainId = allTeams[teamId]?.captainId;
+        if (action === 'remove' && (currentCaptainId === docId || currentCaptainId === user.uid)) {
+            await updateTeam(teamId, { captainId: null });
+        }
         showMessage(`${actionText} ${user.displayName} ${preposition} ${teamName}.`, false);
     } catch (error) {
-        console.error(`Failed to update user ${userId}:`, error);
+        console.error(`Failed to update user ${docId}:`, error);
         showMessage(`Error: ${error.message}`, true);
     } finally {
         hideGlobalLoader();
     }
 }
-
-// Extend handleTeamManagementClick to handle member add/remove
-const originalTeamManagementClick = handleTeamManagementClick;
-handleTeamManagementClick = function(event) {
-    const target = event.target;
-
-    if (target.classList.contains('add-member-btn') || target.classList.contains('remove-member-btn')) {
-        const teamId = target.closest('.team-card').dataset.teamId;
-        const userId = target.dataset.uid;
-        const action = target.classList.contains('add-member-btn') ? 'add' : 'remove';
-        handleMemberUpdate(teamId, userId, action);
-        return; // Stop further processing
-    }
-    originalTeamManagementClick(event); // Call the original function for other actions
-};

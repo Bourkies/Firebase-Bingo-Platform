@@ -27,6 +27,9 @@ onMount(submissionsStore, () => {
         submissionsStore.set(submissions);
     }, (error) => {
         console.error("[SubmissionsStore] Error fetching submissions:", error);
+        if (error.code === 'permission-denied') {
+            submissionsStore.set([]);
+        }
     });
 
     return () => {

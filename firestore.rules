@@ -31,16 +31,21 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/config/main) && 
              get(/databases/$(database)/documents/config/main).data.get('censorTilesBeforeEvent', false) == true;
     }
+    function isSetupMode() {
+      return exists(/databases/$(database)/documents/config/main) && 
+             get(/databases/$(database)/documents/config/main).data.get('setupModeEnabled', false) == true;
+    }
 
     // Config and Tiles are publicly readable, but only Admins can modify them via the setup page.
     match /config/{docId} {
-      allow read: if true;
+      // UPDATED: Hide config (including board image) from non-admins when in Setup Mode.
+      allow read: if isAdmin() || !isSetupMode();
       allow write: if isAdmin();
     }
     match /tiles/{tileId} {
-      // Allow read if censorship is off, OR if the user is an admin/mod.
-      // If censorship is on, non-admins will be denied and should read from `config/tiles_packed_public`.
-      allow read: if !isCensored() || isEventMod();
+      // UPDATED: If Setup Mode is on, ONLY Admins can read.
+      // Otherwise, revert to standard censorship logic.
+      allow read: if isAdmin() || (!isSetupMode() && (!isCensored() || isEventMod()));
       allow write: if isAdmin();
     }
 
@@ -53,17 +58,23 @@ service cloud.firestore {
 
     // NEW: Styles are publicly readable, but only Admins can modify them.
     match /styles/{styleId} {
-      allow read: if true;
+      // UPDATED: Hide styles in setup mode.
+      allow read: if isAdmin() || !isSetupMode();
       allow write: if isAdmin();
     }
 
     match /submissions/{subId} {
       // Read is allowed if:
-      // 1. The board is not private, OR
+      // 1. Setup Mode is OFF (or user is Admin), AND
+      // 2. The board is not private, OR
       // 2. The user is an Event Mod/Admin, OR
       // 3. The user is logged in and requesting a submission for their own team.
-      allow read: if get(/databases/$(database)/documents/config/main).data.boardVisibility != 'private' ||
-                     isEventMod() || (isAuth() && getUserData().team == resource.data.Team);
+      allow read: if isAdmin() || (
+                     !isSetupMode() && (
+                       get(/databases/$(database)/documents/config/main).data.boardVisibility != 'private' ||
+                       isEventMod() || (isAuth() && getUserData().team == resource.data.Team)
+                     )
+                   );
 
       // A logged-in user can create a submission, but only for their own team.
       allow create: if request.auth != null &&

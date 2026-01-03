@@ -53,7 +53,10 @@ function onDataChanged() {
 
     // NEW: Wait until both config and auth state are definitively loaded.
     // The authState check is crucial to prevent showing the page before permissions are known.
-    if (!config.pageTitle || !authState.authChecked) {
+    // UPDATED: If auth is checked but config is missing (and not admin), we proceed to the disabled check below.
+    // Otherwise, we wait.
+    const isConfigBlocked = authState.authChecked && !config.pageTitle && !authState.isAdmin;
+    if ((!config.pageTitle && !isConfigBlocked) || !authState.authChecked) {
         showGlobalLoader();
         return; // Wait for more data
     }
@@ -80,7 +83,7 @@ function onDataChanged() {
     const isOverviewDisabled = config.enableOverviewPage !== true;
     const canBypass = authState.isEventMod; // isEventMod is only true for logged-in mods/admins
 
-    if ((isOverviewDisabled || isCensored) && !canBypass) {
+    if ((isOverviewDisabled || isCensored || isConfigBlocked) && !canBypass) {
         document.getElementById('disabled-title').textContent = isCensored ? 'Event Not Started' : 'Overview Page Not Available';
         document.getElementById('disabled-message').textContent = isCensored 
             ? 'The scoreboard and activity feed are hidden until the event begins.'

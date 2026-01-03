@@ -150,6 +150,11 @@ export class BingoBoard extends LitElement {
     handleTileClick(tile, status) {
         console.log(`[BingoBoard] handleTileClick: Tile '${tile.id}', Status: '${status}'`);
         const isMyTeam = this.authState.isLoggedIn && this.authState.profile?.team === this.displayTeam;
+        
+        // NEW: Disable submissions if censored (even for admins in setup mode)
+        const isCensored = this.config.censorTilesBeforeEvent === true && (!this.authState?.isEventMod || this.config.setupModeEnabled);
+        if (isCensored) return;
+
         const canOpenModal = !this.isGenericView && isMyTeam && status !== 'Locked';
 
         if (canOpenModal) {
@@ -166,8 +171,11 @@ export class BingoBoard extends LitElement {
     render() {
         console.log('[BingoBoard] render: Re-rendering board.');
 
-        // NEW: Handle setup mode directly in the component
+        // NEW: Handle setup mode directly in the component. Check authState existence to avoid errors.
         if (this.setupMode && !this.authState?.isEventMod) {
+            // CLEAR STYLES: Ensure no stale image persists
+            this.style.backgroundImage = '';
+            this.style.aspectRatio = '1 / 1';
             return html`<div class="error-message" style="position: static; z-index: 0;">The event has not started or is currently being set up. Please check back later.</div>`;
         }
 
@@ -175,23 +183,26 @@ export class BingoBoard extends LitElement {
         // The component will automatically re-render when the tiles property is updated with new data.
         if (!this.config?.pageTitle) {
             console.log('[BingoBoard] render: No config, rendering empty.');
+            // CLEAR STYLES: Ensure no stale image persists
+            this.style.backgroundImage = '';
+            this.style.aspectRatio = '1 / 1';
             return html``;
         }
 
-        const imageUrl = this.config.boardImageUrl;
-        if (imageUrl) {
-            const img = new Image();
-            img.onload = () => {
-                this.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-                this.style.backgroundImage = `url('${imageUrl}')`;
-            };
-            img.onerror = () => { this.style.aspectRatio = '1 / 1'; };
-            img.src = imageUrl;
-        } else {
-            this.style.aspectRatio = '1 / 1';
-        }
-
         return html`
+            ${this.config.boardImageUrl ? html`
+                <img 
+                    src="${this.config.boardImageUrl}" 
+                    alt="Board Background" 
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 0; pointer-events: none;"
+                    @load=${(e) => {
+                        this.style.aspectRatio = `${e.target.naturalWidth} / ${e.target.naturalHeight}`;
+                    }}
+                    @error=${() => {
+                        this.style.aspectRatio = '1 / 1';
+                    }}
+                />
+            ` : ''}
             ${this.tiles.map(tile => 
                 keyed(tile.docId, html`
                     ${(() => {
@@ -201,7 +212,7 @@ export class BingoBoard extends LitElement {
 
                         // The `tile` object from `this.tiles` can be from 'tiles' (full data) or 'public_tiles' (censored data).
                         // We always want to use the layout properties from the full tile object for rendering.
-                        const isCensored = this.config.censorTilesBeforeEvent === true && !this.authState?.isEventMod;
+                        const isCensored = this.config.censorTilesBeforeEvent === true && (!this.authState?.isEventMod || this.config.setupModeEnabled);
                         // The `tile` object from the store will now correctly contain layout data even when censored.
                         // The Name/Description fields will just be missing, which we handle below.
                         const layoutTile = tile;

@@ -678,10 +678,12 @@ function loadBoardImage(imageUrl) {
 
     boardImage.onload = () => {
         boardContent.style.aspectRatio = `${boardImage.naturalWidth} / ${boardImage.naturalHeight}`;
-        boardContent.style.backgroundImage = `url('${imageUrl}')`;
-        boardImage.style.visibility = 'hidden'; // Keep it hidden, it's just for aspect ratio
+        // Use the img tag for display to ensure full resolution during zoom
+        boardImage.style.visibility = 'visible';
+        boardContent.style.backgroundImage = 'none';
     };
     boardImage.onerror = () => {
+        boardImage.style.visibility = 'hidden';
         boardContent.style.backgroundImage = 'none';
         boardContent.style.aspectRatio = '1 / 1';
         boardContent.appendChild(Object.assign(document.createElement('div'), { className: 'error-message', innerHTML: `<strong>Board Image Failed to Load</strong><br><small>Check the URL in the config or try re-uploading.</small>` }));

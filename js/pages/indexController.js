@@ -39,6 +39,10 @@ let unsubscribeFromSingleSubmission = null;
 // NEW: Debounce flag to prevent multiple renders in the same frame
 let isRenderScheduled = false;
 
+// NEW: Zoom and Pan state
+let currentScale = 1;
+let pan = { x: 0, y: 0 };
+
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize all data stores for the application
     initAuth();
@@ -73,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial call to render the page with default store values.
     onDataChanged();
+
+    // Initialize Zoom/Pan controls
+    initZoomControls();
 });
 
 /**
@@ -184,14 +191,25 @@ function renderPage() {
     // If setup mode is on, we must check the user's status.
     // CRITICAL: We must wait until `authState.authChecked` is true before evaluating roles.
     // This prevents a race condition on initial load where an admin might briefly be treated as a non-mod.
-    if (config.setupModeEnabled === true) {
+    
+    // NEW: If config is empty (access denied by rules) and we are not an admin, assume Setup Mode.
+    // We check !config.pageTitle as a proxy for "Config failed to load".
+    const isConfigBlocked = authState.authChecked && !config.pageTitle && !authState.isAdmin;
+    
+    if (config.setupModeEnabled === true || isConfigBlocked) {
       // If auth is checked and the user is confirmed to NOT be a mod, show the message and stop.
-      if (authState.authChecked && !authState.isEventMod) {
+      // UPDATED: If config is blocked, we treat it as setup mode regardless of mod status (Admins bypass via rules).
+      if (authState.authChecked && (!authState.isEventMod || isConfigBlocked)) {
         // Hide the admin warning container in case it was visible
         if (adminWarningContainer) adminWarningContainer.style.display = 'none';
         // NEW: Pass the setupMode flag directly to renderBoard.
-        // This ensures the property is set consistently on every render.
-        renderBoard({ setupMode: true });
+        // UPDATED: Explicitly pass empty config and current authState to clear any stale cached data in the component.
+        if (boardComponent) {
+            boardComponent.config = {}; 
+            boardComponent.authState = authState;
+        }
+        renderBoard({ setupMode: true, config: {}, authState: authState, tiles: [] });
+        
         // Explicitly hide all other interactive elements
         document.getElementById('team-selector').style.display = 'none';
         document.getElementById('tile-search-container').style.display = 'none';
@@ -212,6 +230,9 @@ function renderPage() {
         if (adminWarningContainer) adminWarningContainer.style.display = 'block';
         adminWarningContainer.innerHTML = '<p style="text-align:center; font-weight: bold; color: var(--warn-text-color); padding: 1rem; background-color: var(--warn-bg-color); border: 2px solid var(--warn-color); border-radius: 8px; margin-bottom: 1rem;">SETUP MODE IS ON: The board is currently hidden from all non-admin users.</p>';
     }
+    
+    // Ensure the team selector is visible (it might have been hidden if previously in setup mode/logged out)
+    document.getElementById('team-selector').style.display = 'block';
 
     // Regenerate team colors if teams have changed.
     if (teamsChanged) {
@@ -317,7 +338,8 @@ function processAllData(submissions, tiles, allTeams, config) {
 
 function applyGlobalStyles(config) {
     if (!config) return;
-    const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container');
+    // UPDATED: Target #board-viewport instead of #board-container for width constraints
+    const elements = document.querySelectorAll('.navbar, .controls, #board-viewport, .info-container');
 
     let configValue = config.maxPageWidth;
     let maxWidth;
@@ -644,6 +666,50 @@ function handleSearchResultClick(event) {
         // Clear search after selection
         document.getElementById('tile-search-input').value = '';
         document.getElementById('tile-search-results').style.display = 'none';
+    }
+}
+
+// --- NEW: Zoom and Pan Logic ---
+
+function initZoomControls() {
+    const zoomSlider = document.getElementById('zoom-slider');
+    const resetZoomBtn = document.getElementById('reset-zoom');
+    const viewport = document.getElementById('board-viewport');
+    
+    if (zoomSlider) zoomSlider.addEventListener('input', updateZoom);
+    if (resetZoomBtn) resetZoomBtn.addEventListener('click', resetZoom);
+
+    // Initialize Interact.js for panning
+    if (typeof interact !== 'undefined' && viewport) {
+        interact(viewport).draggable({
+            listeners: {
+                move(event) {
+                    pan.x += event.dx;
+                    pan.y += event.dy;
+                    applyTransform();
+                }
+            }
+        });
+    }
+}
+
+function updateZoom() {
+    const zoomSlider = document.getElementById('zoom-slider');
+    currentScale = parseFloat(zoomSlider.value);
+    document.getElementById('zoom-value').textContent = `${Math.round(currentScale * 100)}%`;
+    applyTransform();
+}
+
+function resetZoom() {
+    document.getElementById('zoom-slider').value = 1;
+    pan = { x: 0, y: 0 };
+    updateZoom();
+}
+
+function applyTransform() {
+    const wrapper = document.getElementById('board-transform-wrapper');
+    if (wrapper) {
+        wrapper.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
     }
 }
 

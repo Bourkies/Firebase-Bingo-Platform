@@ -35,6 +35,11 @@ onMount(configStore, () => {
         updateStore();
     }, (error) => {
         console.error("[configStore] Error listening to config:", error);
+        if (error.code === 'permission-denied') {
+            console.warn("[configStore] Permission denied (Setup Mode?). Clearing cache.");
+            configStore.set({ config: {}, styles: {} });
+            localStorage.removeItem('bingo_config_cache');
+        }
     });
 
     const unsubscribeStyles = fb.onSnapshot(fb.collection(db, 'styles'), (snapshot) => {
@@ -46,6 +51,11 @@ onMount(configStore, () => {
         updateStore();
     }, (error) => {
         console.error("[configStore] Error listening to styles:", error);
+        if (error.code === 'permission-denied') {
+            // If styles are blocked, just clear them in the current state
+            const current = configStore.get();
+            configStore.set({ ...current, styles: {} });
+        }
     });
 
     return () => {

@@ -24,7 +24,9 @@ onMount(tilesStore, () => {
         let newMode = 'private'; // Default
         if (isSetupPage) {
             newMode = 'setup';
-        } else if (config?.censorTilesBeforeEvent === true && !authState?.isEventMod) {
+        } else if (config?.censorTilesBeforeEvent === true && (!authState?.isEventMod || config?.setupModeEnabled)) {
+            // UPDATED: If censored, and (user is not mod OR we are in setup mode), use public tiles.
+            // This allows Admins to preview the censored board state while in Setup Mode.
             newMode = 'public';
         }
 
@@ -74,6 +76,13 @@ onMount(tilesStore, () => {
                 // The admin needs to publish the board. Reading the raw collection is too expensive for players.
                 console.warn('[tilesStore] Packed tiles document not found. Please use the "Publish Board" button on the Setup page to generate it.');
                 tilesStore.set([]);
+            }
+        }, (error) => {
+            console.error("[tilesStore] Error listening to tiles:", error);
+            if (error.code === 'permission-denied') {
+                console.warn("[tilesStore] Permission denied. Clearing cache.");
+                tilesStore.set([]);
+                localStorage.removeItem(cacheKey);
             }
         });
     }

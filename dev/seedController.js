@@ -195,7 +195,7 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
                 if (isEventMod) updates.isEventMod = true;
                 
                 if (Object.keys(updates).length > 0) await fb.updateDoc(fb.doc(db, 'users', email), updates);
-                if (isCaptain && teamId) await fb.updateDoc(fb.doc(db, 'teams', teamId), { captainId: uid });
+                if (isCaptain && teamId) await fb.updateDoc(fb.doc(db, 'teams', teamId), { captainId: email });
                 log(`  > Permissions updated (${Date.now() - startPerms}ms).`);
             }
 
