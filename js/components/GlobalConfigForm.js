@@ -97,8 +97,15 @@ export class GlobalConfigForm extends LitElement {
             if (rangeInput) rangeInput.value = newValue;
         }
 
+        // NEW: Handle unit for preview to ensure visual consistency
+        let previewValue = newValue;
+        if (input.dataset.unit && typeof newValue === 'string' && newValue.trim() !== '') {
+             previewValue = `${newValue}${input.dataset.unit}`;
+        }
+
         // Dispatch preview event for real-time updates on the board
-        this.dispatchEvent(new CustomEvent('config-preview-change', { detail: { status, key, value: newValue } }));
+        const previewEventName = status ? 'style-preview-change' : 'config-preview-change';
+        this.dispatchEvent(new CustomEvent(previewEventName, { detail: { status, key, value: previewValue } }));
 
         // --- Debounced Save ---
         // This will be called on both 'input' and 'change' events.
@@ -177,7 +184,8 @@ const debouncedSave = debounce((component, detail) => {
     if (detail.unit) {
         finalValue = `${finalValue}${detail.unit}`;
     }
-    component.dispatchEvent(new CustomEvent('config-change', {
+    const eventName = detail.status ? 'style-change' : 'config-change';
+    component.dispatchEvent(new CustomEvent(eventName, {
         detail: { status: detail.status, key: detail.key, value: finalValue }
     }));
 }, 500);

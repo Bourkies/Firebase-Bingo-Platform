@@ -198,9 +198,10 @@ export class BingoTile extends LitElement {
         const stampUrl = this._getProp('stampImageUrl');
         const tileName = this.tile.Name || 'Unnamed Tile';
         const showName = (this.isSetupPreview && !stampUrl) || (config.showTileNames === true && !stampUrl);
+        const stampPos = this._getProp('stampPosition') || 'center';
 
         return html`
-            ${useStamp && stampUrl ? html`<div class="stamp-image" style="background-image: url('${stampUrl}'); background-position: ${this._getProp('stampPosition') || 'center'}; transform: scale(${this._getProp('stampScale') || '1'}) rotate(${this._getProp('stampRotation') || '0deg'});"></div>` : ''}
+            ${useStamp && stampUrl ? html`<div class="stamp-image" style="background-image: url('${stampUrl}'); background-position: ${stampPos}; transform-origin: ${stampPos}; transform: scale(${this._getProp('stampScale') || '1'}) rotate(${this._getProp('stampRotation') || '0deg'});"></div>` : ''}
             ${showName ? html`<div class="tile-content"><span>${this.isSetupPreview ? this.status : tileName}</span></div>` : ''}
             ${this.showId ? html`<div class="tile-id-overlay">${this.tile.id}</div>` : ''}
         `;
