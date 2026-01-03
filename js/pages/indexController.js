@@ -223,6 +223,9 @@ function renderPage() {
         if (adminWarningContainer) adminWarningContainer.style.display = 'block';
         adminWarningContainer.innerHTML = '<p style="text-align:center; font-weight: bold; color: var(--warn-text-color); padding: 1rem; background-color: var(--warn-bg-color); border: 2px solid var(--warn-color); border-radius: 8px; margin-bottom: 1rem;">SETUP MODE IS ON: The board is currently hidden from all non-admin users.</p>';
     }
+    
+    // Ensure the team selector is visible (it might have been hidden if previously in setup mode/logged out)
+    document.getElementById('team-selector').style.display = 'block';
 
     // Regenerate team colors if teams have changed.
     if (teamsChanged) {
