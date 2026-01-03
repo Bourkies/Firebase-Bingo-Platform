@@ -68,7 +68,7 @@ Stores team definitions.
 | `id` | String | Unique Team ID (matches Doc ID). |
 | `name` | String | Display name of the team. |
 | `color` | String | Hex color code used for charts and UI accents. |
-| `captainId` | String | UID of the user designated as team captain. |
+| `captainId` | String | docid of the user designated as team captain. |
 
 ### Collection: `tiles`
 Stores the configuration for each bingo tile on the board.
@@ -92,14 +92,13 @@ Stores the configuration for each bingo tile on the board.
 
 ### Collection: `submissions`
 Stores player claims for tiles.
-*   **Document ID:** Auto-generated UUID
+*   **Document ID:** date team and tile (e.g., `YYMMDD-team1-B1`)
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `docId` | String | Internal Firestore ID (matches Doc ID). |
 | `id` | String | The `id` of the `tiles` document being claimed. |
 | `Team` | String | The `id` of the `teams` document. |
-| `PlayerIDs` | Array<String> | List of user UIDs involved in the submission. |
+| `PlayerIDs` | Array<String> | List of user docid's involved in the submission. |
 | `AdditionalPlayerNames` | String | Text field for non-registered players. |
 | `Evidence` | String | URL or text evidence provided by the player. |
 | `Notes` | String | Optional notes from the player. |

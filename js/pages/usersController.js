@@ -288,7 +288,23 @@ function renderTeamManagement() {
     sortedTeams.forEach(([id, team]) => {
         const select = container.querySelector(`#captain-select-${id}`);
         if (select) {
-            select.value = team.captainId || '';
+            // Handle both DocID (new) and UID (legacy) for captainId
+            if (team.captainId) {
+                const captainUser = allUsers.find(u => u.docId === team.captainId || u.uid === team.captainId);
+                // Ensure the captain is actually in the list (member of the team)
+                if (captainUser && captainUser.team === id) {
+                    select.value = captainUser.docId;
+                    if (select.value === '' && captainUser.docId) {
+                         console.warn(`[UsersController] Captain ${team.captainId} is in team ${id} but not in dropdown options.`);
+                    }
+                } else {
+                    if (captainUser) console.warn(`[UsersController] Captain ${team.captainId} found but is in team ${captainUser.team}, not ${id}.`);
+                    else console.warn(`[UsersController] Captain ${team.captainId} set in team ${id} but user not found in usersStore.`);
+                    select.value = '';
+                }
+            } else {
+                select.value = '';
+            }
         }
     });
 }
@@ -300,12 +316,29 @@ async function handleTeamDetailsChange(event) {
     if (!teamCard) return;
 
     const teamId = teamCard.dataset.teamId;
-    const newName = teamCard.querySelector('.team-name-input').value.trim();
-    const newCaptainId = teamCard.querySelector('.captain-select').value || null;
+    
+    // FIX: Get values robustly. If the target is the input/select, use its value directly.
+    const newName = target.classList.contains('team-name-input') ? target.value.trim() : teamCard.querySelector('.team-name-input').value.trim();
+    
+    // FIX: Handle empty string -> null conversion for captainId
+    let newCaptainId;
+    if (target.classList.contains('captain-select')) {
+        newCaptainId = target.value || null;
+    } else {
+        newCaptainId = teamCard.querySelector('.captain-select').value || null;
+    }
+
+    console.log(`[UsersController] Updating team ${teamId}: Name="${newName}", Captain="${newCaptainId}". Current Store Captain: ${teamsStore.get()[teamId]?.captainId}`);
 
     if (!newName) {
         showMessage('Team name cannot be empty.', true);
-        event.target.value = teamsStore.get()[teamId].name; // Revert
+        // Revert the specific field that triggered the change
+        if (target.classList.contains('team-name-input')) target.value = teamsStore.get()[teamId].name;
+        if (target.classList.contains('captain-select')) {
+            const team = teamsStore.get()[teamId];
+            const captainUser = usersStore.get().find(u => u.docId === team.captainId || u.uid === team.captainId);
+            target.value = captainUser ? captainUser.docId : '';
+        }
         return;
     }
 
@@ -314,14 +347,19 @@ async function handleTeamDetailsChange(event) {
     const nameExists = Object.values(allTeams).some(t => t.id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
     if (nameExists) {
         showMessage('Team name must be unique.', true);
-        event.target.value = allTeams[teamId].name; // Revert input
+        if (target.classList.contains('team-name-input')) target.value = allTeams[teamId].name;
+        if (target.classList.contains('captain-select')) {
+            const team = allTeams[teamId];
+            const captainUser = usersStore.get().find(u => u.docId === team.captainId || u.uid === team.captainId);
+            target.value = captainUser ? captainUser.docId : '';
+        }
         return;
     }
 
     showGlobalLoader();
     try {
         await updateTeam(teamId, { name: newName, captainId: newCaptainId });
-        showMessage(`Team "${newName}" updated successfully.`, false);
+        showMessage(`Team updated successfully.`, false);
     } catch (error) {
         console.error(`Failed to update team ${teamId}:`, error);
         showMessage(`Error updating team: ${error.message}`, true);
