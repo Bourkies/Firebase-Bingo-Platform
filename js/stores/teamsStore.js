@@ -25,6 +25,11 @@ onMount(teamsStore, () => {
         localStorage.setItem('bingo_teams_cache', JSON.stringify(newTeams));
     }, (error) => {
         console.error("[teamsStore] Error listening to teams:", error);
+        if (error.code === 'permission-denied') {
+            console.warn("[teamsStore] Permission denied. Clearing cache.");
+            teamsStore.set({});
+            localStorage.removeItem('bingo_teams_cache');
+        }
     });
 
     return () => {

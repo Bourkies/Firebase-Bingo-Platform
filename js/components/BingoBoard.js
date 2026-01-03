@@ -150,6 +150,11 @@ export class BingoBoard extends LitElement {
     handleTileClick(tile, status) {
         console.log(`[BingoBoard] handleTileClick: Tile '${tile.id}', Status: '${status}'`);
         const isMyTeam = this.authState.isLoggedIn && this.authState.profile?.team === this.displayTeam;
+        
+        // NEW: Disable submissions if censored (even for admins in setup mode)
+        const isCensored = this.config.censorTilesBeforeEvent === true && (!this.authState?.isEventMod || this.config.setupModeEnabled);
+        if (isCensored) return;
+
         const canOpenModal = !this.isGenericView && isMyTeam && status !== 'Locked';
 
         if (canOpenModal) {
@@ -201,7 +206,7 @@ export class BingoBoard extends LitElement {
 
                         // The `tile` object from `this.tiles` can be from 'tiles' (full data) or 'public_tiles' (censored data).
                         // We always want to use the layout properties from the full tile object for rendering.
-                        const isCensored = this.config.censorTilesBeforeEvent === true && !this.authState?.isEventMod;
+                        const isCensored = this.config.censorTilesBeforeEvent === true && (!this.authState?.isEventMod || this.config.setupModeEnabled);
                         // The `tile` object from the store will now correctly contain layout data even when censored.
                         // The Name/Description fields will just be missing, which we handle below.
                         const layoutTile = tile;

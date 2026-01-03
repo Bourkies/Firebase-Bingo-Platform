@@ -184,9 +184,15 @@ function renderPage() {
     // If setup mode is on, we must check the user's status.
     // CRITICAL: We must wait until `authState.authChecked` is true before evaluating roles.
     // This prevents a race condition on initial load where an admin might briefly be treated as a non-mod.
-    if (config.setupModeEnabled === true) {
+    
+    // NEW: If config is empty (access denied by rules) and we are not an admin, assume Setup Mode.
+    // We check !config.pageTitle as a proxy for "Config failed to load".
+    const isConfigBlocked = authState.authChecked && !config.pageTitle && !authState.isAdmin;
+    
+    if (config.setupModeEnabled === true || isConfigBlocked) {
       // If auth is checked and the user is confirmed to NOT be a mod, show the message and stop.
-      if (authState.authChecked && !authState.isEventMod) {
+      // UPDATED: If config is blocked, we treat it as setup mode regardless of mod status (Admins bypass via rules).
+      if (authState.authChecked && (!authState.isEventMod || isConfigBlocked)) {
         // Hide the admin warning container in case it was visible
         if (adminWarningContainer) adminWarningContainer.style.display = 'none';
         // NEW: Pass the setupMode flag directly to renderBoard.
