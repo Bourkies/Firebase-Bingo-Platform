@@ -39,6 +39,10 @@ let unsubscribeFromSingleSubmission = null;
 // NEW: Debounce flag to prevent multiple renders in the same frame
 let isRenderScheduled = false;
 
+// NEW: Zoom and Pan state
+let currentScale = 1;
+let pan = { x: 0, y: 0 };
+
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize all data stores for the application
     initAuth();
@@ -73,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial call to render the page with default store values.
     onDataChanged();
+
+    // Initialize Zoom/Pan controls
+    initZoomControls();
 });
 
 /**
@@ -331,7 +338,8 @@ function processAllData(submissions, tiles, allTeams, config) {
 
 function applyGlobalStyles(config) {
     if (!config) return;
-    const elements = document.querySelectorAll('.navbar, .controls, #board-container, .info-container');
+    // UPDATED: Target #board-viewport instead of #board-container for width constraints
+    const elements = document.querySelectorAll('.navbar, .controls, #board-viewport, .info-container');
 
     let configValue = config.maxPageWidth;
     let maxWidth;
@@ -658,6 +666,50 @@ function handleSearchResultClick(event) {
         // Clear search after selection
         document.getElementById('tile-search-input').value = '';
         document.getElementById('tile-search-results').style.display = 'none';
+    }
+}
+
+// --- NEW: Zoom and Pan Logic ---
+
+function initZoomControls() {
+    const zoomSlider = document.getElementById('zoom-slider');
+    const resetZoomBtn = document.getElementById('reset-zoom');
+    const viewport = document.getElementById('board-viewport');
+    
+    if (zoomSlider) zoomSlider.addEventListener('input', updateZoom);
+    if (resetZoomBtn) resetZoomBtn.addEventListener('click', resetZoom);
+
+    // Initialize Interact.js for panning
+    if (typeof interact !== 'undefined' && viewport) {
+        interact(viewport).draggable({
+            listeners: {
+                move(event) {
+                    pan.x += event.dx;
+                    pan.y += event.dy;
+                    applyTransform();
+                }
+            }
+        });
+    }
+}
+
+function updateZoom() {
+    const zoomSlider = document.getElementById('zoom-slider');
+    currentScale = parseFloat(zoomSlider.value);
+    document.getElementById('zoom-value').textContent = `${Math.round(currentScale * 100)}%`;
+    applyTransform();
+}
+
+function resetZoom() {
+    document.getElementById('zoom-slider').value = 1;
+    pan = { x: 0, y: 0 };
+    updateZoom();
+}
+
+function applyTransform() {
+    const wrapper = document.getElementById('board-transform-wrapper');
+    if (wrapper) {
+        wrapper.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
     }
 }
 

@@ -11,6 +11,7 @@
         }
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
   <script src="./js/theme-loader.js"></script>
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,8 +24,31 @@
     }    .controls { width: 100%; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
     h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
     #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
-    #board-container {
+    
+    /* NEW: Zoom and Pan Styles */
+    #board-viewport {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px var(--shadow-color);
+      cursor: grab;
+      position: relative;
+      touch-action: none; /* Prevent browser scrolling while dragging */
+      background-color: var(--bg-color); /* Ensure background behind board is solid */
     }
+    #board-viewport:active { cursor: grabbing; }
+    #board-transform-wrapper {
+      width: 100%;
+      transform-origin: top left;
+      /* Ensure the wrapper takes up space */
+      display: block; 
+    }
+    /* Override component styles to move shadow/radius to viewport */
+    bingo-board {
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+
     .tile-overlay:hover {
       border-color: var(--tile-hover-border-color, var(--accent-color));
       border-width: var(--tile-hover-border-width, 2px);
@@ -203,6 +227,13 @@
         margin: 0;
         color: var(--secondary-text);
     }
+    .zoom-control {
+        display: flex; align-items: center; gap: 10px;
+        background-color: var(--surface-color); padding: 0.5rem 1rem;
+        border-radius: 8px; border: 1px solid var(--border-color);
+    }
+    .zoom-control input[type="range"] { cursor: pointer; }
+    .zoom-control button { padding: 0.25rem 0.5rem; font-size: 0.9rem; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -212,6 +243,12 @@
 
   <div class="controls">
     <h1 id="page-title">Bingo</h1>
+    <div class="zoom-control">
+        <label for="zoom-slider">Zoom:</label>
+        <input type="range" id="zoom-slider" min="1" max="5" value="1" step="0.1">
+        <span id="zoom-value">100%</span>
+        <button id="reset-zoom">Reset</button>
+    </div>
     <select id="team-selector"></select>
   </div>
 
@@ -227,7 +264,11 @@
   <!-- NEW: Dedicated container for board-level notifications -->
   <div id="board-notification"></div>
 
-  <bingo-board id="board-container"></bingo-board>
+  <div id="board-viewport">
+      <div id="board-transform-wrapper">
+          <bingo-board id="board-container"></bingo-board>
+      </div>
+  </div>
 
   <div class="info-container">
     <bingo-color-key id="color-key-container"></bingo-color-key>

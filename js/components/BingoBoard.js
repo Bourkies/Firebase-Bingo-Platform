@@ -189,25 +189,20 @@ export class BingoBoard extends LitElement {
             return html``;
         }
 
-        const imageUrl = this.config.boardImageUrl;
-        if (imageUrl) {
-            const img = new Image();
-            img.onload = () => {
-                // GUARD: Only apply if the config still matches this image.
-                // This prevents a race condition where an old image loads after the board has been cleared.
-                if (this.config?.boardImageUrl === imageUrl) {
-                    this.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-                    this.style.backgroundImage = `url('${imageUrl}')`;
-                }
-            };
-            img.onerror = () => { this.style.aspectRatio = '1 / 1'; };
-            img.src = imageUrl;
-        } else {
-            this.style.aspectRatio = '1 / 1';
-            this.style.backgroundImage = ''; // Clear image if config has none (reverts to CSS default)
-        }
-
         return html`
+            ${this.config.boardImageUrl ? html`
+                <img 
+                    src="${this.config.boardImageUrl}" 
+                    alt="Board Background" 
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; z-index: 0; pointer-events: none;"
+                    @load=${(e) => {
+                        this.style.aspectRatio = `${e.target.naturalWidth} / ${e.target.naturalHeight}`;
+                    }}
+                    @error=${() => {
+                        this.style.aspectRatio = '1 / 1';
+                    }}
+                />
+            ` : ''}
             ${this.tiles.map(tile => 
                 keyed(tile.docId, html`
                     ${(() => {
