@@ -182,9 +182,10 @@ function renderSubmissionsTable() {
             if (col === 'id') return sub.id || '';
             if (col === 'tileName') return tilesByVisibleId.get(sub.id)?.Name || '';
             if (col === 'teamName') return allTeams[sub.Team]?.name || sub.Team || '';
-            if (col === 'playerNames') return (sub.PlayerIDs || []).map(id => usersMap.get(id) || '').join(', ');
             if (col === 'created') return sub.Timestamp || new Date(0);
+            if (col === 'createdBy') return getCreatedBy(sub, usersMap);
             if (col === 'lastEdited') return getLastEdited(sub);
+            if (col === 'lastEditedBy') return getLastEditedBy(sub, usersMap);
             return '';
         };
 
@@ -212,7 +213,7 @@ function renderSubmissionsTable() {
     });
 
     if (filteredSubmissions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';
         return;
     }
 
@@ -223,11 +224,8 @@ function renderSubmissionsTable() {
         const date = sub.Timestamp; // Already a Date object
         const timestamp = formatCustomDateTime(date, useUtcTime);
         const lastEdited = formatCustomDateTime(getLastEdited(sub), useUtcTime);
-
-        // NEW: Generate player name string from IDs
-        const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || `[${String(id).substring(0,5)}]`).join(', ');
-        const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
-
+        const createdBy = getCreatedBy(sub, usersMap);
+        const lastEditedBy = getLastEditedBy(sub, usersMap);
 
         return `
             <tr data-id="${sub.docId}">
@@ -235,9 +233,10 @@ function renderSubmissionsTable() {
                 <td data-label="Tile ID">${sub.id}</td>
                 <td data-label="Tile" title="${tileName}">${tileName}</td>
                 <td data-label="Team">${teamName}</td>
-                <td data-label="Player(s)" title="${finalPlayerString}">${finalPlayerString}</td>
                 <td data-label="Created">${timestamp}</td>
+                <td data-label="Created By">${createdBy}</td>
                 <td data-label="Last Edited">${lastEdited}</td>
+                <td data-label="Edited By">${lastEditedBy}</td>
             </tr>
         `;
     }).join('');
@@ -263,6 +262,36 @@ function getLastEdited(sub) {
         }, sub.Timestamp || new Date(0));
     }
     return sub.Timestamp || new Date(0);
+}
+
+function getCreatedBy(sub, usersMap) {
+    if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
+        // Find the entry with the minimum timestamp
+        const firstEntry = sub.history.reduce((min, entry) => {
+            return (entry.timestamp < min.timestamp) ? entry : min;
+        }, sub.history[0]);
+        return firstEntry.user?.name || 'Unknown';
+    }
+    // Fallback to first player if no history
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
+        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
+    }
+    return 'Unknown';
+}
+
+function getLastEditedBy(sub, usersMap) {
+    if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
+        // Find the entry with the maximum timestamp
+        const lastEntry = sub.history.reduce((max, entry) => {
+            return (entry.timestamp > max.timestamp) ? entry : max;
+        }, sub.history[0]);
+        return lastEntry.user?.name || 'Unknown';
+    }
+    // Fallback to first player if no history
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
+        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
+    }
+    return 'Unknown';
 }
 
 function formatCustomDateTime(date, useUTC = false) {

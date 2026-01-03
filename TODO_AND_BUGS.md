@@ -28,7 +28,8 @@
 
 ## 🐛 Known Bugs
 
-- (Add bugs here as they are discovered during QA)
+- submission modal closes after acknowledging feedback
+- captains Can't add team members (firestore rules issue?)
 
 ## 📝 QA & Testing
 

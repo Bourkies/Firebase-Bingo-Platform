@@ -141,8 +141,14 @@
     .status-Requires-Action { background-color: var(--error-color); }
     .status-Partially-Complete { background-color: var(--status-partially-complete-color); }
 
+    /* Column Widths for Desktop */
+    @media screen and (min-width: 800px) {
+        #submissions-table th.col-date { width: 115px; }
+        #submissions-table th.col-id { width: 65px; }
+    }
+
     /* NEW: Responsive Table Styles */
-    @media screen and (max-width: 960px) {
+    @media screen and (max-width: 800px) {
         #submissions-table { table-layout: auto; } /* Allow table to be flexible */
         #submissions-table thead { display: none; } /* Hide table headers */
         #submissions-table tbody, #submissions-table tr, #submissions-table td { display: block; width: 100%; box-sizing: border-box; }
@@ -254,13 +260,14 @@
                 <div style="overflow-x: auto;">
                     <table id="submissions-table">
                         <thead><tr>
-                            <th data-column="status">Status</th>
-                            <th data-column="id">Tile ID</th>
+                            <th data-column="status" class="col-status">Status</th>
+                            <th data-column="id" class="col-id">Tile ID</th>
                             <th data-column="tileName">Tile</th>
                             <th data-column="teamName">Team</th>
-                            <th data-column="playerNames">Player(s)</th>
-                            <th data-column="created">Created</th>
-                            <th data-column="lastEdited">Last Edited</th>
+                            <th data-column="created" class="col-date">Created</th>
+                            <th data-column="createdBy" class="col-user">Created By</th>
+                            <th data-column="lastEdited" class="col-date">Last Edited</th>
+                            <th data-column="lastEditedBy" class="col-user">Edited By</th>
                         </tr></thead>
                         <tbody></tbody>
                     </table>
