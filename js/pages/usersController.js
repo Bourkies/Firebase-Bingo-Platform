@@ -236,6 +236,12 @@ function renderTeamManagement() {
     const allUsers = usersStore.get();
     const container = document.getElementById('teams-management-container');
 
+    // FIX: Guard clause for race condition where teams load before users
+    if (allUsers.length === 0) {
+        container.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--secondary-text);">Loading user data...</p>';
+        return;
+    }
+
     // NEW: Get unassigned users once for all teams to use.
     const unassignedUsers = allUsers.filter(u => !u.team || !allTeams[u.team]);
     const unassignedUsersHTML = unassignedUsers.length > 0 ? unassignedUsers.map(u => `
@@ -344,7 +350,7 @@ async function handleTeamDetailsChange(event) {
 
     // Check for duplicate name (excluding current team)
     const allTeams = teamsStore.get();
-    const nameExists = Object.values(allTeams).some(t => t.id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
+    const nameExists = Object.entries(allTeams).some(([id, t]) => id !== teamId && t.name.toLowerCase() === newName.toLowerCase());
     if (nameExists) {
         showMessage('Team name must be unique.', true);
         if (target.classList.contains('team-name-input')) target.value = allTeams[teamId].name;
