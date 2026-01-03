@@ -132,7 +132,7 @@
                     return `
                     <label class="team-checkbox">
                         <input type="checkbox" class="team-select" value="${t.id}" ${isSeed ? 'checked' : ''}>
-                        <span style="color: ${t.color}">${t.name}</span>
+                        <span>${t.name}</span>
                     </label>
                 `}).join('');
             } catch (e) {
