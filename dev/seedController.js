@@ -20,7 +20,7 @@ const SEED_DEFINITIONS = [
     { suffix: 'Brown' }
 ];
 
-function checkSafety() {
+export function checkSafety() {
     // 1. Environment Check
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isLocal) {
@@ -35,8 +35,7 @@ function checkSafety() {
     }
 }
 
-export async function getExistingTeams() {
-    try { checkSafety(); } catch(e) { return []; }
+export async function getExistingTeams(skipSafety = false) {
     console.log("[SeedController] Fetching existing teams...");
     const snap = await fb.getDocs(fb.collection(db, 'teams'));
     return snap.docs.map(d => d.data());
@@ -476,8 +475,7 @@ export async function seedSubmissions(log) {
     log("Submission seeding complete.");
 }
 
-export async function getCounts() {
-    try { checkSafety(); } catch(e) { return { teams: '-', users: '-', submissions: '-', tiles: '-' }; }
+export async function getCounts(skipSafety = false) {
     
     console.log("[SeedController] Fetching counts...");
     const start = Date.now();
@@ -579,7 +577,8 @@ async function deleteCollectionSubset(collectionName, filterFn, log, skipSafety 
 }
 
 export async function deleteSeedTeams(log) {
-    await deleteCollectionSubset('teams', (doc) => doc.data().name.startsWith('seed_'), log);
+    try { checkSafety(); } catch(e) { alert(e.message); return; }
+    await deleteCollectionSubset('teams', (doc) => doc.data().name.startsWith('seed_'), log, true);
 }
 
 export async function deleteSeedUsers(log) {
@@ -632,8 +631,9 @@ export async function deleteSeedUsers(log) {
 }
 
 export async function deleteSeedSubmissions(log) {
+    try { checkSafety(); } catch(e) { alert(e.message); return; }
     await deleteCollectionSubset('submissions', (doc) => {
         const ev = doc.data().Evidence;
         return ev && ev.includes('Seed Proof');
-    }, log);
+    }, log, true);
 }

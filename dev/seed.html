@@ -82,7 +82,7 @@
 
     <script type="module">
         import '../js/components/Navbar.js';
-        import { seedTeams, seedUsers, seedSubmissions, deleteSeedTeams, deleteSeedUsers, deleteSeedSubmissions, getCounts, forceDebugSubmission, getExistingTeams } from '../dev/seedController.js';
+        import { seedTeams, seedUsers, seedSubmissions, deleteSeedTeams, deleteSeedUsers, deleteSeedSubmissions, getCounts, forceDebugSubmission, getExistingTeams, checkSafety } from '../dev/seedController.js';
         import { authStore } from '../js/stores/authStore.js';
         import { configStore } from '../js/stores/configStore.js';
         
@@ -104,6 +104,11 @@
                 
                 if (!dataLoaded) {
                     dataLoaded = true;
+                    try {
+                        checkSafety();
+                    } catch (e) {
+                        log("Safety check skipped/cancelled on load. Read-only mode.");
+                    }
                     refreshStats(); // Refresh stats now that we know user is an admin
                     loadTeams(); // Load teams now that we know user is an admin
                 }
