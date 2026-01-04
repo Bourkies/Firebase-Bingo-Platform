@@ -75,9 +75,9 @@ export class BingoTile extends LitElement {
         .tile-id-overlay {
             position: absolute;
             top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 12px; font-weight: bold; color: white;
-            background: rgba(0,0,0,0.7); padding: 2px 5px;
-            border-radius: 4px; z-index: 10;
+            font-size: 32px; font-weight: bold; color: white;
+            background: rgba(0,0,0,0.7); padding: 4px 10px;
+            border-radius: 8px; z-index: 10;
             pointer-events: none;
         }
     `;

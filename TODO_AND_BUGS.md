@@ -56,3 +56,8 @@
     - **Overview Page**: Refined activity feed layout to emphasize team name (colored) and tile ID, moving tile name to a separate line.
     - **Overview Page**: Moved team filter to the top of the main column and added "(Your Team)" indicator to the dropdown options.
     - **Overview Page**: Improved "Points Over Time" chart to only show data points (dots) for the team that scored at that specific timestamp, reducing visual clutter.
+    - **Zoom Controls**: Updated zoom behavior to zoom in/out from the center of the viewport instead of the top-left corner.
+    - **Mobile Rendering Fix**: Implemented a "Virtual Resolution" system for the board. The board now renders internally at 3000px width and scales down to fit the screen. This eliminates tile jittering caused by sub-pixel rounding and ensures borders remain proportional on mobile devices.
+    - **Board Height Fix**: Fixed an issue where the "Virtual Resolution" change caused the board container to take up excessive vertical space. Added logic to dynamically adjust the viewport height to match the scaled board content.
+    - **Setup Page Sync**: Applied the "Virtual Resolution" and "Zoom to Center" logic to the Setup page (`setup.html`) to ensure the visual representation and behavior match the main player board.
+    - **Setup Page Fixes**: Fixed the "Reset Zoom" button not re-centering the board immediately. Increased the font size of Tile IDs in setup mode to account for the new high-resolution rendering.

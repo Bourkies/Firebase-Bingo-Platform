@@ -24,6 +24,8 @@ let publishedTiles = [];
 let tileDiff = [];
 
 let currentScale = 1;
+let baseScale = 1;
+const VIRTUAL_BOARD_WIDTH = 3000; // Render internally at high res to prevent jitter
 let pan = { x: 0, y: 0 };
 
 // NEW: Local preview state to prevent store thrashing during high-frequency inputs
@@ -114,6 +116,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('select-all-diff-checkbox').addEventListener('change', (e) => {
         diffModal.querySelectorAll('.diff-checkbox').forEach(cb => cb.checked = e.target.checked);
     });
+
+    // NEW: Handle window resize to adjust the base scale
+    window.addEventListener('resize', handleResize);
+
+    // NEW: Observe board content for size changes (aspect ratio updates)
+    if (boardContent) {
+        const resizeObserver = new ResizeObserver(() => handleResize());
+        resizeObserver.observe(boardContent);
+    }
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -216,6 +227,7 @@ function onDataChanged() {
         createStylePreviewButtons();
         applyTileLockState();
         loadBoardImage(config.boardImageUrl || '');
+        handleResize(); // Initial fit
     }
 }
 
@@ -458,12 +470,48 @@ function handleTilePreviewUpdate(event) {
         // tilesData[tileIndex] = newTileData; // No need to mutate store directly here, visual update is enough until save
     }
 }
+
+// NEW: Handle resizing to maintain virtual resolution fit
+function handleResize() {
+    updateBaseScale();
+    applyTransform();
+}
+
+function updateBaseScale() {
+    if (!boardContainer || !boardContent) return;
+
+    // 1. Force the board to render at high internal resolution
+    boardContent.style.width = `${VIRTUAL_BOARD_WIDTH}px`;
+
+    // 2. Calculate scale to fit viewport
+    const viewportWidth = boardContainer.clientWidth;
+    if (viewportWidth === 0) return;
+
+    baseScale = viewportWidth / VIRTUAL_BOARD_WIDTH;
+
+    // 3. Update container height to match scaled content
+    const scaledHeight = boardContent.offsetHeight * baseScale;
+    boardContainer.style.height = `${scaledHeight}px`;
+}
+
 function applyTransform() {
-    boardContent.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
+    const totalScale = currentScale * baseScale;
+    boardContent.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${totalScale})`;
 }
 
 function updateZoom() {
-    currentScale = parseFloat(zoomSlider.value);
+    const newScale = parseFloat(zoomSlider.value);
+    if (newScale === currentScale) return;
+
+    // Zoom to center logic (same as indexController)
+    const rect = boardContainer.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    pan.x = centerX - (newScale / currentScale) * (centerX - pan.x);
+    pan.y = centerY - (newScale / currentScale) * (centerY - pan.y);
+
+    currentScale = newScale;
     zoomValue.textContent = `${Math.round(currentScale * 100)}%`;
     applyTransform();
 }
@@ -473,7 +521,10 @@ zoomSlider.addEventListener('input', updateZoom);
 resetZoomBtn.addEventListener('click', () => {
     zoomSlider.value = 1;
     pan = { x: 0, y: 0 };
-    updateZoom();
+    currentScale = 1;
+    document.getElementById('zoom-value').textContent = '100%';
+    updateBaseScale();
+    applyTransform();
 });
 
 interact(boardContainer)
