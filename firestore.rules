@@ -24,7 +24,8 @@ service cloud.firestore {
       // A captain is defined by the captainId field in a document in the /teams collection.
       // Return false if teamId is null or not a string.
       return isAuth() && teamName != null && teamName is string &&
-             get(/databases/$(database)/documents/teams/$(teamName)).data.captainId == request.auth.uid;
+             (get(/databases/$(database)/documents/teams/$(teamName)).data.captainId == request.auth.uid ||
+              get(/databases/$(database)/documents/teams/$(teamName)).data.captainId == request.auth.token.email);
     }
     
     function isCensored() {

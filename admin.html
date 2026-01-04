@@ -113,6 +113,7 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
+        flex-wrap: wrap;
     }
     .filter-group label {
         font-weight: bold;
@@ -129,14 +130,30 @@
     #submissions-table th { font-weight: bold; }
     #submissions-table tbody tr { cursor: pointer; transition: background-color 0.2s; }
     #submissions-table tbody tr:hover { background-color: var(--hover-bg-color); }
+    /* Sorting Styles */
+    #submissions-table th { cursor: pointer; user-select: none; position: relative; }
+    #submissions-table th:hover { background-color: var(--hover-bg-color); }
+    #submissions-table th::after { content: ''; display: inline-block; margin-left: 5px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; vertical-align: middle; opacity: 0.3; }
+    #submissions-table th.sort-asc::after { border-bottom: 4px solid var(--primary-text); opacity: 1; }
+    #submissions-table th.sort-desc::after { border-top: 4px solid var(--primary-text); opacity: 1; }
     .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
     .status-Verified { background-color: var(--success-color); }
     .status-Submitted { background-color: var(--status-submitted-color); }
     .status-Requires-Action { background-color: var(--error-color); }
     .status-Partially-Complete { background-color: var(--status-partially-complete-color); }
 
+    /* Column Widths for Desktop */
+    @media screen and (min-width: 800px) {
+        #submissions-table th.col-date { width: 115px; }
+        #submissions-table th.col-id { width: 65px; }
+    }
+
+    .mobile-sort-control { display: none; }
+
     /* NEW: Responsive Table Styles */
-    @media screen and (max-width: 960px) {
+    @media screen and (max-width: 800px) {
+        .mobile-sort-control { display: flex; width: 100%; }
+        .mobile-sort-control select { flex-grow: 1; }
         #submissions-table { table-layout: auto; } /* Allow table to be flexible */
         #submissions-table thead { display: none; } /* Hide table headers */
         #submissions-table tbody, #submissions-table tr, #submissions-table td { display: block; width: 100%; box-sizing: border-box; }
@@ -244,10 +261,36 @@
                         <label>Time:</label>
                         <div class="checkbox-filter-group"><input type="checkbox" id="utc-time-toggle"><label for="utc-time-toggle">Show UTC</label></div>
                     </div>
+                    <div class="filter-group mobile-sort-control">
+                        <label for="sort-filter">Sort By:</label>
+                        <select id="sort-filter">
+                            <option value="lastEdited-desc">Last Edited (Newest)</option>
+                            <option value="lastEdited-asc">Last Edited (Oldest)</option>
+                            <option value="created-desc">Created (Newest)</option>
+                            <option value="created-asc">Created (Oldest)</option>
+                            <option value="status-asc">Status (A-Z)</option>
+                            <option value="status-desc">Status (Z-A)</option>
+                            <option value="id-asc">Tile ID (A-Z)</option>
+                            <option value="id-desc">Tile ID (Z-A)</option>
+                            <option value="tileName-asc">Tile Name (A-Z)</option>
+                            <option value="tileName-desc">Tile Name (Z-A)</option>
+                            <option value="teamName-asc">Team (A-Z)</option>
+                            <option value="teamName-desc">Team (Z-A)</option>
+                        </select>
+                    </div>
                 </div>
                 <div style="overflow-x: auto;">
                     <table id="submissions-table">
-                        <thead><tr><th>Status</th><th>Tile ID</th><th>Tile</th><th>Team</th><th>Player(s)</th><th>Submitted</th></tr></thead>
+                        <thead><tr>
+                            <th data-column="status" class="col-status">Status</th>
+                            <th data-column="id" class="col-id">Tile ID</th>
+                            <th data-column="tileName">Tile</th>
+                            <th data-column="teamName">Team</th>
+                            <th data-column="created" class="col-date">Created</th>
+                            <th data-column="createdBy" class="col-user">Created By</th>
+                            <th data-column="lastEdited" class="col-date">Last Edited</th>
+                            <th data-column="lastEditedBy" class="col-user">Edited By</th>
+                        </tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -261,6 +304,7 @@
       <div class="modal-content">
           <span class="close-button">&times;</span>
           <h3 id="modal-tile-name"></h3>
+          <p id="modal-tile-description" style="color: var(--secondary-text); margin-bottom: 1rem; margin-top: -0.5rem;"></p>
           <div class="modal-grid">
               <div class="modal-field"><label>Team</label><span id="modal-team"></span></div>
               <div class="modal-field"><label>Player(s)</label><span id="modal-players"></span></div>

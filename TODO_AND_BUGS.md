@@ -28,7 +28,7 @@
 
 ## 🐛 Known Bugs
 
-- (Add bugs here as they are discovered during QA)
+- [x] captains Can't add team members (firestore rules issue?)
 
 ## 📝 QA & Testing
 
@@ -36,9 +36,12 @@
 
 ## Change log
 
+- **Submission Modal**: Fixed issue where the modal closed immediately after acknowledging admin feedback.
+- **Admin Dashboard**: Added mobile-specific sorting dropdown and improved filter layout responsiveness.
 - **Removed Legacy Auth**: Removed Google Sign-In and Anonymous login methods. The platform now exclusively uses the Username/Password flow (backed by Firebase Email/Password auth with a hidden domain).
     - Removed `isAnonymous` field from user profiles.
     - Removed `signInAnonymously`, `signInWithPopup`, `GoogleAuthProvider` from `firebase-config.js` and `auth.js`.
     - Updated `Navbar.js` to remove legacy login buttons.
     - Updated `usersController.js` and `permissionsController.js` to remove "Login Type" columns and logic.
-    - updated doc id of user is now set to the email address and the uid is moved to a key for the user
+    - Updated doc id of user is now set to the email address and the uid is moved to a key for the user.
+    - **Firestore Rules**: Fixed `isCaptainOfTeam` check to validate against both `uid` and `email` (matching the architecture where `captainId` is the user's email/docId).

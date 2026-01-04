@@ -9,6 +9,7 @@ import { submissionsStore, updateSubmission } from '../stores/submissionsStore.j
 import { usersStore } from '../stores/usersStore.js';
 
 let currentOpenSubmissionId = null; // NEW: To track the currently open modal
+let currentSort = { column: 'lastEdited', direction: 'asc' }; // Default sort state
 
 document.addEventListener('DOMContentLoaded', () => {
     // The Navbar now initializes all stores. We just subscribe to them.
@@ -29,6 +30,30 @@ document.addEventListener('DOMContentLoaded', () => {
         currentOpenSubmissionId = null; // NEW: Clear the tracking variable on close
     });
     document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
+
+    // NEW: Mobile sort listener
+    document.getElementById('sort-filter').addEventListener('change', (e) => {
+        const [col, dir] = e.target.value.split('-');
+        if (col && dir) {
+            currentSort.column = col;
+            currentSort.direction = dir;
+            renderSubmissionsTable();
+        }
+    });
+
+    // Setup sort listeners
+    document.querySelectorAll('#submissions-table th').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.column;
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = ['created', 'lastEdited'].includes(column) ? 'desc' : 'asc';
+            }
+            renderSubmissionsTable();
+        });
+    });
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -160,8 +185,51 @@ function renderSubmissionsTable() {
         return true; // If all filters pass
     });
 
+    // --- Sorting Logic ---
+    filteredSubmissions.sort((a, b) => {
+        const getVal = (sub, col) => {
+            if (col === 'status') return getSubmissionStatus(sub);
+            if (col === 'id') return sub.id || '';
+            if (col === 'tileName') return tilesByVisibleId.get(sub.id)?.Name || '';
+            if (col === 'teamName') return allTeams[sub.Team]?.name || sub.Team || '';
+            if (col === 'created') return sub.Timestamp || new Date(0);
+            if (col === 'createdBy') return getCreatedBy(sub, usersMap);
+            if (col === 'lastEdited') return getLastEdited(sub);
+            if (col === 'lastEditedBy') return getLastEditedBy(sub, usersMap);
+            return '';
+        };
+
+        const valA = getVal(a, currentSort.column);
+        const valB = getVal(b, currentSort.column);
+
+        if (valA instanceof Date && valB instanceof Date) {
+            return currentSort.direction === 'asc' ? valA - valB : valB - valA;
+        }
+
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+        
+        if (strA < strB) return currentSort.direction === 'asc' ? -1 : 1;
+        if (strA > strB) return currentSort.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Update Sort Indicators
+    document.querySelectorAll('#submissions-table th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (th.dataset.column === currentSort.column) {
+            th.classList.add(`sort-${currentSort.direction}`);
+        }
+    });
+
+    // Sync mobile sort dropdown
+    const sortDropdown = document.getElementById('sort-filter');
+    if (sortDropdown) {
+        sortDropdown.value = `${currentSort.column}-${currentSort.direction}`;
+    }
+
     if (filteredSubmissions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem;">No submissions match the current filters.</td></tr>';
         return;
     }
 
@@ -169,13 +237,11 @@ function renderSubmissionsTable() {
         const status = getSubmissionStatus(sub);
         const tileName = tilesByVisibleId.get(sub.id)?.Name || sub.id;
         const teamName = allTeams[sub.Team]?.name || sub.Team;
-        const date = sub.CompletionTimestamp || sub.Timestamp; // Already a Date object
+        const date = sub.Timestamp; // Already a Date object
         const timestamp = formatCustomDateTime(date, useUtcTime);
-
-        // NEW: Generate player name string from IDs
-        const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || `[${String(id).substring(0,5)}]`).join(', ');
-        const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
-
+        const lastEdited = formatCustomDateTime(getLastEdited(sub), useUtcTime);
+        const createdBy = getCreatedBy(sub, usersMap);
+        const lastEditedBy = getLastEditedBy(sub, usersMap);
 
         return `
             <tr data-id="${sub.docId}">
@@ -183,8 +249,10 @@ function renderSubmissionsTable() {
                 <td data-label="Tile ID">${sub.id}</td>
                 <td data-label="Tile" title="${tileName}">${tileName}</td>
                 <td data-label="Team">${teamName}</td>
-                <td data-label="Player(s)" title="${finalPlayerString}">${finalPlayerString}</td>
-                <td data-label="Submitted">${timestamp}</td>
+                <td data-label="Created">${timestamp}</td>
+                <td data-label="Created By">${createdBy}</td>
+                <td data-label="Last Edited">${lastEdited}</td>
+                <td data-label="Edited By">${lastEditedBy}</td>
             </tr>
         `;
     }).join('');
@@ -201,17 +269,58 @@ function getSubmissionStatus(sub) {
     return 'Partially Complete';
 }
 
+function getLastEdited(sub) {
+    // Return the latest timestamp from history, or the creation timestamp if no history exists
+    if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
+        return sub.history.reduce((max, entry) => {
+            const t = entry.timestamp;
+            return (t && t > max) ? t : max;
+        }, sub.Timestamp || new Date(0));
+    }
+    return sub.Timestamp || new Date(0);
+}
+
+function getCreatedBy(sub, usersMap) {
+    if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
+        // Find the entry with the minimum timestamp
+        const firstEntry = sub.history.reduce((min, entry) => {
+            return (entry.timestamp < min.timestamp) ? entry : min;
+        }, sub.history[0]);
+        return firstEntry.user?.name || 'Unknown';
+    }
+    // Fallback to first player if no history
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
+        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
+    }
+    return 'Unknown';
+}
+
+function getLastEditedBy(sub, usersMap) {
+    if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
+        // Find the entry with the maximum timestamp
+        const lastEntry = sub.history.reduce((max, entry) => {
+            return (entry.timestamp > max.timestamp) ? entry : max;
+        }, sub.history[0]);
+        return lastEntry.user?.name || 'Unknown';
+    }
+    // Fallback to first player if no history
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
+        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
+    }
+    return 'Unknown';
+}
+
 function formatCustomDateTime(date, useUTC = false) {
     if (!date) return 'N/A'; // Already a Date object
 
-    const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+    // Shorten year to 2 digits
+    const year = (useUTC ? date.getUTCFullYear() : date.getFullYear()).toString().slice(-2);
     const month = String((useUTC ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, '0');
     const day = String(useUTC ? date.getUTCDate() : date.getDate()).padStart(2, '0');
     const hours = String(useUTC ? date.getUTCHours() : date.getHours()).padStart(2, '0');
     const minutes = String(useUTC ? date.getUTCMinutes() : date.getMinutes()).padStart(2, '0');
-    const seconds = String(useUTC ? date.getUTCSeconds() : date.getSeconds()).padStart(2, '0');
-
-    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+    
+    return `${day}/${month}/${year}, ${hours}:${minutes}`;
 }
 
 function openSubmissionModal(submissionOrId, isUpdate = false) {
@@ -239,6 +348,7 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     document.getElementById('modal-submission-id').value = sub.docId;
     const teamName = allTeams[sub.Team]?.name || sub.Team;
     document.getElementById('modal-tile-name').textContent = `${sub.id}: ${tilesByVisibleId.get(sub.id)?.Name || 'Unknown Tile'}`;
+    document.getElementById('modal-tile-description').textContent = tilesByVisibleId.get(sub.id)?.Description || '';
     document.getElementById('modal-team').textContent = teamName;
 
     // NEW: Generate player name string from IDs
