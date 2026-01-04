@@ -37,6 +37,7 @@
 
 ## Change log
 
+- **Admin Dashboard**: Improved the Submission History UI in the review modal. History entries are now structured with clear headers and color-coded diffs (Red/Green) for changed values, making it easier to track edits.
 - **Team Selector**: Added "(Your Team)" indicator and highlighting to the player's assigned team in the dropdown list.
 - **Index Page Layout**: Refactored the controls area. Removed the static page title heading. Grouped the Team Selector, Search Bar, and Zoom Controls into a vertical stack for better responsiveness. Increased the size of the Team Selector to serve as the main heading.
 - **Bug Fix**: Fixed a crash on the Index page caused by `board.js` attempting to update the removed `#page-title` element.
