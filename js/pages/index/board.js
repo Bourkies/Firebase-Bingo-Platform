@@ -25,7 +25,6 @@ export function renderBoard(options = {}) {
     if (!currentTeam && !shouldShowGeneric) {
         console.log('[Board] renderBoard aborted: No current team in non-generic view.');
         // Do not clear the boardComponent's innerHTML, as that removes the Lit component.
-        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
         return;
     }
 
@@ -37,7 +36,6 @@ export function renderBoard(options = {}) {
 
     const pageName = displayTeamName || 'Bingo Board';
     document.title = `${config.pageTitle || 'Bingo'} | ${pageName}`;
-    document.getElementById('page-title').textContent = displayTeam ? displayTeamName : (config.pageTitle || 'Bingo');
 
     // Update the Lit component's properties
     boardComponent.config = config;
