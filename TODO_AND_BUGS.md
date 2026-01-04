@@ -29,6 +29,7 @@
 ## 🐛 Known Bugs
 
 - [x] captains Can't add team members (firestore rules issue?)
+- [x] Mobile Modal Clipping: Fixed issue where submission modal could not be scrolled to the top/bottom on mobile devices by switching to safe flex centering and dynamic viewport units.
 
 ## 📝 QA & Testing
 
