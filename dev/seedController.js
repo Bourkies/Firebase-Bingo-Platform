@@ -20,6 +20,13 @@ const SEED_DEFINITIONS = [
     { suffix: 'Brown' }
 ];
 
+const REAL_EVIDENCE_LINKS = [
+    'https://i.imgur.com/XqeWqgI.png',
+    'https://i.imgur.com/aYQzzoQ.jpeg',
+    'https://i.imgur.com/UezBVZ2.jpeg',
+    'https://i.imgur.com/v7y90e7.jpeg'
+];
+
 export function checkSafety() {
     // 1. Environment Check
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -254,6 +261,217 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
     log("User seeding complete.");
 }
 
+// Helper to generate a realistic history chain and final state
+function generateLifecycle(user, tileId) {
+    const adminUser = { uid: 'admin_bot', name: 'AutoAdmin' };
+    
+    // 1. Determine Scenario
+    const rand = Math.random();
+    let scenario = 'verified'; // Default
+    if (rand < 0.1) scenario = 'draft';
+    else if (rand < 0.3) scenario = 'submitted';
+    else if (rand < 0.4) scenario = 'flagged';
+    else if (rand < 0.5) scenario = 'resubmitted'; // Flagged then fixed
+
+    // 2. Setup Time (Work backwards from now - random(0-7 days))
+    const ONE_HOUR = 3600 * 1000;
+    const ONE_DAY = 24 * ONE_HOUR;
+    let cursorTime = Date.now() - Math.floor(Math.random() * 7 * ONE_DAY);
+    
+    // Helper to step back time
+    const stepBack = () => {
+        cursorTime -= Math.floor(Math.random() * ONE_DAY) + ONE_HOUR; // 1 hour to 25 hours gap
+        return Timestamp.fromMillis(cursorTime);
+    };
+
+    // 3. Generate Evidence
+    const evidenceCount = Math.random() > 0.85 ? 2 : 1;
+    const evidence = [];
+    const shuffledLinks = [...REAL_EVIDENCE_LINKS].sort(() => 0.5 - Math.random());
+    for(let i=0; i<evidenceCount; i++) {
+        evidence.push({ link: shuffledLinks[i % shuffledLinks.length], name: `Evidence ${i+1}` });
+    }
+    const evidenceStr = JSON.stringify(evidence);
+    const evidenceSummary = evidence.map(e => `${e.name} (${e.link})`).join('; ');
+    const notes = 'Seeded submission';
+    const playerSummary = `Added: ${user.displayName}`;
+
+    // 4. Build History (Reverse order of events, then we'll reverse array to be chronological if needed, 
+    //    but the seed loop expects the final state object. We construct history array to be stored on the doc.)
+    
+    let history = [];
+    let finalState = {
+        id: tileId,
+        PlayerIDs: [user.uid],
+        AdditionalPlayerNames: '',
+        Evidence: evidenceStr,
+        Notes: notes,
+        IsComplete: false,
+        AdminVerified: false,
+        RequiresAction: false,
+        AdminFeedback: '',
+        IsArchived: false,
+        Timestamp: null,
+        CompletionTimestamp: null
+    };
+
+    // -- Step 5: Verify (Final Step for Verified) --
+    if (scenario === 'verified') {
+        const ts = Timestamp.fromMillis(cursorTime);
+        history.unshift({
+            timestamp: ts,
+            user: adminUser,
+            action: 'Admin Update',
+            changes: [{ field: 'AdminVerified', from: false, to: true }]
+        });
+        finalState.AdminVerified = true;
+        finalState.IsComplete = true; // Verified implies complete
+        stepBack();
+    }
+
+    // -- Step 4: Resubmit (Final for Resubmitted, or intermediate for Verified) --
+    if (scenario === 'resubmitted' || (scenario === 'verified' && Math.random() > 0.5)) {
+        const ts = Timestamp.fromMillis(cursorTime);
+        history.unshift({
+            timestamp: ts,
+            user: { uid: user.uid, name: user.displayName },
+            action: 'Resubmit for Review',
+            changes: [
+                { field: 'AdminFeedback', from: '"Please fix evidence"', to: 'Acknowledged & Cleared' },
+                { field: 'RequiresAction', from: true, to: false },
+                { field: 'IsComplete', from: false, to: true }
+            ]
+        });
+        finalState.RequiresAction = false;
+        finalState.IsComplete = true;
+        finalState.CompletionTimestamp = ts; // Reset completion time
+        stepBack();
+
+        // If we resubmitted, there must have been a flag before it
+        const tsFlag = Timestamp.fromMillis(cursorTime);
+        history.unshift({
+            timestamp: tsFlag,
+            user: adminUser,
+            action: 'Admin Update',
+            changes: [
+                { field: 'RequiresAction', from: false, to: true },
+                { field: 'AdminFeedback', from: '""', to: '"Please fix evidence"' },
+                { field: 'IsComplete', from: true, to: false } // Flagging clears completion
+            ]
+        });
+        // If this was the final state (scenario == flagged), set state
+        if (scenario === 'flagged') {
+            finalState.RequiresAction = true;
+            finalState.AdminFeedback = "Please fix evidence";
+            finalState.IsComplete = false;
+            finalState.CompletionTimestamp = null;
+        }
+        stepBack();
+    } else if (scenario === 'flagged') {
+        // Case where it ends on flagged (didn't resubmit yet)
+        const ts = Timestamp.fromMillis(cursorTime);
+        history.unshift({
+            timestamp: ts,
+            user: adminUser,
+            action: 'Admin Update',
+            changes: [
+                { field: 'RequiresAction', from: false, to: true },
+                { field: 'AdminFeedback', from: '""', to: '"Please fix evidence"' },
+                { field: 'IsComplete', from: true, to: false }
+            ]
+        });
+        finalState.RequiresAction = true;
+        finalState.AdminFeedback = "Please fix evidence";
+        finalState.IsComplete = false;
+        stepBack();
+    }
+
+    // -- Step 3: Submit (Final for Submitted, or intermediate) --
+    if (scenario !== 'draft') {
+        const ts = Timestamp.fromMillis(cursorTime);
+        const isDraftPrecursor = Math.random() > 0.5; // 50% chance it started as draft
+        
+        if (isDraftPrecursor) {
+            // Submit Draft
+            history.unshift({
+                timestamp: ts,
+                user: { uid: user.uid, name: user.displayName },
+                action: 'Submit Draft',
+                changes: [
+                    { field: 'IsComplete', from: false, to: true }
+                ]
+            });
+            stepBack();
+            
+            // Create Draft (Precursor)
+            const tsDraft = Timestamp.fromMillis(cursorTime);
+            history.unshift({
+                timestamp: tsDraft,
+                user: { uid: user.uid, name: user.displayName },
+                action: 'Create Draft',
+                changes: [
+                    { field: 'IsComplete', from: 'N/A', to: false },
+                    { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
+                    { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                    { field: 'Notes', from: 'N/A', to: notes },
+                    { field: 'Evidence', from: 'N/A', to: evidenceSummary }
+                ]
+            });
+            if (finalState.Timestamp === null) finalState.Timestamp = tsDraft;
+
+        } else {
+            // Direct Submission
+            history.unshift({
+                timestamp: ts,
+                user: { uid: user.uid, name: user.displayName },
+                action: 'Create Submission',
+                changes: [
+                    { field: 'IsComplete', from: 'N/A', to: true },
+                    { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
+                    { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                    { field: 'Notes', from: 'N/A', to: notes },
+                    { field: 'Evidence', from: 'N/A', to: evidenceSummary }
+                ]
+            });
+            if (finalState.Timestamp === null) finalState.Timestamp = ts;
+        }
+
+        // If this is the final state (submitted), set state
+        if (scenario === 'submitted') {
+            finalState.IsComplete = true;
+            finalState.CompletionTimestamp = ts;
+        }
+        // If verified/flagged later, completion timestamp might be reset or preserved depending on logic.
+        // For simplicity in seed, if it's currently complete, set timestamp to the submission time (or resubmit time).
+        if (finalState.IsComplete && !finalState.CompletionTimestamp) finalState.CompletionTimestamp = ts;
+
+    } else {
+        // Draft Only
+        const ts = Timestamp.fromMillis(cursorTime);
+        history.unshift({
+            timestamp: ts,
+            user: { uid: user.uid, name: user.displayName },
+            action: 'Create Draft',
+            changes: [
+                { field: 'IsComplete', from: 'N/A', to: false },
+                { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
+                { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                { field: 'Notes', from: 'N/A', to: notes },
+                { field: 'Evidence', from: 'N/A', to: evidenceSummary }
+            ]
+        });
+        finalState.Timestamp = ts;
+        finalState.IsComplete = false;
+    }
+
+    // Sort history chronological for storage
+    history.sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+    finalState.history = history;
+    
+    // Ensure Team is set by caller
+    return finalState;
+}
+
 export async function seedSubmissions(log) {
     try { checkSafety(); } catch(e) { alert(e.message); return; }
 
@@ -380,75 +598,17 @@ export async function seedSubmissions(log) {
                     completedSet.add(tile.id);
                     madeProgress = true;
 
-                    // Generate Data
-                    const rand = Math.random();
-                    let state = 'draft';
-                    if (rand > 0.8) state = 'verified';
-                    else if (rand > 0.6) state = 'flagged';
-                    else if (rand > 0.3) state = 'submitted';
-                    
-                    const isComplete = state !== 'draft';
-                    const isAdminVerified = state === 'verified';
-                    const requiresAction = state === 'flagged';
-                    let adminFeedback = state === 'flagged' ? "Screenshot is blurry. Please re-upload." : '';
-
-                    const timestamp = Timestamp.now();
+                    // Generate Lifecycle Data
+                    const subData = generateLifecycle(user, tile.id);
+                    subData.Team = teamId;
                     
                     // Generate Doc ID: YYMMDD-TeamID-TileID
-                    const date = timestamp.toDate();
+                    // Use the creation timestamp for the ID date
+                    const date = subData.Timestamp ? subData.Timestamp.toDate() : new Date();
                     const year = date.getUTCFullYear().toString().slice(-2);
                     const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
                     const day = date.getUTCDate().toString().padStart(2, '0');
                     const docId = `${year}${month}${day}-${teamId}-${tile.id}`;
-
-                    const history = [{
-                        timestamp: timestamp,
-                        user: { uid: user.uid, name: user.displayName },
-                        action: state === 'draft' ? 'Create Draft' : 'Create Submission',
-                        changes: [{ field: 'IsComplete', from: false, to: isComplete }]
-                    }];
-
-                    if (state === 'flagged') {
-                        history.push({
-                            timestamp: timestamp,
-                            user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                            action: 'Admin Update',
-                            changes: [
-                                { field: 'RequiresAction', from: false, to: true },
-                                { field: 'AdminFeedback', from: '""', to: `"${adminFeedback}"` }
-                            ]
-                        });
-                    } else if (state === 'verified') {
-                        history.push({
-                            timestamp: timestamp,
-                            user: { uid: 'admin_bot', name: 'AutoAdmin' },
-                            action: 'Admin Update',
-                            changes: [{ field: 'AdminVerified', from: false, to: true }]
-                        });
-                    }
-                    
-                    const evidenceCount = Math.random() > 0.8 ? 2 : 1;
-                    const evidence = [];
-                    for(let k=0; k<evidenceCount; k++) {
-                        evidence.push({ link: 'https://via.placeholder.com/150', name: `Seed Proof ${k+1}` });
-                    }
-
-                    const subData = {
-                        id: tile.id,
-                        Team: teamId,
-                        PlayerIDs: [user.uid],
-                        AdditionalPlayerNames: '',
-                        Evidence: JSON.stringify(evidence),
-                        Notes: `Seeded submission (${state})`,
-                        IsComplete: isComplete,
-                        AdminVerified: isAdminVerified,
-                        RequiresAction: requiresAction,
-                        AdminFeedback: adminFeedback,
-                        IsArchived: false,
-                        Timestamp: timestamp,
-                        CompletionTimestamp: isComplete ? timestamp : null,
-                        history: history
-                    };
 
                     const ref = doc(secondaryDb, 'submissions', docId);
                     batch.set(ref, subData);
@@ -496,7 +656,7 @@ export async function getCounts(skipSafety = false) {
     const seedUsers = uSnap.docs.filter(d => d.data().email.startsWith('seed-')).length;
     const seedSubmissions = sSnap.docs.filter(d => {
         const ev = d.data().Evidence;
-        return ev && ev.includes('Seed Proof');
+        return ev && (ev.includes('Seed Proof') || ev.includes('imgur.com'));
     }).length;
     
     return {
@@ -634,6 +794,6 @@ export async function deleteSeedSubmissions(log) {
     try { checkSafety(); } catch(e) { alert(e.message); return; }
     await deleteCollectionSubset('submissions', (doc) => {
         const ev = doc.data().Evidence;
-        return ev && ev.includes('Seed Proof');
+        return ev && (ev.includes('Seed Proof') || ev.includes('imgur.com'));
     }, log, true);
 }

@@ -37,6 +37,8 @@
 
 ## Change log
 
+- **Seed Controller**: Refined submission seeding to match the exact history log format of real submissions (including PlayerIDs, Notes, Evidence changes). Added logic to simulate "Draft -> Submit" workflows and ensured all history timestamps are strictly chronological and in the past.
+- **Seed Controller**: Updated submission seeding logic to generate realistic history chains (Draft -> Submitted -> Flagged -> Verified) with timestamps spread over the last 7 days. Added support for multiple evidence items and real Imgur links.
 - **Admin Dashboard**: Refined Evidence history sorting to display Removals first, followed by Moves/Modifications, and finally Additions, improving readability of complex changes.
 - **Admin Dashboard**: Improved Evidence history formatting to parse and display individual item changes (Added, Removed, Modified) instead of a single summary string. Added logic to detect and display link changes for named items.
 - **Admin Dashboard**: Improved the Submission History UI in the review modal. History entries are now structured with clear headers and color-coded diffs (Red/Green) for changed values, making it easier to track edits.
