@@ -39,6 +39,8 @@ let isRenderScheduled = false;
 
 // NEW: Zoom and Pan state
 let currentScale = 1;
+let baseScale = 1;
+const VIRTUAL_BOARD_WIDTH = 3000; // Render internally at 4k-ish width to prevent sub-pixel jitter
 let pan = { x: 0, y: 0 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,6 +80,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Zoom/Pan controls
     initZoomControls();
+
+    // NEW: Handle window resize to adjust the base scale (fitting the virtual board to screen)
+    window.addEventListener('resize', handleResize);
+
+    // NEW: Observe the board container for size changes (e.g. image load) to maintain correct aspect ratio
+    const boardContainer = document.getElementById('board-container');
+    if (boardContainer) {
+        const resizeObserver = new ResizeObserver(() => {
+            handleResize();
+        });
+        resizeObserver.observe(boardContainer);
+    }
 });
 
 /**
@@ -677,6 +691,35 @@ function handleSearchResultClick(event) {
     }
 }
 
+// NEW: Handle resizing of the window to adjust the fit
+function handleResize() {
+    updateBaseScale();
+    applyTransform();
+}
+
+function updateBaseScale() {
+    const viewport = document.getElementById('board-viewport');
+    const boardContainer = document.getElementById('board-container');
+    const wrapper = document.getElementById('board-transform-wrapper');
+
+    if (!viewport || !boardContainer || !wrapper) return;
+
+    // 1. Force the board to render at a high internal resolution
+    boardContainer.style.width = `${VIRTUAL_BOARD_WIDTH}px`;
+    wrapper.style.width = `${VIRTUAL_BOARD_WIDTH}px`; // Wrapper must match content size for transform-origin to work predictably
+
+    // 2. Calculate the scale needed to fit this large board into the current viewport
+    const viewportWidth = viewport.clientWidth;
+    if (viewportWidth === 0) return;
+
+    baseScale = viewportWidth / VIRTUAL_BOARD_WIDTH;
+
+    // 3. Update viewport height to match the scaled height of the board
+    // This prevents the viewport from retaining the huge unscaled height of the content
+    const scaledHeight = boardContainer.offsetHeight * baseScale;
+    viewport.style.height = `${scaledHeight}px`;
+}
+
 // --- NEW: Zoom and Pan Logic ---
 
 function initZoomControls() {
@@ -699,6 +742,10 @@ function initZoomControls() {
             }
         });
     }
+
+    // Initial calculation to fit board to screen
+    updateBaseScale();
+    applyTransform();
 }
 
 function updateZoom() {
@@ -724,13 +771,17 @@ function updateZoom() {
 function resetZoom() {
     document.getElementById('zoom-slider').value = 1;
     pan = { x: 0, y: 0 };
-    updateZoom();
+    currentScale = 1;
+    document.getElementById('zoom-value').textContent = '100%';
+    updateBaseScale(); // Recalculate fit
+    applyTransform();
 }
 
 function applyTransform() {
     const wrapper = document.getElementById('board-transform-wrapper');
     if (wrapper) {
-        wrapper.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${currentScale})`;
+        const totalScale = currentScale * baseScale;
+        wrapper.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${totalScale})`;
     }
 }
 
