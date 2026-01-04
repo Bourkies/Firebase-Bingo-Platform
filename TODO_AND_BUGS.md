@@ -41,6 +41,7 @@
 - **Index Page Layout**: Refactored the controls area. Removed the static page title heading. Grouped the Team Selector, Search Bar, and Zoom Controls into a vertical stack for better responsiveness. Increased the size of the Team Selector to serve as the main heading.
 - **Bug Fix**: Fixed a crash on the Index page caused by `board.js` attempting to update the removed `#page-title` element.
 - **Submission Modal**: Fixed issue where the modal closed immediately after acknowledging admin feedback.
+- **Mobile Testing**: Updated `firebase-config.example.js` to support connecting to emulators via LAN IP (e.g., 192.168.x.x) for mobile device testing.
 - **Admin Dashboard**: Added mobile-specific sorting dropdown and improved filter layout responsiveness.
 - **Removed Legacy Auth**: Removed Google Sign-In and Anonymous login methods. The platform now exclusively uses the Username/Password flow (backed by Firebase Email/Password auth with a hidden domain).
     - Removed `isAnonymous` field from user profiles.
