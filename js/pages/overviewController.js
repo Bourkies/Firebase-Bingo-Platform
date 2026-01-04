@@ -112,8 +112,10 @@ function onDataChanged() {
     // Regenerate team colors if teams have changed.
     if (Object.keys(teamColorMap).length !== Object.keys(allTeams).length) {
         teamColorMap = generateTeamColors(Object.keys(allTeams));
-        populateFeedFilter(allTeams, config, authState);
     }
+
+    // Always update the filter dropdown to ensure it reflects Auth/Config state (e.g. Private mode)
+    populateFeedFilter(allTeams, config, authState);
 
     const tilesByVisibleId = tiles.reduce((acc, tile) => {
         if (tile.id) acc[tile.id] = tile;
@@ -178,6 +180,7 @@ function onDataChanged() {
 
 function populateFeedFilter(teams = {}, config = {}, authState = {}) {
     const select = document.getElementById('feed-team-filter');
+    const previousValue = select.value; // Preserve selection
     select.innerHTML = '';
     select.disabled = false;
 
@@ -210,6 +213,11 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
             option.textContent = teamData.name;
             select.appendChild(option);
         });
+
+        // Restore selection if it's still valid
+        if (previousValue && (previousValue === 'all' || teams[previousValue])) {
+            select.value = previousValue;
+        }
     }
 }
 

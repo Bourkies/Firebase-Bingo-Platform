@@ -45,4 +45,5 @@
     - Updated `usersController.js` and `permissionsController.js` to remove "Login Type" columns and logic.
     - Updated doc id of user is now set to the email address and the uid is moved to a key for the user.
     - **Firestore Rules**: Fixed `isCaptainOfTeam` check to validate against both `uid` and `email` (matching the architecture where `captainId` is the user's email/docId).
- - **Index Page**: Removed the embedded scoreboard component from the main board page in favor of the dedicated Overview page.
+    - **Index Page**: Removed the embedded scoreboard component from the main board page in favor of the dedicated Overview page.
+    - **Overview Page**: Fixed issue where the activity feed and chart would not populate in Private Board mode because the team filter dropdown was not updating correctly after authentication loaded.
