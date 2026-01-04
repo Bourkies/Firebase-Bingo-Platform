@@ -554,6 +554,15 @@ const mainControllerInterface = {
 
             if (changesSummary.length > 0) historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changesSummary.join('; ')}` });
         }
+
+        // NEW: Log CompletionTimestamp changes
+        if (dataToSave.hasOwnProperty('CompletionTimestamp')) {
+            if (dataToSave.CompletionTimestamp === null && existingSubmission.CompletionTimestamp) {
+                historyEntry.changes.push({ field: 'CompletionTimestamp', from: 'Set', to: 'Cleared' });
+            } else if (dataToSave.CompletionTimestamp && !existingSubmission.CompletionTimestamp) {
+                historyEntry.changes.push({ field: 'CompletionTimestamp', from: 'N/A', to: 'Set' });
+            }
+        }
     },
 };
 

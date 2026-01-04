@@ -413,15 +413,27 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
         sortedHistory.forEach(entry => {
             const date = entry.timestamp; // Already a Date object
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
-            // Always show changes if they exist, including for creation events.
-            const changesText = (entry.changes && entry.changes.length > 0)
-                ? entry.changes.map(c =>
-                    `'${c.field}' from '${c.from}' to '${c.to}'`
-                ).join(', ') : '';
 
             const item = document.createElement('div');
-            item.className = 'history-item';
-            item.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="user">${entry.user?.name || 'Unknown'}</span>: ${entry.action || 'Update'} ${changesText}`;
+            item.className = 'history-entry';
+            
+            // Build Header
+            let html = `<div class="history-header">
+                <span class="timestamp">[${timestamp}]</span>
+                <span class="user">${entry.user?.name || 'Unknown'}</span>
+                <span class="action">${entry.action || 'Update'}</span>
+            </div>`;
+
+            // Build Changes List
+            if (entry.changes && entry.changes.length > 0) {
+                html += `<ul class="history-changes">`;
+                entry.changes.forEach(c => {
+                    html += `<li><span class="field-name">${c.field}:</span> <span class="old-val">'${c.from}'</span> <span class="arrow">➜</span> <span class="new-val">'${c.to}'</span></li>`;
+                });
+                html += `</ul>`;
+            }
+
+            item.innerHTML = html;
             historyContent.appendChild(item);
         });
     } else {
@@ -473,7 +485,14 @@ async function handleSubmissionUpdate(event) {
 
     // NEW: If Requires Action is checked, automatically set IsComplete to false.
     if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
-    if (newRequiresAction) dataToUpdate.IsComplete = false;
+    if (newRequiresAction) {
+        dataToUpdate.IsComplete = false;
+        // Clear completion timestamp if it exists
+        if (existingSub.CompletionTimestamp) {
+            dataToUpdate.CompletionTimestamp = null;
+            historyEntry.changes.push({ field: 'CompletionTimestamp', from: formatCustomDateTime(existingSub.CompletionTimestamp), to: 'Cleared' });
+        }
+    }
 
     try {
         const history = historyEntry.changes.length > 0 ? historyEntry : null;

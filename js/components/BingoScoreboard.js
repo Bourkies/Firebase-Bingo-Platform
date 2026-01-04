@@ -1,3 +1,14 @@
+/**
+ * ⚠️ NOTE: This file is currently UNUSED in the active application.
+ * 
+ * It defines a Lit Web Component (<bingo-scoreboard>) intended to eventually replace the 
+ * vanilla JS rendering logic currently found in `Scoreboard.js` and `overviewController.js`.
+ * 
+ * Future Refactoring Plan:
+ * 1. Update `overview.html` to use this component instead of the raw <table>.
+ * 2. Update `overviewController.js` to pass data to this component's properties.
+ * 3. Remove the vanilla `renderScoreboard` function from `Scoreboard.js`.
+ */
 import { LitElement, html, css } from 'lit';
 
 export class BingoScoreboard extends LitElement {
