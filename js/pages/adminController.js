@@ -428,7 +428,19 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
             if (entry.changes && entry.changes.length > 0) {
                 html += `<ul class="history-changes">`;
                 entry.changes.forEach(c => {
-                    html += `<li><span class="field-name">${c.field}:</span> <span class="old-val">'${c.from}'</span> <span class="arrow">➜</span> <span class="new-val">'${c.to}'</span></li>`;
+                    if (c.field === 'Evidence') {
+                        const parsedEvidence = parseEvidenceLog(c.to);
+                        if (parsedEvidence) {
+                            html += `<li><span class="field-name">Evidence:</span>`;
+                            html += `<ul class="evidence-sub-list">`;
+                            parsedEvidence.forEach(item => html += `<li>${item}</li>`);
+                            html += `</ul></li>`;
+                        } else {
+                            html += `<li><span class="field-name">${c.field}:</span> <span class="old-val">'${c.from}'</span> <span class="arrow">➜</span> <span class="new-val">'${c.to}'</span></li>`;
+                        }
+                    } else {
+                        html += `<li><span class="field-name">${c.field}:</span> <span class="old-val">'${c.from}'</span> <span class="arrow">➜</span> <span class="new-val">'${c.to}'</span></li>`;
+                    }
                 });
                 html += `</ul>`;
             }
@@ -505,4 +517,186 @@ async function handleSubmissionUpdate(event) {
     } finally {
         hideGlobalLoader();
     }
+}
+
+/**
+ * Parses the semi-structured evidence log string into a list of HTML formatted changes.
+ * Attempts to reconstruct "Link Changed" events by matching Removed/Added pairs.
+ */
+function parseEvidenceLog(logString) {
+    if (!logString) return null;
+
+    // 1. Try to parse as Structured JSON (New v2 Format)
+    // Format: '{"v":2,"diffs":[...]}'
+    if (logString.startsWith('{')) {
+        try {
+            const data = JSON.parse(logString);
+            if (data.v === 2 && Array.isArray(data.diffs)) {
+                // Sort diffs for display: Removed -> Moved/Modified -> Added
+                const opPriority = {
+                    'remove': 1,
+                    'move': 2, 'modify_name': 2, 'modify_link': 2,
+                    'add': 3
+                };
+                data.diffs.sort((a, b) => {
+                    const pA = opPriority[a.op] || 99;
+                    const pB = opPriority[b.op] || 99;
+                    if (pA !== pB) return pA - pB;
+                    return (a.slot || a.fromSlot || 0) - (b.slot || b.fromSlot || 0);
+                });
+
+                return data.diffs.map(item => {
+                    const slotPrefix = (item.slot) ? `Item ${item.slot}: ` : '';
+                    
+                    if (item.op === 'modify_name') return `<strong>${slotPrefix}Modified Name:</strong> <span class="old-val">"${item.oldName}"</span> ➜ <span class="new-val">"${item.newName}"</span> <span class="meta-info">(${item.link})</span>`;
+                    if (item.op === 'modify_link') return `<strong>${slotPrefix}Modified Link:</strong> <span class="old-val">"${item.oldLink}"</span> ➜ <span class="new-val">"${item.newLink}"</span> <span class="meta-info">(${item.name})</span>`;
+                    if (item.op === 'move') return `<strong>Moved:</strong> Slot ${item.fromSlot} ➜ ${item.toSlot} <span class="new-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+                    if (item.op === 'add') return `<strong>${slotPrefix}Added:</strong> <span class="new-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+                    if (item.op === 'remove') return `<strong>${slotPrefix}Removed:</strong> <span class="old-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+                    return JSON.stringify(item);
+                });
+            }
+        } catch (e) {
+            // Not v2 JSON, fall through to other parsers
+        }
+    }
+
+    // 2. Try to parse as Summary String (Legacy indexController diff logic)
+    // Backwards Compatibility: Before v2 JSON, diffs were stored as a semicolon-separated string.
+    // Format: "(N items) Change1; Change2"
+    try {
+        const summaryMatch = logString.match(/^\(\d+ items\) (.*)$/);
+        if (summaryMatch) {
+        const changesString = summaryMatch[1];
+        const rawChanges = changesString.split('; ');
+        const parsedItems = [];
+
+        // Temporary storage to try and pair up moves/link changes
+        const added = [];
+        const removed = [];
+
+        rawChanges.forEach(change => {
+            // NEW: Parse "Modified slot N Name: "Old" ➜ "New" (Link)"
+            const modNameMatch = change.match(/^Modified slot (\d+) Name: "(.*?)" ➜ "(.*?)" \((.*)\)$/);
+            if (modNameMatch) {
+                parsedItems.push({ type: 'modified_name', slot: modNameMatch[1], oldName: modNameMatch[2], newName: modNameMatch[3], link: modNameMatch[4] });
+                return;
+            }
+
+            // NEW: Parse "Moved slot N ➜ M: "Name" (Link)"
+            const moveMatch = change.match(/^Moved slot (\d+) ➜ (\d+): "(.*?)" \((.*)\)$/);
+            if (moveMatch) {
+                parsedItems.push({ type: 'moved', oldSlot: moveMatch[1], newSlot: moveMatch[2], name: moveMatch[3], link: moveMatch[4] });
+                return;
+            }
+
+            // NEW: Parse "Added to slot N: "Name" (Link)"
+            const addSlotMatch = change.match(/^Added to slot (\d+): "(.*?)" \((.*)\)$/);
+            if (addSlotMatch) {
+                added.push({ slot: addSlotMatch[1], name: addSlotMatch[2], link: addSlotMatch[3] });
+                return;
+            }
+
+            // NEW: Parse "Removed from slot N: "Name" (Link)"
+            const remSlotMatch = change.match(/^Removed from slot (\d+): "(.*?)" \((.*)\)$/);
+            if (remSlotMatch) {
+                removed.push({ slot: remSlotMatch[1], name: remSlotMatch[2], link: remSlotMatch[3] });
+                return;
+            }
+
+            // --- Legacy Fallbacks ---
+            const modMatchLegacy = change.match(/^Modified: '(.*?)' to '(.*?)' for link \((.*)\)$/);
+            if (modMatchLegacy) {
+                parsedItems.push({ type: 'modified_name', slot: '?', oldName: modMatchLegacy[1], newName: modMatchLegacy[2], link: modMatchLegacy[3] });
+                return;
+            }
+            const addMatch = change.match(/^Added: (.*?) \((.*)\)$/);
+            if (addMatch) {
+                added.push({ slot: '?', name: addMatch[1], link: addMatch[2] });
+                return;
+            }
+            const remMatch = change.match(/^Removed: (.*?) \((.*)\)$/);
+            if (remMatch) {
+                removed.push({ slot: '?', name: remMatch[1], link: remMatch[2] });
+                return;
+            }
+            
+            // Fallback for unknown format
+            parsedItems.push({ type: 'raw', text: change });
+        });
+
+        // Heuristic: Check for Link Changes
+        // 1. Match by Slot (Strongest): Removed from Slot X, Added to Slot X
+        // 2. Match by Name (Legacy/Fallback): Removed "Name", Added "Name"
+        const processedAdded = new Set();
+        
+        removed.forEach(rem => {
+            // Try to find a matching add
+            let matchIndex = -1;
+
+            // Priority 1: Same Slot (if slot is known)
+            if (rem.slot !== '?') {
+                matchIndex = added.findIndex((add, idx) => !processedAdded.has(idx) && add.slot === rem.slot);
+            }
+
+            // Priority 2: Same Name (if slot match failed or slots unknown)
+            if (matchIndex === -1) {
+                matchIndex = added.findIndex((add, idx) => !processedAdded.has(idx) && add.name === rem.name && add.name !== 'No Name');
+            }
+            
+            if (matchIndex !== -1) {
+                const add = added[matchIndex];
+                processedAdded.add(matchIndex);
+                parsedItems.push({ type: 'modified_link', slot: rem.slot, name: rem.name, oldLink: rem.link, newLink: add.link });
+            } else {
+                parsedItems.push({ type: 'removed', slot: rem.slot, name: rem.name, link: rem.link });
+            }
+        });
+
+        // Add remaining added items
+        added.forEach((add, idx) => {
+            if (!processedAdded.has(idx)) parsedItems.push({ type: 'added', slot: add.slot, name: add.name, link: add.link });
+        });
+
+        // Convert to HTML
+        return parsedItems.map(item => {
+            const slotPrefix = (item.slot && item.slot !== '?') ? `Item ${item.slot}: ` : '';
+            
+            if (item.type === 'modified_name') return `<strong>${slotPrefix}Modified Name:</strong> <span class="old-val">"${item.oldName}"</span> ➜ <span class="new-val">"${item.newName}"</span> <span class="meta-info">(${item.link})</span>`;
+            if (item.type === 'modified_link') return `<strong>${slotPrefix}Modified Link:</strong> <span class="old-val">"${item.oldLink}"</span> ➜ <span class="new-val">"${item.newLink}"</span> <span class="meta-info">(${item.name})</span>`;
+            if (item.type === 'moved') return `<strong>Moved:</strong> Slot ${item.oldSlot} ➜ ${item.newSlot} <span class="new-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+            if (item.type === 'added') return `<strong>${slotPrefix}Added:</strong> <span class="new-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+            if (item.type === 'removed') return `<strong>${slotPrefix}Removed:</strong> <span class="old-val">"${item.name}"</span> <span class="meta-info">(${item.link})</span>`;
+            return item.text;
+        });
+        }
+    } catch (e) {
+        console.warn("Failed to parse evidence log:", e);
+    }
+
+    // 3. Try to parse as JSON Array (Raw state logging, e.g. from Create Submission)
+    // Backwards Compatibility: "Create Submission" events and older logs store the raw evidence array as JSON.
+    // Format: '[{"link":"...","name":"..."}]'
+    try {
+        const json = JSON.parse(logString);
+        if (Array.isArray(json)) {
+            return json.map((item, i) => {
+                const namePart = item.name ? `"${item.name}" ` : '';
+                return `<strong>Item ${i + 1}:</strong> ${namePart}<span class="meta-info">(${item.link})</span>`;
+            });
+        }
+    } catch (e) { /* Ignore */ }
+
+    // 4. Try to parse as Semicolon separated string (Legacy/Simple Raw state)
+    // Backwards Compatibility: Fallback for simple URL lists used in very early versions.
+    // Format: 'url1; url2'
+    if (logString.includes('http')) {
+        // Check if it looks like a list of URLs
+        const items = logString.split(';').map(s => s.trim()).filter(s => s);
+        if (items.length > 0) {
+             return items.map((item, i) => `<strong>Item ${i + 1}:</strong> <span class="meta-info">(${item})</span>`);
+        }
+    }
+
+    return null; // Fallback to default display
 }

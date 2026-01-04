@@ -235,6 +235,23 @@
     .history-changes .old-val { color: var(--error-color); text-decoration: line-through; opacity: 0.8; margin: 0 0.25rem; }
     .history-changes .arrow { color: var(--secondary-text); font-size: 0.8em; }
     .history-changes .new-val { color: var(--success-color); font-weight: 500; margin-left: 0.25rem; }
+    
+    /* Evidence Specific History Styles */
+    .evidence-sub-list {
+        list-style: none;
+        padding-left: 1rem;
+        margin: 0.25rem 0 0.5rem 0;
+        border-left: 2px solid var(--border-color);
+        background-color: rgba(0,0,0,0.02);
+        border-radius: 0 4px 4px 0;
+    }
+    .evidence-sub-list li { 
+        padding: 0.25rem 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--primary-text);
+    }
+    .evidence-sub-list li:last-child { border-bottom: none; }
+    .evidence-sub-list .meta-info { color: var(--secondary-text); font-size: 0.85em; font-family: monospace; margin-left: 0.5rem; }
 
     /* NEW: Details/Summary for expandable history */
     details { border: 1px solid var(--border-color); border-radius: 6px; margin-top: 1.5rem; }
