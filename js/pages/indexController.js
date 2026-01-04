@@ -703,7 +703,20 @@ function initZoomControls() {
 
 function updateZoom() {
     const zoomSlider = document.getElementById('zoom-slider');
-    currentScale = parseFloat(zoomSlider.value);
+    const newScale = parseFloat(zoomSlider.value);
+
+    if (newScale === currentScale) return;
+
+    const viewport = document.getElementById('board-viewport');
+    const rect = viewport.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    // Calculate new pan to keep the center point fixed
+    pan.x = centerX - (newScale / currentScale) * (centerX - pan.x);
+    pan.y = centerY - (newScale / currentScale) * (centerY - pan.y);
+
+    currentScale = newScale;
     document.getElementById('zoom-value').textContent = `${Math.round(currentScale * 100)}%`;
     applyTransform();
 }

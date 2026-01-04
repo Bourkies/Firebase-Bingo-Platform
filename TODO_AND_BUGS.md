@@ -56,3 +56,4 @@
     - **Overview Page**: Refined activity feed layout to emphasize team name (colored) and tile ID, moving tile name to a separate line.
     - **Overview Page**: Moved team filter to the top of the main column and added "(Your Team)" indicator to the dropdown options.
     - **Overview Page**: Improved "Points Over Time" chart to only show data points (dots) for the team that scored at that specific timestamp, reducing visual clutter.
+    - **Zoom Controls**: Updated zoom behavior to zoom in/out from the center of the viewport instead of the top-left corner.
