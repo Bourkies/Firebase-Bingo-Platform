@@ -21,9 +21,9 @@
     body {
       background-color: var(--bg-color); color: var(--primary-text); padding: 1rem; display: flex; flex-direction: column;
       align-items: center; min-height: 100vh; box-sizing: border-box;
-    }    .controls { width: 100%; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    h1 { margin: 0; font-size: 1.5rem; font-weight: 500; }
-    #team-selector { padding: 0.5rem 1rem; font-size: 1rem; background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
+    }
+    .controls { width: 100%; margin-bottom: 1rem; display: flex; flex-direction: column; align-items: stretch; gap: 1rem; }
+    #team-selector { padding: 0.75rem 1rem; font-size: 1.5rem; font-weight: bold; background-color: var(--surface-color); color: var(--primary-text); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; width: 100%; box-sizing: border-box; }
     
     /* NEW: Zoom and Pan Styles */
     #board-viewport {
@@ -228,7 +228,7 @@
         color: var(--secondary-text);
     }
     .zoom-control {
-        display: flex; align-items: center; gap: 10px;
+        display: flex; align-items: center; justify-content: center; gap: 10px;
         background-color: var(--surface-color); padding: 0.5rem 1rem;
         border-radius: 8px; border: 1px solid var(--border-color);
     }
@@ -242,20 +242,19 @@
   <app-navbar></app-navbar>
 
   <div class="controls">
-    <h1 id="page-title">Bingo</h1>
+    <select id="team-selector"></select>
+
+    <div id="tile-search-container">
+        <input type="text" id="tile-search-input" placeholder="Search for a tile by ID, name, or task...">
+        <div id="tile-search-results"></div>
+    </div>
+
     <div class="zoom-control">
         <label for="zoom-slider">Zoom:</label>
         <input type="range" id="zoom-slider" min="1" max="5" value="1" step="0.1">
         <span id="zoom-value">100%</span>
         <button id="reset-zoom">Reset</button>
     </div>
-    <select id="team-selector"></select>
-  </div>
-
-  <!-- Place this HTML block before your <div id="board-container"> -->
-  <div id="tile-search-container">
-      <input type="text" id="tile-search-input" placeholder="Search for a tile by ID, name, or task...">
-      <div id="tile-search-results"></div>
   </div>
 
   <!-- NEW: Dedicated container for the admin setup mode warning -->

@@ -89,8 +89,7 @@ function injectSearchStyles() {
     style.textContent = `
         #tile-search-container {
             width: 100%;
-            max-width: 1400px; /* Match other main elements */
-            margin: 0 auto 1rem auto;
+            margin: 0;
             position: relative; /* For positioning the results dropdown */
             display: none; /* Hidden by default, shown by controller */
         }
@@ -245,7 +244,6 @@ function renderPage() {
     // Update UI elements that depend on the new data
     if (configChanged) {
         applyGlobalStyles(config);
-        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
     }
     populateTeamSelector(allTeams, config, authState); // Always run to reflect current selection
 
@@ -393,7 +391,17 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
         Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = teamData.name;
+            
+            const isUserTeam = authState.isLoggedIn && authState.profile?.team === id;
+            if (isUserTeam) {
+                option.textContent = `${teamData.name} (Your Team)`;
+                option.style.fontWeight = 'bold';
+                option.style.color = 'var(--accent-color)'; // Highlight the user's team
+            } else {
+                option.textContent = teamData.name;
+                // FIX: Explicitly set color to prevent inheritance from the parent select element
+                option.style.color = 'var(--primary-text)';
+            }
             selector.appendChild(option);
         });
 
@@ -405,6 +413,20 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
         } else if (!selector.value && loadFirstTeam && Object.keys(teams).length > 0) {
             selector.value = Object.keys(teams).sort((a, b) => a.localeCompare(b))[0];
         }
+    }
+
+    // NEW: Update selector styling to maintain highlight if the user's team is selected
+    const selectedTeamId = selector.value;
+    const isUserTeamSelected = authState.isLoggedIn && authState.profile?.team === selectedTeamId;
+    
+    if (isUserTeamSelected) {
+        selector.style.borderColor = 'var(--accent-color)';
+        selector.style.color = 'var(--accent-color)';
+        selector.style.borderWidth = '2px';
+    } else {
+        selector.style.borderColor = '';
+        selector.style.color = '';
+        selector.style.borderWidth = '';
     }
 }
 
