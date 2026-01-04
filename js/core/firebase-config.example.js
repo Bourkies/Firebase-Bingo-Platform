@@ -35,11 +35,13 @@ const db = initializeFirestore(app, {
 });
 
 // NEW: Connect to Emulators if on localhost (MUST happen before persistence)
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname.startsWith("192.168.") || location.hostname.startsWith("10.")) {
     console.warn("⚠️ Using Firebase Emulators");
-    connectFirestoreEmulator(db, '127.0.0.1', 8080);
-    connectAuthEmulator(auth, "http://127.0.0.1:9099");
-    connectStorageEmulator(storage, "127.0.0.1", 9199);
+    // Use the actual hostname (IP) so the phone connects to the computer, not itself
+    const emulatorHost = location.hostname;
+    connectFirestoreEmulator(db, emulatorHost, 8080);
+    connectAuthEmulator(auth, `http://${emulatorHost}:9099`);
+    connectStorageEmulator(storage, emulatorHost, 9199);
 }
 
 // Get references to the services you need and export them
