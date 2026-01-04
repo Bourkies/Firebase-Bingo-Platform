@@ -28,7 +28,7 @@
 
 ## 🐛 Known Bugs
 
-- captains Can't add team members (firestore rules issue?)
+- [x] captains Can't add team members (firestore rules issue?)
 
 ## 📝 QA & Testing
 
@@ -43,4 +43,5 @@
     - Removed `signInAnonymously`, `signInWithPopup`, `GoogleAuthProvider` from `firebase-config.js` and `auth.js`.
     - Updated `Navbar.js` to remove legacy login buttons.
     - Updated `usersController.js` and `permissionsController.js` to remove "Login Type" columns and logic.
-    - updated doc id of user is now set to the email address and the uid is moved to a key for the user
+    - Updated doc id of user is now set to the email address and the uid is moved to a key for the user.
+    - **Firestore Rules**: Fixed `isCaptainOfTeam` check to validate against both `uid` and `email` (matching the architecture where `captainId` is the user's email/docId).
