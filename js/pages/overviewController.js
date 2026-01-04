@@ -228,9 +228,23 @@ function renderFeed(allUsers, allTeams) {
     const filteredData = selectedTeam === 'all' ? fullFeedData : fullFeedData.filter(item => item.teamId === selectedTeam);
     const scoredActivity = filteredData.filter(item => item.isScored);
 
+    // NEW: Get auth state to determine visibility of player names
+    const authState = authStore.get();
+    const isLoggedIn = authState.isLoggedIn;
+
     if (!scoredActivity || scoredActivity.length === 0) {
         container.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">No scored activity for the selected filter.</p>';
         return;
+    }
+
+    // Create user lookup map only if logged in
+    const usersMap = new Map();
+    if (isLoggedIn) {
+        allUsers.forEach(u => {
+            if (u.uid) usersMap.set(u.uid, u.displayName);
+            if (u.docId) usersMap.set(u.docId, u.displayName);
+            if (u.email) usersMap.set(u.email, u.displayName);
+        });
     }
 
     scoredActivity.forEach(item => {
@@ -240,26 +254,26 @@ function renderFeed(allUsers, allTeams) {
         div.style.borderLeftColor = teamColor;
         const teamName = allTeams[item.teamId]?.name || item.teamId; 
         
-        // NEW: Create a robust lookup map that handles both UIDs and Emails (docId)
-        const usersMap = new Map();
-        allUsers.forEach(u => {
-            if (u.uid) usersMap.set(u.uid, u.displayName);
-            if (u.docId) usersMap.set(u.docId, u.displayName);
-            if (u.email) usersMap.set(u.email, u.displayName);
-        });
-
-        const playerNames = (item.playerIds || []).map(id => {
-            if (usersMap.has(id)) return usersMap.get(id);
-            // Fallback: If it's an email, show the username part. Otherwise show truncated ID.
-            const strId = String(id);
-            return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
-        }).join(', ');
-        const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
+        let finalPlayerString = '';
+        if (isLoggedIn) {
+            const playerNames = (item.playerIds || []).map(id => {
+                if (usersMap.has(id)) return usersMap.get(id);
+                const strId = String(id);
+                return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
+            }).join(', ');
+            finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
+        }
+        
         const tileNameDisplay = item.tileName || '';
 
         div.innerHTML = `
-            <p class="feed-title">${item.tileId} ${tileNameDisplay}: ${finalPlayerString} (${teamName})</p>
-            <p class="feed-meta">${item.timestamp.toLocaleString()}</p>
+            <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 0.2rem;">
+                <span style="color: ${teamColor};">${teamName}</span>
+                <span style="color: var(--primary-text); margin-left: 0.5rem;">${item.tileId}</span>
+            </div>
+            ${tileNameDisplay ? `<div style="margin-bottom: 0.2rem; font-weight: 500;">${tileNameDisplay}</div>` : ''}
+            ${finalPlayerString ? `<div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 0.2rem;">${finalPlayerString}</div>` : ''}
+            <div class="feed-meta">${item.timestamp.toLocaleString()}</div>
         `;
         container.appendChild(div);
     });
