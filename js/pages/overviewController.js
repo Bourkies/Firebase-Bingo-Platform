@@ -194,7 +194,7 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
             if (teamData) {
                 const option = document.createElement('option');
                 option.value = teamId;
-                option.textContent = teamData.name;
+                option.textContent = `${teamData.name} (Your Team)`;
                 select.appendChild(option);
                 select.value = teamId;
             }
@@ -210,7 +210,8 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
         Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = teamData.name;
+            const isUserTeam = authState.isLoggedIn && authState.profile?.team === id;
+            option.textContent = isUserTeam ? `${teamData.name} (Your Team)` : teamData.name;
             select.appendChild(option);
         });
 

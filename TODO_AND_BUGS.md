@@ -49,3 +49,4 @@
     - **Overview Page**: Fixed issue where the activity feed and chart would not populate in Private Board mode because the team filter dropdown was not updating correctly after authentication loaded.
     - **Overview Page**: Updated activity feed to hide player names for non-logged-in users and improved the visual layout of feed items.
     - **Overview Page**: Refined activity feed layout to emphasize team name (colored) and tile ID, moving tile name to a separate line.
+    - **Overview Page**: Moved team filter to the top of the main column and added "(Your Team)" indicator to the dropdown options.
