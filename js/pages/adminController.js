@@ -485,7 +485,14 @@ async function handleSubmissionUpdate(event) {
 
     // NEW: If Requires Action is checked, automatically set IsComplete to false.
     if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });
-    if (newRequiresAction) dataToUpdate.IsComplete = false;
+    if (newRequiresAction) {
+        dataToUpdate.IsComplete = false;
+        // Clear completion timestamp if it exists
+        if (existingSub.CompletionTimestamp) {
+            dataToUpdate.CompletionTimestamp = null;
+            historyEntry.changes.push({ field: 'CompletionTimestamp', from: formatCustomDateTime(existingSub.CompletionTimestamp), to: 'Cleared' });
+        }
+    }
 
     try {
         const history = historyEntry.changes.length > 0 ? historyEntry : null;

@@ -261,13 +261,25 @@ async function handleAcknowledgeFeedback() {
         timestamp: new Date(),
         user: { uid: authState.user.uid, name: authState.profile.displayName },
         action: 'Acknowledge Feedback',
-        changes: [{ field: 'RequiresAction', from: true, to: false }, { field: 'IsComplete', from: true, to: false }]
+        changes: [{ field: 'RequiresAction', from: true, to: false }]
     };
+
+    // Only log IsComplete change if it actually changes (though it should be false if flagged)
+    if (existingSubmission.IsComplete) {
+        historyEntry.changes.push({ field: 'IsComplete', from: true, to: false });
+    }
+
     const dataToUpdate = {
         RequiresAction: false, // Set to false when acknowledging
         IsComplete: false,
         history: [...(existingSubmission.history || []), historyEntry]
     };
+    // Ensure timestamp is cleared if it exists
+    if (existingSubmission.CompletionTimestamp) {
+        dataToUpdate.CompletionTimestamp = null;
+        historyEntry.changes.push({ field: 'CompletionTimestamp', from: 'Set', to: 'Cleared' });
+    }
+
     await saveSubmission(existingSubmission.docId, dataToUpdate);
     showMessage('Feedback acknowledged. You can now edit and resubmit.', false);    
 }
@@ -345,9 +357,14 @@ async function handleFormSubmit(event) {
     try {
         if (existingSubmission) {
             // Log detailed changes
+            if (dataToSave.IsComplete && !existingSubmission.IsComplete) {
+                dataToSave.CompletionTimestamp = new Date();
+            } else if (!dataToSave.IsComplete && existingSubmission.CompletionTimestamp) {
+                dataToSave.CompletionTimestamp = null;
+            }
+
             mainController.logDetailedChanges(historyEntry, dataToSave, existingSubmission, evidenceItems);
             if (historyEntry.changes.length > 0) dataToSave.history = [...(existingSubmission.history || []), historyEntry];
-            if (dataToSave.IsComplete && !existingSubmission.IsComplete) dataToSave.CompletionTimestamp = new Date();
             await saveSubmission(existingSubmission.docId, dataToSave);
         } else {
             dataToSave.Timestamp = new Date();
