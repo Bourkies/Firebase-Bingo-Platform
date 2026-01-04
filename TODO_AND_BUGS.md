@@ -28,7 +28,6 @@
 
 ## 🐛 Known Bugs
 
-- submission modal closes after acknowledging feedback
 - captains Can't add team members (firestore rules issue?)
 
 ## 📝 QA & Testing
@@ -37,6 +36,8 @@
 
 ## Change log
 
+- **Submission Modal**: Fixed issue where the modal closed immediately after acknowledging admin feedback.
+- **Admin Dashboard**: Added mobile-specific sorting dropdown and improved filter layout responsiveness.
 - **Removed Legacy Auth**: Removed Google Sign-In and Anonymous login methods. The platform now exclusively uses the Username/Password flow (backed by Firebase Email/Password auth with a hidden domain).
     - Removed `isAnonymous` field from user profiles.
     - Removed `signInAnonymously`, `signInWithPopup`, `GoogleAuthProvider` from `firebase-config.js` and `auth.js`.
