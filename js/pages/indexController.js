@@ -9,11 +9,9 @@ import { tilesStore, getPublicTiles } from '../stores/tilesStore.js';
 import { submissionsStore, startTeamSubmissionsListener } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
-import { calculateScoreboardData } from '../components/Scoreboard.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 import '../components/BingoBoard.js';
-import '../components/BingoScoreboard.js';
 import '../components/BingoColorKey.js';
 import '../components/BingoColorKey.js';
 // Import new sub-modules
@@ -174,7 +172,7 @@ function renderPage() {
     const teamsChanged = Object.keys(allTeams).length !== prevTeamsCount;
     const configChanged = JSON.stringify(config) !== JSON.stringify(prevConfig);
 
-    let teamData, scoreboardData; // Will be populated if needed
+    let teamData; // Will be populated if needed
 
     // Check if essential data is loaded.
     // FIX: Relaxed check. Allow rendering if config object exists, even if empty or no teams.
@@ -213,7 +211,6 @@ function renderPage() {
         // Explicitly hide all other interactive elements
         document.getElementById('team-selector').style.display = 'none';
         document.getElementById('tile-search-container').style.display = 'none';
-        document.getElementById('scoreboard-container').style.display = 'none';
         document.getElementById('color-key-container').style.display = 'none';
         return; // Exit early, skipping all other render logic.
       }
@@ -269,7 +266,7 @@ function renderPage() {
 
     // Only recalculate data if relevant stores have changed
     if (submissionsChanged || tilesChanged || teamsChanged || configChanged) {
-        ({ teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config));
+        ({ teamData } = processAllData(submissions, tiles, allTeams, config));
     }
 
     // If checks pass, proceed with normal rendering.
@@ -282,15 +279,6 @@ function renderPage() {
     }
 
     renderBoard({ setupMode: config.setupModeEnabled }); // This function is now smarter and only passes data
-    const scoreboardEl = document.getElementById('scoreboard-container');
-    if (scoreboardData) {
-        scoreboardEl.style.display = scoreboardData.length > 0 ? 'block' : 'none';
-        scoreboardEl.scoreboardData = scoreboardData;
-        scoreboardEl.allTeams = allTeams;
-        scoreboardEl.config = config;
-        scoreboardEl.authState = authState;
-        scoreboardEl.teamColorMap = teamColorMap;
-    }
 
     if (configChanged) {
         colorKeyEl.style.display = 'flex';
@@ -308,7 +296,7 @@ function processAllData(submissions, tiles, allTeams, config) {
     console.log('[IndexController] processAllData called.');
     if (!Array.isArray(submissions) || !Array.isArray(tiles)) {
         console.warn('[IndexController] processAllData aborted: submissions or tiles data is not a valid array.');
-        return { teamData: {}, scoreboardData: [] };
+        return { teamData: {} };
     }
 
     const teamData = {};
@@ -331,9 +319,7 @@ function processAllData(submissions, tiles, allTeams, config) {
         teamData[teamId] = { tileStates };
     });
 
-    const scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
-
-    return { teamData, scoreboardData };
+    return { teamData };
 }
 
 function applyGlobalStyles(config) {
@@ -441,9 +427,9 @@ const mainControllerInterface = {
         const authState = authStore.get();
 
         // SIMPLIFIED: The tilesStore now correctly provides either full or public tiles.
-        const { teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config);
+        const { teamData } = processAllData(submissions, tiles, allTeams, config);
 
-        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap };
+        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, currentTeam, authState, allUsers, teamColorMap };
     },
     openSubmissionModal: (tile, status) => {
         // NEW: When opening the modal, attach a real-time listener to its specific submission document.
