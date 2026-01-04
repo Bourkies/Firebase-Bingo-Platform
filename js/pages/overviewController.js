@@ -168,7 +168,7 @@ function onDataChanged() {
 
     fullChartData = scoredEvents.map(event => {
         teamScores[event.teamId] += event.points;
-        return { timestamp: event.timestamp, ...teamScores };
+        return { timestamp: event.timestamp, activeTeamId: event.teamId, ...teamScores };
     });
 
     // Use the single, centralized scoreboard renderer
@@ -296,6 +296,11 @@ function renderChart(chartData = [], teamIds = [], allTeams) {
             label: allTeams[teamId]?.name || teamId,
             data: chartData.map(point => ({ x: point.timestamp, y: point[teamId] || null })),
             borderColor: color, backgroundColor: color, fill: false, stepped: true, spanGaps: true,
+            pointRadius: (ctx) => {
+                const index = ctx.dataIndex;
+                return chartData[index]?.activeTeamId === teamId ? 4 : 0;
+            },
+            pointHoverRadius: 6
         };
     });
 
