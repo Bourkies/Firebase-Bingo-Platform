@@ -9,11 +9,9 @@ import { tilesStore, getPublicTiles } from '../stores/tilesStore.js';
 import { submissionsStore, startTeamSubmissionsListener } from '../stores/submissionsStore.js';
 import { usersStore } from '../stores/usersStore.js';
 
-import { calculateScoreboardData } from '../components/Scoreboard.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
 import '../components/BingoBoard.js';
-import '../components/BingoScoreboard.js';
 import '../components/BingoColorKey.js';
 import '../components/BingoColorKey.js';
 // Import new sub-modules
@@ -91,8 +89,7 @@ function injectSearchStyles() {
     style.textContent = `
         #tile-search-container {
             width: 100%;
-            max-width: 1400px; /* Match other main elements */
-            margin: 0 auto 1rem auto;
+            margin: 0;
             position: relative; /* For positioning the results dropdown */
             display: none; /* Hidden by default, shown by controller */
         }
@@ -174,7 +171,7 @@ function renderPage() {
     const teamsChanged = Object.keys(allTeams).length !== prevTeamsCount;
     const configChanged = JSON.stringify(config) !== JSON.stringify(prevConfig);
 
-    let teamData, scoreboardData; // Will be populated if needed
+    let teamData; // Will be populated if needed
 
     // Check if essential data is loaded.
     // FIX: Relaxed check. Allow rendering if config object exists, even if empty or no teams.
@@ -213,7 +210,6 @@ function renderPage() {
         // Explicitly hide all other interactive elements
         document.getElementById('team-selector').style.display = 'none';
         document.getElementById('tile-search-container').style.display = 'none';
-        document.getElementById('scoreboard-container').style.display = 'none';
         document.getElementById('color-key-container').style.display = 'none';
         return; // Exit early, skipping all other render logic.
       }
@@ -248,7 +244,6 @@ function renderPage() {
     // Update UI elements that depend on the new data
     if (configChanged) {
         applyGlobalStyles(config);
-        document.getElementById('page-title').textContent = config.pageTitle || 'Bingo';
     }
     populateTeamSelector(allTeams, config, authState); // Always run to reflect current selection
 
@@ -269,7 +264,7 @@ function renderPage() {
 
     // Only recalculate data if relevant stores have changed
     if (submissionsChanged || tilesChanged || teamsChanged || configChanged) {
-        ({ teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config));
+        ({ teamData } = processAllData(submissions, tiles, allTeams, config));
     }
 
     // If checks pass, proceed with normal rendering.
@@ -282,15 +277,6 @@ function renderPage() {
     }
 
     renderBoard({ setupMode: config.setupModeEnabled }); // This function is now smarter and only passes data
-    const scoreboardEl = document.getElementById('scoreboard-container');
-    if (scoreboardData) {
-        scoreboardEl.style.display = scoreboardData.length > 0 ? 'block' : 'none';
-        scoreboardEl.scoreboardData = scoreboardData;
-        scoreboardEl.allTeams = allTeams;
-        scoreboardEl.config = config;
-        scoreboardEl.authState = authState;
-        scoreboardEl.teamColorMap = teamColorMap;
-    }
 
     if (configChanged) {
         colorKeyEl.style.display = 'flex';
@@ -308,7 +294,7 @@ function processAllData(submissions, tiles, allTeams, config) {
     console.log('[IndexController] processAllData called.');
     if (!Array.isArray(submissions) || !Array.isArray(tiles)) {
         console.warn('[IndexController] processAllData aborted: submissions or tiles data is not a valid array.');
-        return { teamData: {}, scoreboardData: [] };
+        return { teamData: {} };
     }
 
     const teamData = {};
@@ -331,9 +317,7 @@ function processAllData(submissions, tiles, allTeams, config) {
         teamData[teamId] = { tileStates };
     });
 
-    const scoreboardData = calculateScoreboardData(submissions, tiles, allTeams, config);
-
-    return { teamData, scoreboardData };
+    return { teamData };
 }
 
 function applyGlobalStyles(config) {
@@ -407,7 +391,17 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
         Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = teamData.name;
+            
+            const isUserTeam = authState.isLoggedIn && authState.profile?.team === id;
+            if (isUserTeam) {
+                option.textContent = `${teamData.name} (Your Team)`;
+                option.style.fontWeight = 'bold';
+                option.style.color = 'var(--accent-color)'; // Highlight the user's team
+            } else {
+                option.textContent = teamData.name;
+                // FIX: Explicitly set color to prevent inheritance from the parent select element
+                option.style.color = 'var(--primary-text)';
+            }
             selector.appendChild(option);
         });
 
@@ -419,6 +413,20 @@ function populateTeamSelector(teams = {}, config = {}, authState = {}) {
         } else if (!selector.value && loadFirstTeam && Object.keys(teams).length > 0) {
             selector.value = Object.keys(teams).sort((a, b) => a.localeCompare(b))[0];
         }
+    }
+
+    // NEW: Update selector styling to maintain highlight if the user's team is selected
+    const selectedTeamId = selector.value;
+    const isUserTeamSelected = authState.isLoggedIn && authState.profile?.team === selectedTeamId;
+    
+    if (isUserTeamSelected) {
+        selector.style.borderColor = 'var(--accent-color)';
+        selector.style.color = 'var(--accent-color)';
+        selector.style.borderWidth = '2px';
+    } else {
+        selector.style.borderColor = '';
+        selector.style.color = '';
+        selector.style.borderWidth = '';
     }
 }
 
@@ -441,9 +449,9 @@ const mainControllerInterface = {
         const authState = authStore.get();
 
         // SIMPLIFIED: The tilesStore now correctly provides either full or public tiles.
-        const { teamData, scoreboardData } = processAllData(submissions, tiles, allTeams, config);
+        const { teamData } = processAllData(submissions, tiles, allTeams, config);
 
-        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, scoreboardData, currentTeam, authState, allUsers, teamColorMap };
+        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, currentTeam, authState, allUsers, teamColorMap };
     },
     openSubmissionModal: (tile, status) => {
         // NEW: When opening the modal, attach a real-time listener to its specific submission document.

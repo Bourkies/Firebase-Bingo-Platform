@@ -112,8 +112,10 @@ function onDataChanged() {
     // Regenerate team colors if teams have changed.
     if (Object.keys(teamColorMap).length !== Object.keys(allTeams).length) {
         teamColorMap = generateTeamColors(Object.keys(allTeams));
-        populateFeedFilter(allTeams, config, authState);
     }
+
+    // Always update the filter dropdown to ensure it reflects Auth/Config state (e.g. Private mode)
+    populateFeedFilter(allTeams, config, authState);
 
     const tilesByVisibleId = tiles.reduce((acc, tile) => {
         if (tile.id) acc[tile.id] = tile;
@@ -166,7 +168,7 @@ function onDataChanged() {
 
     fullChartData = scoredEvents.map(event => {
         teamScores[event.teamId] += event.points;
-        return { timestamp: event.timestamp, ...teamScores };
+        return { timestamp: event.timestamp, activeTeamId: event.teamId, ...teamScores };
     });
 
     // Use the single, centralized scoreboard renderer
@@ -178,6 +180,7 @@ function onDataChanged() {
 
 function populateFeedFilter(teams = {}, config = {}, authState = {}) {
     const select = document.getElementById('feed-team-filter');
+    const previousValue = select.value; // Preserve selection
     select.innerHTML = '';
     select.disabled = false;
 
@@ -191,7 +194,7 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
             if (teamData) {
                 const option = document.createElement('option');
                 option.value = teamId;
-                option.textContent = teamData.name;
+                option.textContent = `${teamData.name} (Your Team)`;
                 select.appendChild(option);
                 select.value = teamId;
             }
@@ -207,9 +210,15 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
         Object.entries(teams).sort((a, b) => a[0].localeCompare(b[0])).forEach(([id, teamData]) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = teamData.name;
+            const isUserTeam = authState.isLoggedIn && authState.profile?.team === id;
+            option.textContent = isUserTeam ? `${teamData.name} (Your Team)` : teamData.name;
             select.appendChild(option);
         });
+
+        // Restore selection if it's still valid
+        if (previousValue && (previousValue === 'all' || teams[previousValue])) {
+            select.value = previousValue;
+        }
     }
 }
 
@@ -220,9 +229,23 @@ function renderFeed(allUsers, allTeams) {
     const filteredData = selectedTeam === 'all' ? fullFeedData : fullFeedData.filter(item => item.teamId === selectedTeam);
     const scoredActivity = filteredData.filter(item => item.isScored);
 
+    // NEW: Get auth state to determine visibility of player names
+    const authState = authStore.get();
+    const isLoggedIn = authState.isLoggedIn;
+
     if (!scoredActivity || scoredActivity.length === 0) {
         container.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">No scored activity for the selected filter.</p>';
         return;
+    }
+
+    // Create user lookup map only if logged in
+    const usersMap = new Map();
+    if (isLoggedIn) {
+        allUsers.forEach(u => {
+            if (u.uid) usersMap.set(u.uid, u.displayName);
+            if (u.docId) usersMap.set(u.docId, u.displayName);
+            if (u.email) usersMap.set(u.email, u.displayName);
+        });
     }
 
     scoredActivity.forEach(item => {
@@ -232,26 +255,26 @@ function renderFeed(allUsers, allTeams) {
         div.style.borderLeftColor = teamColor;
         const teamName = allTeams[item.teamId]?.name || item.teamId; 
         
-        // NEW: Create a robust lookup map that handles both UIDs and Emails (docId)
-        const usersMap = new Map();
-        allUsers.forEach(u => {
-            if (u.uid) usersMap.set(u.uid, u.displayName);
-            if (u.docId) usersMap.set(u.docId, u.displayName);
-            if (u.email) usersMap.set(u.email, u.displayName);
-        });
-
-        const playerNames = (item.playerIds || []).map(id => {
-            if (usersMap.has(id)) return usersMap.get(id);
-            // Fallback: If it's an email, show the username part. Otherwise show truncated ID.
-            const strId = String(id);
-            return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
-        }).join(', ');
-        const finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
+        let finalPlayerString = '';
+        if (isLoggedIn) {
+            const playerNames = (item.playerIds || []).map(id => {
+                if (usersMap.has(id)) return usersMap.get(id);
+                const strId = String(id);
+                return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
+            }).join(', ');
+            finalPlayerString = [playerNames, item.additionalPlayerNames].filter(Boolean).join(', ');
+        }
+        
         const tileNameDisplay = item.tileName || '';
 
         div.innerHTML = `
-            <p class="feed-title">${item.tileId} ${tileNameDisplay}: ${finalPlayerString} (${teamName})</p>
-            <p class="feed-meta">${item.timestamp.toLocaleString()}</p>
+            <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 0.2rem;">
+                <span style="color: ${teamColor};">${teamName}</span>
+                <span style="color: var(--primary-text); margin-left: 0.5rem;">${item.tileId}</span>
+            </div>
+            ${tileNameDisplay ? `<div style="margin-bottom: 0.2rem; font-weight: 500;">${tileNameDisplay}</div>` : ''}
+            ${finalPlayerString ? `<div style="color: var(--secondary-text); font-size: 0.9em; margin-bottom: 0.2rem;">${finalPlayerString}</div>` : ''}
+            <div class="feed-meta">${item.timestamp.toLocaleString()}</div>
         `;
         container.appendChild(div);
     });
@@ -273,6 +296,11 @@ function renderChart(chartData = [], teamIds = [], allTeams) {
             label: allTeams[teamId]?.name || teamId,
             data: chartData.map(point => ({ x: point.timestamp, y: point[teamId] || null })),
             borderColor: color, backgroundColor: color, fill: false, stepped: true, spanGaps: true,
+            pointRadius: (ctx) => {
+                const index = ctx.dataIndex;
+                return chartData[index]?.activeTeamId === teamId ? 4 : 0;
+            },
+            pointHoverRadius: 6
         };
     });
 

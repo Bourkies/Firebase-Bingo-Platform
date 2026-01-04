@@ -100,6 +100,12 @@
   
   <div id="main-content" class="container" style="display: none;">
     <div class="main-column">
+      <div class="grid-item" style="padding: 1rem;">
+        <div class="feed-controls" style="margin: 0;">
+          <label for="feed-team-filter" style="font-weight: bold;">Filter View:</label>
+          <select id="feed-team-filter" style="margin-left: 0.5rem; padding: 0.5rem;"></select>
+        </div>
+      </div>
       <div class="grid-item">
         <h2>Points Over Time</h2>
         <div class="chart-wrapper">
@@ -124,10 +130,6 @@
     <div class="side-column">
       <div class="grid-item">
         <h2>Latest Activity</h2>
-        <div class="feed-controls">
-          <label for="feed-team-filter">Filter:</label>
-          <select id="feed-team-filter"></select>
-        </div>
         <div id="feed-container"></div>
       </div>
     </div>

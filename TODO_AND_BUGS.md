@@ -36,6 +36,8 @@
 
 ## Change log
 
+- **Team Selector**: Added "(Your Team)" indicator and highlighting to the player's assigned team in the dropdown list.
+- **Index Page Layout**: Refactored the controls area. Removed the static page title heading. Grouped the Team Selector, Search Bar, and Zoom Controls into a vertical stack for better responsiveness. Increased the size of the Team Selector to serve as the main heading.
 - **Submission Modal**: Fixed issue where the modal closed immediately after acknowledging admin feedback.
 - **Admin Dashboard**: Added mobile-specific sorting dropdown and improved filter layout responsiveness.
 - **Removed Legacy Auth**: Removed Google Sign-In and Anonymous login methods. The platform now exclusively uses the Username/Password flow (backed by Firebase Email/Password auth with a hidden domain).
@@ -45,3 +47,9 @@
     - Updated `usersController.js` and `permissionsController.js` to remove "Login Type" columns and logic.
     - Updated doc id of user is now set to the email address and the uid is moved to a key for the user.
     - **Firestore Rules**: Fixed `isCaptainOfTeam` check to validate against both `uid` and `email` (matching the architecture where `captainId` is the user's email/docId).
+    - **Index Page**: Removed the embedded scoreboard component from the main board page in favor of the dedicated Overview page.
+    - **Overview Page**: Fixed issue where the activity feed and chart would not populate in Private Board mode because the team filter dropdown was not updating correctly after authentication loaded.
+    - **Overview Page**: Updated activity feed to hide player names for non-logged-in users and improved the visual layout of feed items.
+    - **Overview Page**: Refined activity feed layout to emphasize team name (colored) and tile ID, moving tile name to a separate line.
+    - **Overview Page**: Moved team filter to the top of the main column and added "(Your Team)" indicator to the dropdown options.
+    - **Overview Page**: Improved "Points Over Time" chart to only show data points (dots) for the team that scored at that specific timestamp, reducing visual clutter.
