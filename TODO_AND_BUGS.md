@@ -37,6 +37,7 @@
 
 ## Change log
 
+- **Admin Dashboard**: Refined Evidence history sorting to display Removals first, followed by Moves/Modifications, and finally Additions, improving readability of complex changes.
 - **Admin Dashboard**: Improved Evidence history formatting to parse and display individual item changes (Added, Removed, Modified) instead of a single summary string. Added logic to detect and display link changes for named items.
 - **Admin Dashboard**: Improved the Submission History UI in the review modal. History entries are now structured with clear headers and color-coded diffs (Red/Green) for changed values, making it easier to track edits.
 - **Team Selector**: Added "(Your Team)" indicator and highlighting to the player's assigned team in the dropdown list.

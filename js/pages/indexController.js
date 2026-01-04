@@ -531,28 +531,83 @@ const mainControllerInterface = {
             }
             const newEvidenceArray = evidenceItems; // This is already an array of objects
 
-            const oldEvidenceMap = new Map(oldEvidenceArray.map(item => [item.link, item.name]));
-            const newEvidenceMap = new Map(newEvidenceArray.map(item => [item.link, item.name]));
+            // NEW: Structured Diff Logic for Evidence
+            // We generate a JSON object to store in the history, allowing for precise rendering in Admin.
+            const diffs = [];
+            const oldMap = oldEvidenceArray.map((item, index) => ({ ...item, originalIndex: index, used: false }));
+            const newMap = newEvidenceArray.map((item, index) => ({ ...item, originalIndex: index, used: false }));
 
-            const changesSummary = [];
+            // 1. Check for Link Matches (Moves and Name Changes)
+            newMap.forEach((newItem) => {
+                // Find matching link in old that hasn't been used
+                const oldItem = oldMap.find(o => !o.used && o.link === newItem.link);
+                if (oldItem) {
+                    oldItem.used = true;
+                    newItem.used = true;
 
-            // Check for added evidence
-            newEvidenceMap.forEach((name, link) => {
-                if (!oldEvidenceMap.has(link)) {
-                    changesSummary.push(`Added: ${name || 'No Name'} (${link})`);
+                    // Check for Name Change
+                    if (oldItem.name !== newItem.name) {
+                        diffs.push({ op: 'modify_name', slot: newItem.originalIndex + 1, oldName: oldItem.name, newName: newItem.name, link: newItem.link });
+                    }
+
+                    // Check for Move
+                    if (oldItem.originalIndex !== newItem.originalIndex) {
+                        diffs.push({ op: 'move', fromSlot: oldItem.originalIndex + 1, toSlot: newItem.originalIndex + 1, name: newItem.name, link: newItem.link });
+                    }
                 }
             });
 
-            // Check for removed evidence
-            oldEvidenceMap.forEach((name, link) => {
-                if (!newEvidenceMap.has(link)) {
-                    changesSummary.push(`Removed: ${name || 'No Name'} (${link})`);
-                } else if (newEvidenceMap.get(link) !== name) { // Check for modified description
-                    changesSummary.push(`Modified: '${name}' to '${newEvidenceMap.get(link)}' for link (${link})`);
+            // 2. Check for Link Modifications (Same Slot, Same Name, Different Link) - Heuristic
+            // If we have an unused new item at index I and an unused old item at index I, and names match.
+            newMap.forEach((newItem) => {
+                if (newItem.used) return;
+                const oldItem = oldMap[newItem.originalIndex];
+                if (oldItem && !oldItem.used) {
+                    // If names match (or both are empty/default), assume it's a link correction/update
+                    if (oldItem.name === newItem.name) {
+                        oldItem.used = true;
+                        newItem.used = true;
+                        diffs.push({ op: 'modify_link', slot: newItem.originalIndex + 1, name: newItem.name, oldLink: oldItem.link, newLink: newItem.link });
+                    }
                 }
             });
 
-            if (changesSummary.length > 0) historyEntry.changes.push({ field: 'Evidence', from: `(${oldEvidenceArray.length} items)`, to: `(${newEvidenceArray.length} items) ${changesSummary.join('; ')}` });
+            // 3. Remaining Adds
+            newMap.forEach((newItem) => {
+                if (!newItem.used) {
+                    diffs.push({ op: 'add', slot: newItem.originalIndex + 1, name: newItem.name, link: newItem.link });
+                }
+            });
+
+            // 4. Remaining Removes
+            oldMap.forEach((oldItem) => {
+                if (!oldItem.used) {
+                    diffs.push({ op: 'remove', slot: oldItem.originalIndex + 1, name: oldItem.name, link: oldItem.link });
+                }
+            });
+
+            if (diffs.length > 0) {
+                // Sort diffs before saving: Removed -> Moved/Modified -> Added
+                const opPriority = {
+                    'remove': 1,
+                    'move': 2, 'modify_name': 2, 'modify_link': 2,
+                    'add': 3
+                };
+                diffs.sort((a, b) => {
+                    const pA = opPriority[a.op] || 99;
+                    const pB = opPriority[b.op] || 99;
+                    if (pA !== pB) return pA - pB;
+                    return (a.slot || a.fromSlot || 0) - (b.slot || b.fromSlot || 0);
+                });
+
+                // Store as a JSON string with a version flag for the admin parser
+                const diffPayload = JSON.stringify({ v: 2, diffs: diffs });
+                historyEntry.changes.push({ 
+                    field: 'Evidence', 
+                    from: `(${oldEvidenceArray.length} items)`, 
+                    to: diffPayload 
+                });
+            }
         }
 
         // NEW: Log CompletionTimestamp changes
