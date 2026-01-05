@@ -7,7 +7,6 @@ import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
 import { tilesStore, getPublicTiles } from '../stores/tilesStore.js';
 import { submissionsStore, startTeamSubmissionsListener } from '../stores/submissionsStore.js';
-import { usersStore } from '../stores/usersStore.js';
 
 import { showMessage, showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
 
@@ -73,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     tilesStore.subscribe(onDataChanged);
     // submissionsStore.subscribe(onDataChanged); // REMOVED: Don't listen to global store
     localSubmissionsStore.subscribe(onDataChanged); // Listen to local filtered store
-    usersStore.subscribe(onDataChanged);
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -459,13 +457,12 @@ const mainControllerInterface = {
         const allTeams = teamsStore.get();
         const tiles = tilesStore.get();
         const submissions = localSubmissionsStore.get();
-        const allUsers = usersStore.get();
         const authState = authStore.get();
 
         // SIMPLIFIED: The tilesStore now correctly provides either full or public tiles.
         const { teamData } = processAllData(submissions, tiles, allTeams, config);
 
-        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, currentTeam, authState, allUsers, teamColorMap };
+        return { config, allTeams, allStyles: styles, tiles, allTiles: tiles, submissions, teamData, currentTeam, authState, teamColorMap };
     },
     openSubmissionModal: (tile, status) => {
         // NEW: When opening the modal, attach a real-time listener to its specific submission document.
@@ -500,20 +497,10 @@ const mainControllerInterface = {
     logDetailedChanges: (historyEntry, dataToSave, existingSubmission, evidenceItems) => {
         if (dataToSave.IsComplete !== !!existingSubmission.IsComplete) historyEntry.changes.push({ field: 'IsComplete', from: !!existingSubmission.IsComplete, to: dataToSave.IsComplete });
 
-        const allUsers = usersStore.get();
-
         const oldPlayerIDs = existingSubmission.PlayerIDs || [];
         const newPlayerIDs = dataToSave.PlayerIDs || [];
         if (JSON.stringify(oldPlayerIDs) !== JSON.stringify(newPlayerIDs)) {
-            const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
-            const oldNames = new Set(oldPlayerIDs.map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`));
-            const newNames = new Set(newPlayerIDs.map(uid => usersById.get(uid) || `[${uid.substring(0, 5)}]`));
-            const addedNames = [...newNames].filter(name => !oldNames.has(name));
-            const removedNames = [...oldNames].filter(name => !newNames.has(name));
-            const changes = [];
-            if (addedNames.length > 0) changes.push(`Added: ${addedNames.join(', ')}`);
-            if (removedNames.length > 0) changes.push(`Removed: ${removedNames.join(', ')}`);
-            historyEntry.changes.push({ field: 'PlayerIDs', from: `(${oldNames.size} players)`, to: `(${newNames.size} players) ${changes.join('; ')}` });
+            historyEntry.changes.push({ field: 'PlayerIDs', from: `(${oldPlayerIDs.length} IDs)`, to: `(${newPlayerIDs.length} IDs)` });
         }
 
         if (dataToSave.AdditionalPlayerNames !== (existingSubmission.AdditionalPlayerNames || '')) historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: existingSubmission.AdditionalPlayerNames || '', to: dataToSave.AdditionalPlayerNames });

@@ -139,6 +139,23 @@
     /* NEW: Adjust width for side-by-side buttons */
     #modal-action-buttons button { width: auto; flex-grow: 1; }
     #submission-form button:disabled { background-color: var(--disabled-bg-color); cursor: not-allowed; }
+    
+    /* Player Name Removal Button */
+    #submission-form .remove-player-btn {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        background-color: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--secondary-text);
+        font-size: 1.5rem;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.2s ease; margin: 0 0 0 0.5rem; padding: 0;
+    }
+    #submission-form .remove-player-btn:hover { background-color: var(--error-color); color: white; border-color: var(--error-color); }
+
     /* --- NEW: Evidence Input Styling --- */
     #player-name-container {
         background-color: var(--bg-color);
@@ -287,17 +304,16 @@
             <p id="admin-feedback-text"></p>
         </div>
         <input type="hidden" id="modal-tile-id">
-        <label for="player-name-container">Player Name(s):</label>
+        <label for="player-name-container">Contributing Players:</label>
         <div id="player-name-container">
-            <div id="team-members-checkboxes"></div>
-            <div class="player-name-option">
-                <input type="checkbox" id="team-submission-checkbox">
-                <label for="team-submission-checkbox">Submit for the whole team</label>
+            <div id="player-names-list">
+                <!-- Dynamic inputs will be added here -->
             </div>
-            <input type="text" id="manual-player-name" placeholder="Manually add other players (comma-separated)">
+            <button type="button" id="add-player-btn" class="secondary-btn" style="width: auto; margin-top: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.9rem;">+ Add Player</button>
+            <datalist id="player-history"></datalist>
         </div>
+        <!-- Hidden field to maintain schema compatibility if needed, though we will write empty array -->
         <input type="hidden" id="player-ids-value" name="player-ids-value">
-        <input type="hidden" id="additional-players-value" name="additional-players-value">
         <label id="evidence-label">Evidence:</label>
         <div id="evidence-container"></div>
         <button type="button" id="add-evidence-btn">+ Add Evidence Item</button>

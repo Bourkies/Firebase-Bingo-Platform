@@ -16,11 +16,8 @@ onMount(usersStore, () => {
         const userTeam = authState.profile?.team;
         const isLoggedIn = authState.isLoggedIn;
 
-        // NEW: Allow loading all users on the public overview page so names resolve correctly
-        const isOverviewPage = window.location.pathname.toLowerCase().includes('overview');
-
         let queryMode = 'none';
-        if (isEventMod || isTeamCaptain || isOverviewPage) {
+        if (isEventMod || isTeamCaptain) {
             queryMode = 'all';
         } else if (isLoggedIn && userTeam) {
             queryMode = 'team';
