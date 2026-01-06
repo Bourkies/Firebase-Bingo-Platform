@@ -85,3 +85,5 @@
     - **Submission Logic**: Fixed issue where `CompletionTimestamp` was not being cleared when a submission was flagged by an admin or reverted to draft.
     - **Submission History**: Improved history logging to correctly reflect state changes for `IsComplete` and `CompletionTimestamp` during Admin flagging and Player acknowledgement.
 - **Overview Page**: Updated the "Points Over Time" chart configuration to set the minimum time unit to 'day', preventing hourly ticks on short timeframes.
+- **Overview Page**: Fixed responsive layout issue on desktop where the grid would not shrink below the content width. Applied `minmax(0, 1fr)` and added horizontal scrolling to the leaderboard table to ensure the page fits narrow viewports.
+- **Overview Page**: Updated the Filter View selector to allow shrinking (`min-width: 0`) preventing layout breakage with long team names.

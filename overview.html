@@ -75,11 +75,16 @@
         border: 1px solid var(--border-color);
         padding: 0.25rem 0.5rem;
         border-radius: 4px;
+        min-width: 0; /* Allow shrinking below content size */
+        flex: 1; /* Allow it to fill available space */
     }
     /* Responsive layout for smaller screens */
     @media (max-width: 960px) {
       .container {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      body {
+        padding: 1rem;
       }
     }
     #page-disabled {
@@ -114,17 +119,19 @@
       </div>
       <div class="grid-item">
         <h2>Leaderboard</h2>
-        <table id="leaderboard-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Team</th>
-              <th>Tiles</th>
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div style="overflow-x: auto;">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Team</th>
+                <th>Tiles</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div class="side-column">
