@@ -6,7 +6,6 @@ import { authStore } from '../stores/authStore.js';
 import { teamsStore } from '../stores/teamsStore.js'; 
 import { tilesStore } from '../stores/tilesStore.js';
 import { submissionsStore, updateSubmission } from '../stores/submissionsStore.js';
-import { usersStore } from '../stores/usersStore.js';
 
 let currentOpenSubmissionId = null; // NEW: To track the currently open modal
 let currentSort = { column: 'lastEdited', direction: 'asc' }; // Default sort state
@@ -17,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     teamsStore.subscribe(onDataChanged);
     tilesStore.subscribe(onDataChanged);
     submissionsStore.subscribe(onDataChanged);
-    usersStore.subscribe(onDataChanged);
 
     // Setup event listeners for filters and modal
     document.getElementById('team-filter').addEventListener('change', renderSubmissionsTable);
@@ -128,7 +126,6 @@ function populateFilters() {
 function renderSubmissionsTable() {
     const allTeams = teamsStore.get();
     const tiles = tilesStore.get();
-    const allUsers = usersStore.get();
     const allSubmissions = submissionsStore.get();
 
     const tbody = document.querySelector('#submissions-table tbody');
@@ -146,12 +143,6 @@ function renderSubmissionsTable() {
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
     
-    // NEW: Robust user lookup (UID + Email)
-    const usersMap = new Map();
-    allUsers.forEach(u => {
-        if (u.uid) usersMap.set(u.uid, u.displayName);
-        if (u.docId) usersMap.set(u.docId, u.displayName);
-    });
 
     const filteredSubmissions = allSubmissions.filter(sub => {
         if (sub.IsArchived) return false;
@@ -174,7 +165,7 @@ function renderSubmissionsTable() {
             const teamName = (allTeams[sub.Team]?.name || '').toLowerCase();
             
             // NEW: Search through looked-up player names
-            const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || '').join(' ').toLowerCase();
+            const playerNames = (sub.PlayerIDs || []).join(' ').toLowerCase(); // Legacy IDs
             const additionalNames = (sub.AdditionalPlayerNames || '').toLowerCase();
 
             const tileId = (sub.id || '').toLowerCase();
@@ -193,9 +184,9 @@ function renderSubmissionsTable() {
             if (col === 'tileName') return tilesByVisibleId.get(sub.id)?.Name || '';
             if (col === 'teamName') return allTeams[sub.Team]?.name || sub.Team || '';
             if (col === 'created') return sub.Timestamp || new Date(0);
-            if (col === 'createdBy') return getCreatedBy(sub, usersMap);
+            if (col === 'createdBy') return getCreatedBy(sub);
             if (col === 'lastEdited') return getLastEdited(sub);
-            if (col === 'lastEditedBy') return getLastEditedBy(sub, usersMap);
+            if (col === 'lastEditedBy') return getLastEditedBy(sub);
             return '';
         };
 
@@ -240,8 +231,8 @@ function renderSubmissionsTable() {
         const date = sub.Timestamp; // Already a Date object
         const timestamp = formatCustomDateTime(date, useUtcTime);
         const lastEdited = formatCustomDateTime(getLastEdited(sub), useUtcTime);
-        const createdBy = getCreatedBy(sub, usersMap);
-        const lastEditedBy = getLastEditedBy(sub, usersMap);
+        const createdBy = getCreatedBy(sub);
+        const lastEditedBy = getLastEditedBy(sub);
 
         return `
             <tr data-id="${sub.docId}">
@@ -280,7 +271,7 @@ function getLastEdited(sub) {
     return sub.Timestamp || new Date(0);
 }
 
-function getCreatedBy(sub, usersMap) {
+function getCreatedBy(sub) {
     if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
         // Find the entry with the minimum timestamp
         const firstEntry = sub.history.reduce((min, entry) => {
@@ -289,13 +280,12 @@ function getCreatedBy(sub, usersMap) {
         return firstEntry.user?.name || 'Unknown';
     }
     // Fallback to first player if no history
-    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
-        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
-    }
+    if (sub.AdditionalPlayerNames) return sub.AdditionalPlayerNames.split(',')[0];
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) return sub.PlayerIDs[0];
     return 'Unknown';
 }
 
-function getLastEditedBy(sub, usersMap) {
+function getLastEditedBy(sub) {
     if (sub.history && Array.isArray(sub.history) && sub.history.length > 0) {
         // Find the entry with the maximum timestamp
         const lastEntry = sub.history.reduce((max, entry) => {
@@ -304,9 +294,8 @@ function getLastEditedBy(sub, usersMap) {
         return lastEntry.user?.name || 'Unknown';
     }
     // Fallback to first player if no history
-    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) {
-        return usersMap.get(sub.PlayerIDs[0]) || 'Unknown';
-    }
+    if (sub.AdditionalPlayerNames) return sub.AdditionalPlayerNames.split(',')[0];
+    if (sub.PlayerIDs && sub.PlayerIDs.length > 0) return sub.PlayerIDs[0];
     return 'Unknown';
 }
 
@@ -327,7 +316,6 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     const allSubmissions = submissionsStore.get();
     const allTeams = teamsStore.get();
     const tiles = tilesStore.get();
-    const allUsers = usersStore.get();
 
     // If we're opening from a click, we get an ID. If from a live update, we get the object.
     const sub = typeof submissionOrId === 'string' ? allSubmissions.find(s => s.docId === submissionOrId) : submissionOrId;
@@ -339,11 +327,6 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     // Create a map of user-facing IDs to tile data for quick lookups
     const tilesByVisibleId = new Map(tiles.map(t => [t.id, t]));
     
-    const usersMap = new Map();
-    allUsers.forEach(u => {
-        if (u.uid) usersMap.set(u.uid, u.displayName);
-        if (u.docId) usersMap.set(u.docId, u.displayName);
-    });
 
     document.getElementById('modal-submission-id').value = sub.docId;
     const teamName = allTeams[sub.Team]?.name || sub.Team;
@@ -352,7 +335,7 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     document.getElementById('modal-team').textContent = teamName;
 
     // NEW: Generate player name string from IDs
-    const playerNames = (sub.PlayerIDs || []).map(id => usersMap.get(id) || `[${String(id).substring(0,5)}]`).join(', ');
+    const playerNames = (sub.PlayerIDs || []).join(', '); // Legacy IDs
     const finalPlayerString = [playerNames, sub.AdditionalPlayerNames].filter(Boolean).join(', ');
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';
@@ -414,14 +397,22 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
             const date = entry.timestamp; // Already a Date object
             const timestamp = date ? (useUtcTime ? date.toUTCString() : date.toLocaleString()) : 'N/A';
 
+            // NEW: Resolve ID (Email for new, UID for legacy)
+            const userId = entry.user?.id || entry.user?.uid || '';
+            const userName = entry.user?.name || 'Unknown';
+
             const item = document.createElement('div');
             item.className = 'history-entry';
             
             // Build Header
             let html = `<div class="history-header">
                 <span class="timestamp">[${timestamp}]</span>
-                <span class="user">${entry.user?.name || 'Unknown'}</span>
-                <span class="action">${entry.action || 'Update'}</span>
+                <span class="action" style="font-weight: bold; margin-right: 0.5rem;">${entry.action || 'Update'}</span>
+                <span class="user">
+                    <span style="font-weight: normal; color: var(--secondary-text); margin-right: 4px;">Edit by:</span>
+                    ${userName}
+                    ${userId ? `<span style="color: var(--secondary-text); font-weight: normal; font-size: 0.85em; margin-left: 4px;">(${userId})</span>` : ''}
+                </span>
             </div>`;
 
             // Build Changes List
