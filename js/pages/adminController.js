@@ -29,6 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('modal-form').addEventListener('submit', handleSubmissionUpdate);
 
+    // NEW: Player Editor Listeners
+    document.getElementById('admin-add-player-btn').addEventListener('click', () => addAdminPlayerInput());
+    document.getElementById('admin-player-list').addEventListener('click', (e) => {
+        if (e.target.closest('.player-editor-remove')) {
+            e.target.closest('.player-editor-row').remove();
+        }
+    });
+
     // NEW: Mobile sort listener
     document.getElementById('sort-filter').addEventListener('change', (e) => {
         const [col, dir] = e.target.value.split('-');
@@ -340,6 +348,15 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     document.getElementById('modal-players').textContent = finalPlayerString;
     document.getElementById('modal-notes').textContent = sub.Notes || 'None';
 
+    // NEW: Populate Player Editor (AdditionalPlayerNames only)
+    const playerListContainer = document.getElementById('admin-player-list');
+    playerListContainer.innerHTML = '';
+    const currentNames = (sub.AdditionalPlayerNames || '').split(',').map(n => n.trim()).filter(n => n);
+    if (currentNames.length === 0) addAdminPlayerInput(); // Add one empty if none
+    else currentNames.forEach(name => addAdminPlayerInput(name));
+    // Close the details by default
+    document.getElementById('player-editor-details').removeAttribute('open');
+
     const completionTimestamp = sub.CompletionTimestamp; // Already a Date object
     document.getElementById('modal-timestamp-local').textContent = formatCustomDateTime(completionTimestamp, false);
     document.getElementById('modal-timestamp-utc').textContent = formatCustomDateTime(completionTimestamp, true);
@@ -448,6 +465,17 @@ function openSubmissionModal(submissionOrId, isUpdate = false) {
     }
 }
 
+function addAdminPlayerInput(value = '') {
+    const container = document.getElementById('admin-player-list');
+    const div = document.createElement('div');
+    div.className = 'player-editor-row';
+    div.innerHTML = `
+        <input type="text" class="player-editor-input" value="${value}" placeholder="Player Name">
+        <button type="button" class="player-editor-remove" title="Remove">&times;</button>
+    `;
+    container.appendChild(div);
+}
+
 async function handleSubmissionUpdate(event) {
     event.preventDefault();
     showGlobalLoader();
@@ -469,6 +497,11 @@ async function handleSubmissionUpdate(event) {
     // NEW: Get original IsComplete status
     const originalIsComplete = !!existingSub.IsComplete;
 
+    // NEW: Collect Player Names
+    const nameInputs = document.querySelectorAll('#admin-player-list .player-editor-input');
+    const newPlayerNames = Array.from(nameInputs).map(i => i.value.trim()).filter(n => n).join(', ');
+    const oldAdditionalNames = existingSub.AdditionalPlayerNames || '';
+
     const historyEntry = {
         timestamp: new Date(),
         user: { uid: authState.user.uid, name: authState.profile.displayName },
@@ -484,7 +517,17 @@ async function handleSubmissionUpdate(event) {
     if (newRequiresAction !== originalRequiresAction) historyEntry.changes.push({ field: 'RequiresAction', from: originalRequiresAction, to: newRequiresAction });
     if (newFeedback !== originalFeedback) historyEntry.changes.push({ field: 'AdminFeedback', from: `"${originalFeedback}"`, to: `"${newFeedback}"` });
 
-    const dataToUpdate = { AdminVerified: newVerified, RequiresAction: newRequiresAction, AdminFeedback: newRequiresAction ? newFeedback : '' };
+    const dataToUpdate = { 
+        AdminVerified: newVerified, 
+        RequiresAction: newRequiresAction, 
+        AdminFeedback: newRequiresAction ? newFeedback : '' 
+    };
+
+    // NEW: Update AdditionalPlayerNames if changed
+    if (newPlayerNames !== oldAdditionalNames) {
+        historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: oldAdditionalNames, to: newPlayerNames });
+        dataToUpdate.AdditionalPlayerNames = newPlayerNames;
+    }
 
     // NEW: If Requires Action is checked, automatically set IsComplete to false.
     if (newIsComplete !== originalIsComplete) historyEntry.changes.push({ field: 'IsComplete', from: originalIsComplete, to: newIsComplete });

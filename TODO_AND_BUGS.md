@@ -48,6 +48,7 @@
 
 ## Change log
 
+- **Admin Dashboard**: Added a "Edit Player Names" section to the submission review modal. Admins can now moderate the `AdditionalPlayerNames` field directly during verification to correct bad data or inappropriate names.
 - **Performance**: Removed `usersStore` dependency from the main Index page to significantly reduce database reads.
 - **Submission Modal**: Replaced team member checkboxes with a dynamic "Contributing Players" list. Added local storage history (`<datalist>`) for auto-completing player names.
 - **Architecture**: Updated submission schema usage; `PlayerIDs` is now deprecated (saved as empty), and all names are stored in `AdditionalPlayerNames`.
