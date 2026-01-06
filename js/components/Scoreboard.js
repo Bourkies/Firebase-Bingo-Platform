@@ -19,6 +19,7 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
     const leaderboardData = allTeamIds.map(teamId => {
         let score = 0;
         let completedTiles = 0;
+        let lastCompletionTime = 0; // Track the latest completion time for tie-breaking
         const teamSubmissions = submissions.filter(s => s.Team === teamId && !s.IsArchived);
 
         tiles.forEach(tile => {
@@ -31,10 +32,34 @@ export function calculateScoreboardData(submissions, tiles, allTeams, config) {
             if (isScored) {
                 score += parseFloat(tile.Points) || 0;
                 completedTiles++;
+
+                // Track the latest completion timestamp among scored tiles
+                if (sub.CompletionTimestamp) {
+                    // Handle Firestore Timestamp, Date object, or number safely
+                    const ts = typeof sub.CompletionTimestamp.toMillis === 'function' 
+                        ? sub.CompletionTimestamp.toMillis() 
+                        : (sub.CompletionTimestamp instanceof Date ? sub.CompletionTimestamp.getTime() : sub.CompletionTimestamp);
+                    
+                    if (ts > lastCompletionTime) {
+                        lastCompletionTime = ts;
+                    }
+                }
             }
         });
-        return { teamId: teamId, score, completedTiles };
-    }).sort((a, b) => b.score - a.score);
+        return { teamId: teamId, score, completedTiles, lastCompletionTime };
+    }).sort((a, b) => {
+        // Primary Sort: Score (Descending)
+        if (b.score !== a.score) {
+            return b.score - a.score;
+        }
+        // Secondary Sort: Time taken to reach score (Ascending - earlier is better)
+        // If a team has no time recorded (0), they lose the tie-breaker to someone who has a time.
+        if (a.lastCompletionTime === 0 && b.lastCompletionTime === 0) return 0;
+        if (a.lastCompletionTime === 0) return 1; 
+        if (b.lastCompletionTime === 0) return -1;
+        
+        return a.lastCompletionTime - b.lastCompletionTime;
+    });
 
     return leaderboardData;
 }
