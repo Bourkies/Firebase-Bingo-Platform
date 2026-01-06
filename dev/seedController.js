@@ -27,6 +27,9 @@ const REAL_EVIDENCE_LINKS = [
     'https://i.imgur.com/v7y90e7.jpeg'
 ];
 
+// Helper to pause execution for a given number of milliseconds
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export function checkSafety() {
     // 1. Environment Check
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -256,6 +259,7 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
         } finally {
             // Clean up the app instance immediately
             await deleteApp(secondaryApp);
+            await delay(20); // Stability delay between user creations
         }
     }
     log("User seeding complete.");
@@ -614,8 +618,9 @@ export async function seedSubmissions(log) {
                     batchCount++;
                     totalCreated++;
 
-                    if (batchCount >= 400) {
+                    if (batchCount >= 50) { // Reduced from 400 to 50 to prevent Emulator hangs
                         await batch.commit();
+                        await delay(20); // Stability delay to let the Emulator transport layer catch up
                         batch = writeBatch(secondaryDb);
                         batchCount = 0;
                     }
@@ -718,7 +723,7 @@ async function deleteCollectionSubset(collectionName, filterFn, log, skipSafety 
 
     log(`Deleting ${docsToDelete.length} items from ${collectionName}...`);
 
-    const batchSize = 400;
+    const batchSize = 50; // Reduced from 400 to 50 for stability
     let batch = fb.writeBatch(db);
     let count = 0;
 
@@ -727,6 +732,7 @@ async function deleteCollectionSubset(collectionName, filterFn, log, skipSafety 
         count++;
         if (count >= batchSize) {
             await batch.commit();
+            await delay(20); // Stability delay
             batch = fb.writeBatch(db);
             count = 0;
         }
