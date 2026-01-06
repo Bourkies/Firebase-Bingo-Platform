@@ -504,7 +504,7 @@ async function handleSubmissionUpdate(event) {
 
     const historyEntry = {
         timestamp: new Date(),
-        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        user: { id: authState.profile.email, name: authState.profile.displayName },
         action: 'Admin Update',
         changes: []
     };
