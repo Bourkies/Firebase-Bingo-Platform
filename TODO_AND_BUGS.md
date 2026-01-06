@@ -2,10 +2,10 @@
 
 ## 🚨 High Priority
 - [ ] **improve efficiency with data base reads**
-  - [ ] **remove player Names from submission**
+  - [x] **remove player id's from submission**
     - [x] remove index page loading of users
     - [x] remove admin page loading users
-    - [ ] remove overview page loading users
+    - [x] remove overview page loading users
     - [x] submission modal will still support manually adding names tiles
     - [x] update architecture for change
 

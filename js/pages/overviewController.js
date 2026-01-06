@@ -8,7 +8,6 @@ import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
 import { tilesStore } from '../stores/tilesStore.js';
 import { startOverviewListener } from '../stores/submissionsStore.js';
-import { usersStore } from '../stores/usersStore.js';
 import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
 // State variables that are truly local to this page
@@ -34,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     teamsStore.subscribe(onDataChanged);
     tilesStore.subscribe(onDataChanged);
     overviewStore.subscribe(onDataChanged);
-    usersStore.subscribe(onDataChanged);
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -49,7 +47,6 @@ function onDataChanged() {
     
     // Use the unified store for both feed and chart
     const overviewSubmissions = overviewStore.get();
-    const allUsers = usersStore.get();
 
     // NEW: Wait until both config and auth state are definitively loaded.
     // The authState check is crucial to prevent showing the page before permissions are known.
@@ -173,7 +170,8 @@ function onDataChanged() {
 
     // Use the single, centralized scoreboard renderer
     renderScoreboard(document.querySelector('#leaderboard-table tbody'), leaderboardData, allTeams, config, authState, teamColorMap, 'Overview Page');
-    handleFilterChange();
+    renderFeed(allTeams);
+    renderChart(fullChartData, document.getElementById('feed-team-filter').value === 'all' ? Object.keys(allTeams) : [document.getElementById('feed-team-filter').value], allTeams);
 
     hideGlobalLoader();
 }
@@ -222,7 +220,7 @@ function populateFeedFilter(teams = {}, config = {}, authState = {}) {
     }
 }
 
-function renderFeed(allUsers, allTeams) {
+function renderFeed(allTeams) {
     const container = document.getElementById('feed-container');
     container.innerHTML = '';
     const selectedTeam = document.getElementById('feed-team-filter').value;
@@ -238,15 +236,6 @@ function renderFeed(allUsers, allTeams) {
         return;
     }
 
-    // Create user lookup map only if logged in
-    const usersMap = new Map();
-    if (isLoggedIn) {
-        allUsers.forEach(u => {
-            if (u.uid) usersMap.set(u.uid, u.displayName);
-            if (u.docId) usersMap.set(u.docId, u.displayName);
-            if (u.email) usersMap.set(u.email, u.displayName);
-        });
-    }
 
     scoredActivity.forEach(item => {
         const div = document.createElement('div');
@@ -258,7 +247,6 @@ function renderFeed(allUsers, allTeams) {
         let finalPlayerString = '';
         if (isLoggedIn) {
             const playerNames = (item.playerIds || []).map(id => {
-                if (usersMap.has(id)) return usersMap.get(id);
                 const strId = String(id);
                 return strId.includes('@') ? `[${strId.split('@')[0]}]` : `[${strId.substring(0, 5)}]`;
             }).join(', ');
@@ -333,10 +321,9 @@ function renderChart(chartData = [], teamIds = [], allTeams) {
 }
 
 function handleFilterChange() {
-    const allUsers = usersStore.get();
     const allTeams = teamsStore.get();
 
-    renderFeed(allUsers, allTeams);
+    renderFeed(allTeams);
 
     const selectedTeam = document.getElementById('feed-team-filter').value;
     const filteredTeamIds = selectedTeam === 'all' ? Object.keys(allTeams) : [selectedTeam];
