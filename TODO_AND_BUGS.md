@@ -8,8 +8,13 @@
     - [x] remove overview page loading users
     - [x] submission modal will still support manually adding names tiles
     - [x] update architecture for change
-
+  - [ ] Check all stores are efficiently cached to reduce reads on loads
+ - [x] **fix score board time scale** unless on narrow screen the scale is in hours, want days to be lowest
+- [ ] **fix setup mode warning scale** text now small after fixed render resolution change 
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
+
+## Medium Priority
+- [ ] add team/even MvP display on overview page
 
 ## 🛠️ Refactoring & Modernization
 
@@ -79,3 +84,4 @@
     - **Setup Page Fixes**: Fixed the "Reset Zoom" button not re-centering the board immediately. Increased the font size of Tile IDs in setup mode to account for the new high-resolution rendering.
     - **Submission Logic**: Fixed issue where `CompletionTimestamp` was not being cleared when a submission was flagged by an admin or reverted to draft.
     - **Submission History**: Improved history logging to correctly reflect state changes for `IsComplete` and `CompletionTimestamp` during Admin flagging and Player acknowledgement.
+- **Overview Page**: Updated the "Points Over Time" chart configuration to set the minimum time unit to 'day', preventing hourly ticks on short timeframes.

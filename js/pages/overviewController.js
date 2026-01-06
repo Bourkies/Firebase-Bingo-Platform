@@ -307,7 +307,7 @@ function renderChart(chartData = [], teamIds = [], allTeams) {
             },
             scales: {
                 x: {
-                    type: 'time', time: {},
+                    type: 'time', time: { minUnit: 'day' },
                     title: { display: true, text: 'Date', color: secondaryTextColor }, // X-axis title
                     ticks: { color: secondaryTextColor }, grid: { color: borderColor } // X-axis values
                 },
