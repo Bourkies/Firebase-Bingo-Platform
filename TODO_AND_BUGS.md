@@ -46,6 +46,7 @@
 - **Performance**: Removed `usersStore` dependency from the main Index page to significantly reduce database reads.
 - **Submission Modal**: Replaced team member checkboxes with a dynamic "Contributing Players" list. Added local storage history (`<datalist>`) for auto-completing player names.
 - **Architecture**: Updated submission schema usage; `PlayerIDs` is now deprecated (saved as empty), and all names are stored in `AdditionalPlayerNames`.
+- **Import/Export**: Updated `importSubmissionsController.js` to align with the new schema. Imports now map names to `AdditionalPlayerNames` (deprecating `PlayerIDs`), and exports correctly resolve legacy UIDs. Added support for preserving the `history` audit log during export/import cycles.
 - **Seed Controller**: Refined submission seeding to match the exact history log format of real submissions (including PlayerIDs, Notes, Evidence changes). Added logic to simulate "Draft -> Submit" workflows and ensured all history timestamps are strictly chronological and in the past.
 - **Seed Controller**: Updated submission seeding logic to generate realistic history chains (Draft -> Submitted -> Flagged -> Verified) with timestamps spread over the last 7 days. Added support for multiple evidence items and real Imgur links.
 - **Admin Dashboard**: Refined Evidence history sorting to display Removals first, followed by Moves/Modifications, and finally Additions, improving readability of complex changes.
