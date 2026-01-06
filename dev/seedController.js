@@ -263,7 +263,7 @@ export async function seedUsers(log, selectedTeamIds = [], password = 'password1
 
 // Helper to generate a realistic history chain and final state
 function generateLifecycle(user, tileId) {
-    const adminUser = { uid: 'admin_bot', name: 'AutoAdmin' };
+    const adminUser = { id: 'admin_bot', name: 'AutoAdmin' };
     
     // 1. Determine Scenario
     const rand = Math.random();
@@ -294,7 +294,6 @@ function generateLifecycle(user, tileId) {
     const evidenceStr = JSON.stringify(evidence);
     const evidenceSummary = evidence.map(e => `${e.name} (${e.link})`).join('; ');
     const notes = 'Seeded submission';
-    const playerSummary = `Added: ${user.displayName}`;
 
     // 4. Build History (Reverse order of events, then we'll reverse array to be chronological if needed, 
     //    but the seed loop expects the final state object. We construct history array to be stored on the doc.)
@@ -302,8 +301,8 @@ function generateLifecycle(user, tileId) {
     let history = [];
     let finalState = {
         id: tileId,
-        PlayerIDs: [user.uid],
-        AdditionalPlayerNames: '',
+        PlayerIDs: [],
+        AdditionalPlayerNames: user.displayName,
         Evidence: evidenceStr,
         Notes: notes,
         IsComplete: false,
@@ -334,7 +333,7 @@ function generateLifecycle(user, tileId) {
         const ts = Timestamp.fromMillis(cursorTime);
         history.unshift({
             timestamp: ts,
-            user: { uid: user.uid, name: user.displayName },
+            user: { id: user.email, name: user.displayName },
             action: 'Resubmit for Review',
             changes: [
                 { field: 'AdminFeedback', from: '"Please fix evidence"', to: 'Acknowledged & Cleared' },
@@ -395,7 +394,7 @@ function generateLifecycle(user, tileId) {
             // Submit Draft
             history.unshift({
                 timestamp: ts,
-                user: { uid: user.uid, name: user.displayName },
+                user: { id: user.email, name: user.displayName },
                 action: 'Submit Draft',
                 changes: [
                     { field: 'IsComplete', from: false, to: true }
@@ -407,12 +406,12 @@ function generateLifecycle(user, tileId) {
             const tsDraft = Timestamp.fromMillis(cursorTime);
             history.unshift({
                 timestamp: tsDraft,
-                user: { uid: user.uid, name: user.displayName },
+                user: { id: user.email, name: user.displayName },
                 action: 'Create Draft',
                 changes: [
                     { field: 'IsComplete', from: 'N/A', to: false },
-                    { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
-                    { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                    { field: 'PlayerIDs', from: 'N/A', to: '[]' },
+                    { field: 'AdditionalPlayerNames', from: 'N/A', to: user.displayName },
                     { field: 'Notes', from: 'N/A', to: notes },
                     { field: 'Evidence', from: 'N/A', to: evidenceSummary }
                 ]
@@ -423,12 +422,12 @@ function generateLifecycle(user, tileId) {
             // Direct Submission
             history.unshift({
                 timestamp: ts,
-                user: { uid: user.uid, name: user.displayName },
+                user: { id: user.email, name: user.displayName },
                 action: 'Create Submission',
                 changes: [
                     { field: 'IsComplete', from: 'N/A', to: true },
-                    { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
-                    { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                    { field: 'PlayerIDs', from: 'N/A', to: '[]' },
+                    { field: 'AdditionalPlayerNames', from: 'N/A', to: user.displayName },
                     { field: 'Notes', from: 'N/A', to: notes },
                     { field: 'Evidence', from: 'N/A', to: evidenceSummary }
                 ]
@@ -450,12 +449,12 @@ function generateLifecycle(user, tileId) {
         const ts = Timestamp.fromMillis(cursorTime);
         history.unshift({
             timestamp: ts,
-            user: { uid: user.uid, name: user.displayName },
+            user: { id: user.email, name: user.displayName },
             action: 'Create Draft',
             changes: [
                 { field: 'IsComplete', from: 'N/A', to: false },
-                { field: 'PlayerIDs', from: 'N/A', to: playerSummary },
-                { field: 'AdditionalPlayerNames', from: 'N/A', to: '' },
+                { field: 'PlayerIDs', from: 'N/A', to: '[]' },
+                { field: 'AdditionalPlayerNames', from: 'N/A', to: user.displayName },
                 { field: 'Notes', from: 'N/A', to: notes },
                 { field: 'Evidence', from: 'N/A', to: evidenceSummary }
             ]

@@ -5,7 +5,7 @@ import { importSubmissions, clearAllSubmissions } from '../stores/submissionsSto
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 
 const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
-const EDITABLE_FIELDS = ['id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived']; // Use PlayerNames for import mapping
+const EDITABLE_FIELDS = ['id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'history']; // Use PlayerNames for import mapping
 let csvHeaders = [];
 let csvData = [];
 let allTiles = {}, allTeams = {}, allUsers = {};
@@ -42,7 +42,11 @@ async function fetchPrerequisites() {
     ]);
     tilesSnapshot.forEach(doc => allTiles[doc.data().id] = doc.data());
     teamsSnapshot.forEach(doc => allTeams[doc.id] = doc.data());
-    usersSnapshot.forEach(doc => allUsers[doc.id] = doc.data());
+    usersSnapshot.forEach(doc => {
+        const u = doc.data();
+        allUsers[doc.id] = u; // Key by Email (Doc ID)
+        if (u.uid) allUsers[u.uid] = u; // Key by UID (for legacy lookup)
+    });
 }
 
 async function handleExport() {
@@ -229,6 +233,11 @@ async function handleImport() {
                 if (['IsComplete', 'AdminVerified', 'RequiresAction', 'IsArchived'].includes(field)) {
                     value = String(value).toLowerCase() === 'true';
                 }
+                // Handle history JSON parsing
+                if (field === 'history') {
+                    try { value = JSON.parse(value); } catch (e) { value = []; }
+                }
+
                 // Don't add PlayerNames directly to subData
                 if (field !== 'PlayerNames') {
                     subData[field] = value;
@@ -236,19 +245,11 @@ async function handleImport() {
             }
         });
 
-        // NEW: Process PlayerNames into PlayerIDs and AdditionalPlayerNames
+        // NEW: Process PlayerNames into AdditionalPlayerNames only (Architecture update: PlayerIDs is deprecated)
         const playerNamesString = row[mapping['PlayerNames']] || '';
-        const namesToProcess = playerNamesString.split(',').map(n => n.trim()).filter(Boolean);
-        const usersByName = Object.values(allUsers).reduce((acc, user) => {
-            if (user.displayName) acc[user.displayName.toLowerCase()] = user.uid;
-            return acc;
-        }, {});
-
-        namesToProcess.forEach(name => {
-            const foundId = usersByName[name.toLowerCase()];
-            if (foundId) subData.PlayerIDs.push(foundId);
-            else subData.AdditionalPlayerNames = [subData.AdditionalPlayerNames, name].filter(Boolean).join(', ');
-        });
+        const namesList = playerNamesString.split(',').map(n => n.trim()).filter(Boolean);
+        subData.AdditionalPlayerNames = namesList.join(', ');
+        subData.PlayerIDs = []; // Always empty for new/imported submissions
 
         const tileId = subData.id;
         const teamId = subData.Team;
