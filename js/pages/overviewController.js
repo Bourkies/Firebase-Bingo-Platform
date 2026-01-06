@@ -15,6 +15,7 @@ let fullFeedData = [];
 let teamColorMap = {};
 let myScoreChart = null;
 let fullChartData = [];
+let currentLeaderboardData = [];
 
 // NEW: Local store for all overview data (Chart + Feed)
 const overviewStore = atom([]);
@@ -120,7 +121,7 @@ function onDataChanged() {
     }, {});
     const scoreOnVerifiedOnly = config.scoreOnVerifiedOnly === true;
     const allTeamIds = Object.keys(allTeams);
-    const leaderboardData = calculateScoreboardData(overviewSubmissions, tiles, allTeams, config);
+    currentLeaderboardData = calculateScoreboardData(overviewSubmissions, tiles, allTeams, config);
 
     // Filter submissions for private boards before processing feed and chart data
     const isPrivate = config.boardVisibility === 'private';
@@ -169,8 +170,9 @@ function onDataChanged() {
     });
 
     // Use the single, centralized scoreboard renderer
-    renderScoreboard(document.querySelector('#leaderboard-table tbody'), leaderboardData, allTeams, config, authState, teamColorMap, 'Overview Page');
+    renderScoreboard(document.querySelector('#leaderboard-table tbody'), currentLeaderboardData, allTeams, config, authState, teamColorMap, 'Overview Page');
     renderFeed(allTeams);
+    renderMVP(relevantSubmissions, tilesByVisibleId, allTeams, document.getElementById('feed-team-filter').value, currentLeaderboardData);
     renderChart(fullChartData, document.getElementById('feed-team-filter').value === 'all' ? Object.keys(allTeams) : [document.getElementById('feed-team-filter').value], allTeams);
 
     hideGlobalLoader();
@@ -268,6 +270,99 @@ function renderFeed(allTeams) {
     });
 }
 
+function renderMVP(submissions, tilesById, allTeams, filterTeamId, leaderboardData) {
+    const container = document.getElementById('mvp-container');
+    container.innerHTML = '';
+
+    // 1. Calculate Stats per Player per Team
+    // Structure: { teamId: { playerName: { points: 0, tiles: 0 } } }
+    const teamStats = {};
+
+    submissions.forEach(sub => {
+        // Only count scored submissions (Verified or Complete depending on logic, usually Verified for MVP to be safe, but we'll match the feed logic)
+        // For MVP, we usually want to be strict, but let's use IsComplete for now to match the "live" feel, or AdminVerified if config says so.
+        // We'll assume IsComplete for general MVP to show progress.
+        if (!sub.IsComplete || sub.IsArchived) return;
+
+        const tile = tilesById[sub.id];
+        const points = tile ? (parseInt(tile.Points) || 0) : 0;
+        
+        // Parse names
+        const rawNames = sub.AdditionalPlayerNames || '';
+        const names = rawNames.split(',').map(n => n.trim()).filter(n => n);
+        
+        if (names.length === 0) return;
+
+        const pointsPerPerson = points / names.length;
+
+        if (!teamStats[sub.Team]) teamStats[sub.Team] = {};
+
+        names.forEach(name => {
+            if (!teamStats[sub.Team][name]) teamStats[sub.Team][name] = { points: 0, tiles: 0 };
+            teamStats[sub.Team][name].points += pointsPerPerson;
+            teamStats[sub.Team][name].tiles += 1;
+        });
+    });
+
+    // 2. Determine Teams to Display
+    let teamsToRender = filterTeamId === 'all' ? Object.keys(allTeams) : [filterTeamId];
+
+    // Sort teams by Leaderboard Rank (Team Score)
+    if (filterTeamId === 'all' && leaderboardData) {
+        const teamRankMap = {};
+        leaderboardData.forEach((item, index) => {
+            teamRankMap[item.teamId] = index;
+        });
+        teamsToRender.sort((a, b) => {
+            const rankA = teamRankMap.hasOwnProperty(a) ? teamRankMap[a] : 9999;
+            const rankB = teamRankMap.hasOwnProperty(b) ? teamRankMap[b] : 9999;
+            return rankA - rankB;
+        });
+    }
+
+    // 3. Render Cards
+    let hasData = false;
+
+    teamsToRender.forEach(teamId => {
+        const players = teamStats[teamId];
+        if (!players) return; // No data for this team
+
+        hasData = true;
+        const teamName = allTeams[teamId]?.name || teamId;
+        const teamColor = teamColorMap[teamId] || 'var(--accent-color)';
+
+        // Find MVPs
+        let pointsMVP = { name: 'N/A', val: 0 };
+        let tilesMVP = { name: 'N/A', val: 0 };
+
+        Object.entries(players).forEach(([name, stats]) => {
+            if (stats.points > pointsMVP.val) pointsMVP = { name, val: stats.points };
+            if (stats.tiles > tilesMVP.val) tilesMVP = { name, val: stats.tiles };
+        });
+
+        const div = document.createElement('div');
+        div.className = 'mvp-card';
+        div.style.borderLeftColor = teamColor;
+        
+        div.innerHTML = `
+            <div class="mvp-header" style="color: ${teamColor}">${teamName}</div>
+            <div class="mvp-row">
+                <span class="mvp-label">Most Points</span>
+                <span class="mvp-value">${pointsMVP.name} (${pointsMVP.val.toFixed(1)})</span>
+            </div>
+            <div class="mvp-row">
+                <span class="mvp-label">Most Tiles</span>
+                <span class="mvp-value">${tilesMVP.name} (${tilesMVP.val})</span>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+
+    if (!hasData) {
+        container.innerHTML = '<p style="text-align:center; color: var(--secondary-text);">No MVP data available.</p>';
+    }
+}
+
 function renderChart(chartData = [], teamIds = [], allTeams) {
     if (myScoreChart) myScoreChart.destroy();
     const ctx = document.getElementById('score-chart').getContext('2d');
@@ -324,6 +419,21 @@ function handleFilterChange() {
     const allTeams = teamsStore.get();
 
     renderFeed(allTeams);
+    // We need to pass the raw data to renderMVP, so we fetch it again from the store/scope
+    const overviewSubmissions = overviewStore.get();
+    const tiles = tilesStore.get();
+    const tilesByVisibleId = tiles.reduce((acc, tile) => { if (tile.id) acc[tile.id] = tile; return acc; }, {});
+    
+    // Filter submissions for private board logic if needed (same logic as onDataChanged)
+    const authState = authStore.get();
+    const { config } = configStore.get();
+    const isPrivate = config.boardVisibility === 'private';
+    let relevantSubmissions = overviewSubmissions; 
+    if (isPrivate && authState.isLoggedIn && authState.profile?.team) {
+        relevantSubmissions = overviewSubmissions.filter(sub => sub.Team === authState.profile.team);
+    }
+
+    renderMVP(relevantSubmissions, tilesByVisibleId, allTeams, document.getElementById('feed-team-filter').value, currentLeaderboardData);
 
     const selectedTeam = document.getElementById('feed-team-filter').value;
     const filteredTeamIds = selectedTeam === 'all' ? Object.keys(allTeams) : [selectedTeam];

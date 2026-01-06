@@ -14,7 +14,7 @@
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
 
 ## Medium Priority
-- [ ] add team/even MvP display on overview page
+- [x] add team/even MvP display on overview page
 
 ## 🛠️ Refactoring & Modernization
 
@@ -87,3 +87,4 @@
 - **Overview Page**: Updated the "Points Over Time" chart configuration to set the minimum time unit to 'day', preventing hourly ticks on short timeframes.
 - **Overview Page**: Fixed responsive layout issue on desktop where the grid would not shrink below the content width. Applied `minmax(0, 1fr)` and added horizontal scrolling to the leaderboard table to ensure the page fits narrow viewports.
 - **Overview Page**: Updated the Filter View selector to allow shrinking (`min-width: 0`) preventing layout breakage with long team names.
+- **Overview Page**: Added a "Team MVPs" section to the side column. It calculates two MVPs per team: "Most Points" (points split evenly among contributors) and "Most Tiles" (count of tiles contributed to).
