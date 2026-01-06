@@ -97,8 +97,8 @@ Stores player claims for tiles.
 | :--- | :--- | :--- |
 | `id` | String | The `id` of the `tiles` document being claimed. |
 | `Team` | String | The `id` of the `teams` document. |
-| `PlayerIDs` | Array<String> | List of user docid's involved in the submission. |
-| `AdditionalPlayerNames` | String | Text field for non-registered players. |
+| `PlayerIDs` | Array<String> | (Deprecated) List of user docid's. New submissions save an empty array. |
+| `AdditionalPlayerNames` | String | Primary field for all contributing player names (comma-separated). |
 | `Evidence` | String | URL or text evidence provided by the player. |
 | `Notes` | String | Optional notes from the player. |
 | `IsComplete` | Boolean | True if the tile is considered "done" (for public boards). |
@@ -261,6 +261,9 @@ To minimize Firestore read costs and ensure scalability for 100+ concurrent user
 3.  **Local Storage Caching:**
     *   Used for `tiles`, `teams`, and `config`.
     *   Allows the board and UI to render instantly (0 latency) while the background listener checks for updates.
+
+4.  **Optimized User Loading**:
+    *   The main board (`index.html`) does not load the `users` collection. Player names are entered manually or via local auto-complete, eliminating read costs that scale with the user base.
 
 ## 10. Configuration Modes
 

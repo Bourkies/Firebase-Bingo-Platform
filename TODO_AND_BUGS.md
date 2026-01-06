@@ -1,7 +1,13 @@
 # To-Do & Bug Tracker
 
 ## 🚨 High Priority
-
+- [ ] **improve efficiency with data base reads**
+  - [x] **remove player id's from submission**
+    - [x] remove index page loading of users
+    - [x] remove admin page loading users
+    - [x] remove overview page loading users
+    - [x] submission modal will still support manually adding names tiles
+    - [x] update architecture for change
 
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
 
@@ -37,8 +43,13 @@
 
 ## Change log
 
+- **Performance**: Removed `usersStore` dependency from the main Index page to significantly reduce database reads.
+- **Submission Modal**: Replaced team member checkboxes with a dynamic "Contributing Players" list. Added local storage history (`<datalist>`) for auto-completing player names.
+- **Architecture**: Updated submission schema usage; `PlayerIDs` is now deprecated (saved as empty), and all names are stored in `AdditionalPlayerNames`.
+- **Import/Export**: Updated `importSubmissionsController.js` to align with the new schema. Imports now map names to `AdditionalPlayerNames` (deprecating `PlayerIDs`), and exports correctly resolve legacy UIDs. Added support for preserving the `history` audit log during export/import cycles.
 - **Seed Controller**: Refined submission seeding to match the exact history log format of real submissions (including PlayerIDs, Notes, Evidence changes). Added logic to simulate "Draft -> Submit" workflows and ensured all history timestamps are strictly chronological and in the past.
 - **Seed Controller**: Updated submission seeding logic to generate realistic history chains (Draft -> Submitted -> Flagged -> Verified) with timestamps spread over the last 7 days. Added support for multiple evidence items and real Imgur links.
+- **Seed Controller**: Reduced Firestore write batch size from 400 to 50 and added a 20ms delay between commits to prevent the Emulator from hanging/crashing during bulk seeding operations.
 - **Admin Dashboard**: Refined Evidence history sorting to display Removals first, followed by Moves/Modifications, and finally Additions, improving readability of complex changes.
 - **Admin Dashboard**: Improved Evidence history formatting to parse and display individual item changes (Added, Removed, Modified) instead of a single summary string. Added logic to detect and display link changes for named items.
 - **Admin Dashboard**: Improved the Submission History UI in the review modal. History entries are now structured with clear headers and color-coded diffs (Red/Green) for changed values, making it easier to track edits.

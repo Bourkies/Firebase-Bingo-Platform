@@ -10,6 +10,7 @@ export function initializeSubmissionModal(controller) {
     document.getElementById('submission-form').addEventListener('submit', handleFormSubmit);
     document.getElementById('add-evidence-btn').addEventListener('click', () => addEvidenceInput());
     document.getElementById('acknowledge-feedback-btn').addEventListener('click', handleAcknowledgeFeedback);
+    document.getElementById('add-player-btn').addEventListener('click', () => addPlayerInput());
 
     document.getElementById('evidence-container').addEventListener('click', (event) => {
         if (event.target.classList.contains('remove-evidence-btn')) {
@@ -17,6 +18,15 @@ export function initializeSubmissionModal(controller) {
             renumberEvidenceItems();
         }
     });
+
+    document.getElementById('player-names-list').addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-player-btn')) {
+            event.target.closest('.player-input-group').remove();
+        }
+    });
+
+    // Initialize the history list from local storage
+    populatePlayerHistoryDatalist();
 }
 
 /**
@@ -66,7 +76,7 @@ export function openModal(tile, status) {
     const existingSubmission = submissions.find(s => s.Team === currentTeam && s.id === tile.id && !s.IsArchived);
     let evidenceData = [];
 
-    populatePlayerNameSelector(existingSubmission?.PlayerIDs || [], existingSubmission?.AdditionalPlayerNames || '');
+    populatePlayerNameInputs(existingSubmission?.AdditionalPlayerNames || '');
     document.getElementById('notes').value = existingSubmission?.Notes || '';
     if (existingSubmission?.Evidence) {
         try {
@@ -167,66 +177,40 @@ function clearEvidenceInputs() {
     document.getElementById('evidence-container').innerHTML = '';
 }
 
-function populatePlayerNameSelector(savedPlayerIDs = [], savedAdditionalNames = '') {
-    const { allUsers, currentTeam } = mainController.getState();
-    const membersContainer = document.getElementById('team-members-checkboxes');
-    const teamCheckbox = document.getElementById('team-submission-checkbox');
-    const manualInput = document.getElementById('manual-player-name');
+function populatePlayerNameInputs(savedAdditionalNames = '') {
+    const container = document.getElementById('player-names-list');
+    container.innerHTML = '';
 
-    membersContainer.innerHTML = '';
-    teamCheckbox.checked = false;
-    manualInput.value = '';
-
-    const teamMembers = allUsers.filter(u => u.team === currentTeam);
-    teamMembers.forEach(member => {
-        const id = `player-check-${member.uid}`;
-        const item = document.createElement('div');
-        item.className = 'player-checkbox-item';
-        item.innerHTML = `<input type="checkbox" id="${id}" data-uid="${member.uid}"><label for="${id}">${member.displayName}</label>`;
-        membersContainer.appendChild(item);
-    });
-
-    const { allTeams } = mainController.getState();
-    const teamName = allTeams[currentTeam]?.name || currentTeam;
-    if (savedAdditionalNames === teamName && savedPlayerIDs.length === 0) {
-        teamCheckbox.checked = true;
+    if (savedAdditionalNames) {
+        // Split by comma and trim
+        const names = savedAdditionalNames.split(',').map(n => n.trim()).filter(n => n);
+        names.forEach(name => addPlayerInput(name));
     } else {
-        savedPlayerIDs.forEach(uid => {
-            const memberCheckbox = membersContainer.querySelector(`[data-uid="${uid}"]`);
-            if (memberCheckbox) memberCheckbox.checked = true;
-        });
-        manualInput.value = savedAdditionalNames;
+        // Add one empty input by default
+        addPlayerInput();
     }
-
-    const container = document.getElementById('player-name-container');
-    container.removeEventListener('input', updatePlayerNameField);
-    container.addEventListener('input', updatePlayerNameField);
-    updatePlayerNameField();
 }
 
-function updatePlayerNameField() {
-    const { allTeams, currentTeam } = mainController.getState();
-    const membersContainer = document.getElementById('team-members-checkboxes');
-    const teamCheckbox = document.getElementById('team-submission-checkbox');
-    const manualInput = document.getElementById('manual-player-name');
-    const playerIdsInput = document.getElementById('player-ids-value');
-    const additionalNamesInput = document.getElementById('additional-players-value');
+function addPlayerInput(value = '') {
+    const container = document.getElementById('player-names-list');
+    const div = document.createElement('div');
+    div.className = 'player-input-group';
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '0.5rem';
+    div.style.marginBottom = '0.5rem';
+    
+    div.innerHTML = `
+        <input type="text" class="player-name-input" name="bingo_player_name" list="player-history" value="${value}" placeholder="Player Name" style="flex-grow: 1; margin: 0;">
+        <button type="button" class="remove-player-btn" title="Remove Player">&times;</button>
+    `;
+    container.appendChild(div);
+}
 
-    const teamName = allTeams[currentTeam]?.name || currentTeam;
-
-    if (teamCheckbox.checked) {
-        playerIdsInput.value = JSON.stringify([]);
-        additionalNamesInput.value = teamName;
-        membersContainer.querySelectorAll('input').forEach(i => { i.checked = false; i.disabled = true; });
-        manualInput.value = ''; manualInput.disabled = true;
-        return;
-    }
-
-    membersContainer.querySelectorAll('input').forEach(i => i.disabled = false);
-    manualInput.disabled = false;
-    const selectedUIDs = Array.from(membersContainer.querySelectorAll('input:checked')).map(cb => cb.dataset.uid);
-    playerIdsInput.value = JSON.stringify(selectedUIDs);
-    additionalNamesInput.value = manualInput.value.trim();
+function collectPlayerNames() {
+    const inputs = document.querySelectorAll('.player-name-input');
+    const names = Array.from(inputs).map(input => input.value.trim()).filter(name => name);
+    return names.join(', ');
 }
 
 function validateEvidenceLink(urlString) {
@@ -259,7 +243,7 @@ async function handleAcknowledgeFeedback() {
 
     const historyEntry = {
         timestamp: new Date(),
-        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        user: { id: authState.profile.email, name: authState.profile.displayName },
         action: 'Acknowledge Feedback',
         changes: [{ field: 'RequiresAction', from: true, to: false }]
     };
@@ -290,7 +274,7 @@ async function handleFormSubmit(event) {
     document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = true);
     showGlobalLoader();
 
-    const { authState, currentTeam, submissions, allUsers } = mainController.getState();
+    const { authState, currentTeam, submissions } = mainController.getState();
 
     let allLinksAreValid = true;
     const evidenceItems = [];
@@ -327,8 +311,8 @@ async function handleFormSubmit(event) {
     console.log(`[SubmissionModal] Form action: '${action}'.`);
 
     const dataToSave = {
-        PlayerIDs: JSON.parse(document.getElementById('player-ids-value').value || '[]'),
-        AdditionalPlayerNames: document.getElementById('additional-players-value').value,
+        PlayerIDs: [], // We no longer link to specific User UIDs
+        AdditionalPlayerNames: collectPlayerNames(),
         Evidence: JSON.stringify(evidenceItems),
         Notes: document.getElementById('notes').value,
         Team: currentTeam,
@@ -339,7 +323,7 @@ async function handleFormSubmit(event) {
 
     const historyEntry = {
         timestamp: new Date(),
-        user: { uid: authState.user.uid, name: authState.profile.displayName },
+        user: { id: authState.profile.email, name: authState.profile.displayName },
         changes: []
     };
 
@@ -367,14 +351,14 @@ async function handleFormSubmit(event) {
             if (historyEntry.changes.length > 0) dataToSave.history = [...(existingSubmission.history || []), historyEntry];
             await saveSubmission(existingSubmission.docId, dataToSave);
         } else {
+            // NEW: Save new player names to local history for auto-complete
+            savePlayerNamesToHistory(dataToSave.AdditionalPlayerNames);
+
             dataToSave.Timestamp = new Date();
             if (dataToSave.IsComplete) dataToSave.CompletionTimestamp = new Date();
             historyEntry.changes.push({ field: 'IsComplete', from: 'N/A', to: dataToSave.IsComplete });
             
-            const usersById = new Map(allUsers.map(user => [user.uid, user.displayName]));
-            const playerNames = (dataToSave.PlayerIDs || []).map(uid => usersById.get(uid) || `[${uid.substring(0,5)}]`).join(', ');
-            const playerSummary = playerNames ? `Added: ${playerNames}` : 'None';
-            historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: playerSummary });
+            historyEntry.changes.push({ field: 'PlayerIDs', from: 'N/A', to: '[]' });
 
             historyEntry.changes.push({ field: 'AdditionalPlayerNames', from: 'N/A', to: dataToSave.AdditionalPlayerNames });
             historyEntry.changes.push({ field: 'Notes', from: 'N/A', to: dataToSave.Notes });
@@ -406,4 +390,39 @@ async function handleFormSubmit(event) {
         document.querySelectorAll('#modal-action-buttons button').forEach(b => b.disabled = false);
         hideGlobalLoader();
     }
+}
+
+// --- NEW: Player Name History Helpers ---
+
+function savePlayerNamesToHistory(namesString) {
+    if (!namesString) return;
+    const newNames = namesString.split(',').map(n => n.trim()).filter(n => n);
+    if (newNames.length === 0) return;
+
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem('bingo_player_history') || '[]');
+    } catch (e) { history = []; }
+
+    const historySet = new Set(history);
+    newNames.forEach(n => historySet.add(n));
+    
+    // Convert back to array, sort, and save
+    const sortedHistory = Array.from(historySet).sort();
+    localStorage.setItem('bingo_player_history', JSON.stringify(sortedHistory));
+    
+    // Refresh the datalist immediately
+    populatePlayerHistoryDatalist();
+}
+
+function populatePlayerHistoryDatalist() {
+    const datalist = document.getElementById('player-history');
+    if (!datalist) return;
+    
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem('bingo_player_history') || '[]');
+    } catch (e) { return; }
+    
+    datalist.innerHTML = history.map(name => `<option value="${name}">`).join('');
 }
