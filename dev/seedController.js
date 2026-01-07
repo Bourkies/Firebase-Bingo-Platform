@@ -117,7 +117,6 @@ export async function seedTeams(log) {
         const newId = `team${String(maxIdNum).padStart(2, '0')}`;
         
         const teamData = {
-            id: newId,
             name: teamName,
             captainId: null
         };
