@@ -1,11 +1,13 @@
 import '../components/Navbar.js';
 import { showGlobalLoader, hideGlobalLoader, generateTeamColors } from '../core/utils.js';
+import { atom } from 'nanostores';
 
 // NEW: Import stores instead of old managers
 import { authStore } from '../stores/authStore.js';
 import { configStore } from '../stores/configStore.js';
 import { teamsStore } from '../stores/teamsStore.js';
 import { tilesStore } from '../stores/tilesStore.js';
+import { startOverviewListener } from '../stores/submissionsStore.js';
 import { calculateScoreboardData, renderScoreboard } from '../components/Scoreboard.js';
 
 // State variables that are truly local to this page
@@ -15,6 +17,10 @@ let myScoreChart = null;
 let fullChartData = [];
 let currentLeaderboardData = [];
 
+// NEW: Local store for all overview data (Chart + Feed)
+const overviewStore = atom([]);
+let overviewUnsubscribe = null;
+let lastOverviewParams = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('feed-team-filter').addEventListener('change', handleFilterChange);
@@ -27,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     configStore.subscribe(onDataChanged);
     teamsStore.subscribe(onDataChanged);
     tilesStore.subscribe(onDataChanged);
+    overviewStore.subscribe(onDataChanged);
 
     // Initial call to render the page with default store values.
     onDataChanged();
@@ -39,25 +46,8 @@ function onDataChanged() {
     const allTeams = teamsStore.get();
     const tiles = tilesStore.get();
     
-    // NEW: Derive overview data from teamsStore (bingoState) instead of reading submissions
-    // This saves N reads (where N = total submissions)
-    const overviewSubmissions = [];
-    Object.entries(allTeams).forEach(([teamId, team]) => {
-        if (!team.bingoState) return;
-        Object.values(team.bingoState).forEach(entry => {
-            // Map bingoState entry back to a submission-like object for compatibility
-            overviewSubmissions.push({
-                Team: teamId,
-                id: entry.tileId,
-                IsComplete: entry.status === 'Submitted' || entry.status === 'Verified',
-                AdminVerified: entry.status === 'Verified',
-                // Convert Firestore Timestamp to Date if needed
-                CompletionTimestamp: entry.timestamp && entry.timestamp.toDate ? entry.timestamp.toDate() : entry.timestamp,
-                AdditionalPlayerNames: (entry.players || []).join(', '),
-                IsArchived: false
-            });
-        });
-    });
+    // Use the unified store for both feed and chart
+    const overviewSubmissions = overviewStore.get();
 
     // NEW: Wait until both config and auth state are definitively loaded.
     // The authState check is crucial to prevent showing the page before permissions are known.
@@ -69,6 +59,18 @@ function onDataChanged() {
         return; // Wait for more data
     }
 
+    // --- Manage Data Subscription ---
+    // Determine what data we need based on visibility settings
+    const isPublic = config.boardVisibility !== 'private';
+    const teamId = authState.profile?.team;
+    
+    // Only restart the listener if the parameters have changed
+    const paramsKey = `${isPublic}-${teamId}`;
+    if (paramsKey !== lastOverviewParams) {
+        if (overviewUnsubscribe) overviewUnsubscribe();
+        overviewUnsubscribe = startOverviewListener(overviewStore, { isPublic, teamId });
+        lastOverviewParams = paramsKey;
+    }
 
     // Handle page visibility based on config and auth state
     const disabledPageContainer = document.getElementById('page-disabled');
@@ -417,6 +419,8 @@ function handleFilterChange() {
     const allTeams = teamsStore.get();
 
     renderFeed(allTeams);
+    // We need to pass the raw data to renderMVP, so we fetch it again from the store/scope
+    const overviewSubmissions = overviewStore.get();
     const tiles = tilesStore.get();
     const tilesByVisibleId = tiles.reduce((acc, tile) => { if (tile.id) acc[tile.id] = tile; return acc; }, {});
     
@@ -424,25 +428,7 @@ function handleFilterChange() {
     const authState = authStore.get();
     const { config } = configStore.get();
     const isPrivate = config.boardVisibility === 'private';
-    
-    // Re-derive overviewSubmissions from teamsStore (since we don't have overviewStore anymore)
-    const overviewSubmissions = [];
-    Object.values(allTeams).forEach(team => {
-        if (!team.bingoState) return;
-        Object.values(team.bingoState).forEach(entry => {
-            overviewSubmissions.push({
-                Team: team.id,
-                id: entry.tileId,
-                IsComplete: entry.status === 'Submitted' || entry.status === 'Verified',
-                AdminVerified: entry.status === 'Verified',
-                CompletionTimestamp: entry.timestamp && entry.timestamp.toDate ? entry.timestamp.toDate() : entry.timestamp,
-                AdditionalPlayerNames: (entry.players || []).join(', '),
-                IsArchived: false
-            });
-        });
-    });
-
-    let relevantSubmissions = overviewSubmissions;
+    let relevantSubmissions = overviewSubmissions; 
     if (isPrivate && authState.isLoggedIn && authState.profile?.team) {
         relevantSubmissions = overviewSubmissions.filter(sub => sub.Team === authState.profile.team);
     }

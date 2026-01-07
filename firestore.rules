@@ -54,7 +54,14 @@ service cloud.firestore {
     // This rule is required to create, update, or delete team documents from the setup page.
     match /teams/{teamId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      // Admin can do anything.
+      // Players can update their own team (specifically for aggregation fields like bingoState).
+      // We restrict players to only updating the 'bingoState' field to prevent tampering with team names.
+      allow update: if isAdmin() || (
+        isAuth() && getUserData().team == teamId && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bingoState'])
+      );
+      allow create, delete: if isAdmin();
     }
 
     // NEW: Styles are publicly readable, but only Admins can modify them.

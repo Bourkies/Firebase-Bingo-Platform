@@ -8,8 +8,14 @@
     - [x] remove overview page loading users
     - [x] submission modal will still support manually adding names tiles
     - [x] update architecture for change
-
+    - [x] implement aggregation logic (bingoState) on teams to reduce overview reads
+  - [ ] Check all stores are efficiently cached to reduce reads on loads
+ - [x] **fix score board time scale** unless on narrow screen the scale is in hours, want days to be lowest
+- [ ] **fix setup mode warning scale** text now small after fixed render resolution change 
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
+
+## Medium Priority
+- [x] add team/even MvP display on overview page
 
 ## 🛠️ Refactoring & Modernization
 
@@ -43,6 +49,8 @@
 
 ## Change log
 
+- **Admin Dashboard**: Updated submission history logging to use the user's email (docId) instead of Auth UID for the "Edit by" field, ensuring consistency with the Index page and other history entries.
+- **Admin Dashboard**: Added a "Edit Player Names" section to the submission review modal. Admins can now moderate the `AdditionalPlayerNames` field directly during verification to correct bad data or inappropriate names.
 - **Performance**: Removed `usersStore` dependency from the main Index page to significantly reduce database reads.
 - **Submission Modal**: Replaced team member checkboxes with a dynamic "Contributing Players" list. Added local storage history (`<datalist>`) for auto-completing player names.
 - **Architecture**: Updated submission schema usage; `PlayerIDs` is now deprecated (saved as empty), and all names are stored in `AdditionalPlayerNames`.
@@ -79,3 +87,10 @@
     - **Setup Page Fixes**: Fixed the "Reset Zoom" button not re-centering the board immediately. Increased the font size of Tile IDs in setup mode to account for the new high-resolution rendering.
     - **Submission Logic**: Fixed issue where `CompletionTimestamp` was not being cleared when a submission was flagged by an admin or reverted to draft.
     - **Submission History**: Improved history logging to correctly reflect state changes for `IsComplete` and `CompletionTimestamp` during Admin flagging and Player acknowledgement.
+- **Overview Page**: Updated the "Points Over Time" chart configuration to set the minimum time unit to 'day', preventing hourly ticks on short timeframes.
+- **Overview Page**: Fixed responsive layout issue on desktop where the grid would not shrink below the content width. Applied `minmax(0, 1fr)` and added horizontal scrolling to the leaderboard table to ensure the page fits narrow viewports.
+- **Overview Page**: Updated the Filter View selector to allow shrinking (`min-width: 0`) preventing layout breakage with long team names.
+- **Overview Page**: Added a "Team MVPs" section to the side column. It calculates two MVPs per team: "Most Points" (points split evenly among contributors) and "Most Tiles" (count of tiles contributed to).
+- **Scoreboard**: Implemented tie-breaker logic. If teams have the same score, the team that completed their last scored tile *earlier* is ranked higher.
+- **Submissions Store**: Added `regenerateAllTeamAggregations` function to backfill the `bingoState` field on team documents. This ensures the Overview page works correctly with existing data.
+- **Import Submissions**: Updated the import process to automatically regenerate aggregation data for affected teams, ensuring the scoreboard stays in sync after bulk imports. Added a manual "Regenerate Scoreboard Data" button to the import page.

@@ -32,6 +32,11 @@
       flex-direction: column;
       gap: 2rem;
     }
+    .side-column {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
     .grid-item {
       background-color: var(--surface-color); padding: 1.5rem; border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -59,6 +64,16 @@
       background-color: var(--bg-color); padding: 1rem; border-radius: 8px;
       border-left: 4px solid var(--accent-color);
     }
+    /* MVP Styles */
+    #mvp-container { display: flex; flex-direction: column; gap: 1rem; max-height: 600px; overflow-y: auto; }
+    .mvp-card {
+      background-color: var(--bg-color); padding: 1rem; border-radius: 8px;
+      border-left: 4px solid var(--accent-color); display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .mvp-header { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.25rem; margin-bottom: 0.25rem; }
+    .mvp-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.95em; }
+    .mvp-label { color: var(--secondary-text); font-size: 0.85em; }
+    .mvp-value { font-weight: bold; }
     .feed-item p { margin: 0; }
     .feed-item .feed-title { font-weight: bold; }
     .feed-item .feed-meta { font-size: 0.85rem; color: var(--secondary-text); margin-top: 0.25rem; }
@@ -75,11 +90,16 @@
         border: 1px solid var(--border-color);
         padding: 0.25rem 0.5rem;
         border-radius: 4px;
+        min-width: 0; /* Allow shrinking below content size */
+        flex: 1; /* Allow it to fill available space */
     }
     /* Responsive layout for smaller screens */
     @media (max-width: 960px) {
       .container {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      body {
+        padding: 1rem;
       }
     }
     #page-disabled {
@@ -107,30 +127,36 @@
         </div>
       </div>
       <div class="grid-item">
-        <h2>Points Over Time</h2>
+        <h2>Score Progression</h2>
         <div class="chart-wrapper">
           <canvas id="score-chart"></canvas>
         </div>
       </div>
       <div class="grid-item">
         <h2>Leaderboard</h2>
-        <table id="leaderboard-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Team</th>
-              <th>Tiles</th>
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div style="overflow-x: auto;">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Team</th>
+                <th>Tiles</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
     <div class="side-column">
       <div class="grid-item">
-        <h2>Latest Activity</h2>
+        <h2>Activity Feed</h2>
         <div id="feed-container"></div>
+      </div>
+      <div class="grid-item">
+        <h2>Team MVPs</h2>
+        <div id="mvp-container"></div>
       </div>
     </div>
   </div>

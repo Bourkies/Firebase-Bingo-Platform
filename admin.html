@@ -257,6 +257,12 @@
     details { border: 1px solid var(--border-color); border-radius: 6px; margin-top: 1.5rem; }
     summary { padding: 0.75rem; cursor: pointer; font-weight: bold; color: var(--secondary-text); }
     summary:hover { background-color: var(--hover-bg-color); }
+
+    /* Player Editor Styles */
+    .player-editor-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .player-editor-input { flex-grow: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--bg-color); color: var(--primary-text); }
+    .player-editor-remove { background: var(--surface-color); border: 1px solid var(--border-color); color: var(--error-color); cursor: pointer; padding: 0 0.75rem; border-radius: 4px; font-size: 1.2rem; display: flex; align-items: center; }
+    .player-editor-remove:hover { background-color: var(--error-color); color: white; border-color: var(--error-color); }
   </style>
 </head>
 <body>
@@ -362,6 +368,11 @@
           </div>
           <form id="modal-form">
               <input type="hidden" id="modal-submission-id">
+              <details id="player-editor-details" style="margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 6px; margin-top: 1rem;">
+                  <summary style="padding: 0.5rem; cursor: pointer; font-size: 0.9rem; color: var(--secondary-text);">Edit Player Names (Moderation)</summary>
+                  <div id="admin-player-list" style="padding: 1rem; background-color: var(--bg-color); border-top: 1px solid var(--border-color);"></div>
+                  <div style="padding: 0 1rem 1rem 1rem; background-color: var(--bg-color);"><button type="button" id="admin-add-player-btn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; background-color: var(--surface-color); border: 1px solid var(--border-color); color: var(--primary-text);">+ Add Name</button></div>
+              </details>
               <div class="modal-actions">
                   <div class="checkbox-group"><input type="checkbox" id="modal-verified"><label for="modal-verified">Admin Verified</label></div>
                   <div class="checkbox-group"><input type="checkbox" id="modal-requires-action"><label for="modal-requires-action">Requires Action</label></div>

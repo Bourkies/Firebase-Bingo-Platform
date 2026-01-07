@@ -1,5 +1,6 @@
 import { atom, onMount } from 'nanostores';
 import { db, fb } from '../core/firebase-config.js';
+import { tilesStore } from './tilesStore.js';
 
 export const submissionsStore = atom([]);
 
@@ -130,14 +131,18 @@ export function startOverviewListener(storeToUpdate, { isPublic, teamId }) {
  */
 export async function saveSubmission(docId, data, isNew = false) {
     if (docId) {
+        // Update or Overwrite existing
         const subRef = fb.doc(db, 'submissions', docId);
+        let result;
         if (isNew) {
-            // Use setDoc to create a new document with a specific ID.
-            return await fb.setDoc(subRef, data);
+            result = await fb.setDoc(subRef, data);
+        } else {
+            result = await fb.updateDoc(subRef, data);
         }
-        // Use updateDoc for existing documents.
-        return await fb.updateDoc(subRef, data);
+        await updateTeamAggregation(data.Team, data);
+        return result;
     } else {
+        // Create new with auto-ID
         const submissionsCollection = fb.collection(db, 'submissions');
         return await fb.addDoc(submissionsCollection, data);
     }
@@ -155,7 +160,19 @@ export async function updateSubmission(docId, dataToUpdate, historyEntry) {
     if (historyEntry) {
         finalData.history = fb.arrayUnion(historyEntry);
     }
-    return await fb.updateDoc(subRef, finalData);
+    
+    await fb.updateDoc(subRef, finalData);
+
+    // Fetch the full submission to get Team and ID for aggregation
+    // We try to get it from the store cache first to save a read
+    const cachedSubs = submissionsStore.get();
+    let fullSub = cachedSubs.find(s => s.docId === docId);
+    
+    // If not in cache (rare for admin), we might need to fetch it, but for now assume cache is valid
+    if (fullSub) {
+        const mergedData = { ...fullSub, ...finalData };
+        await updateTeamAggregation(fullSub.Team, mergedData);
+    }
 }
 
 /**
@@ -163,6 +180,7 @@ export async function updateSubmission(docId, dataToUpdate, historyEntry) {
  * @param {Array<object>} operations - An array of operation objects ({type, ref, data}).
  */
 export async function importSubmissions(operations) {
+    const affectedTeams = new Set();
     const BATCH_SIZE = 499;
     for (let i = 0; i < operations.length; i += BATCH_SIZE) {
         const batch = fb.writeBatch(db);
@@ -171,14 +189,76 @@ export async function importSubmissions(operations) {
             if (op.type === 'set') {
                 const docRef = op.docId ? fb.doc(db, 'submissions', op.docId) : fb.doc(fb.collection(db, 'submissions'));
                 batch.set(docRef, op.data, { merge: true });
+                if (op.data.Team) affectedTeams.add(op.data.Team);
             } else if (op.type === 'update') {
                 const docRef = fb.doc(db, 'submissions', op.docId);
                 batch.update(docRef, op.data);
+                // Note: Update ops might not have Team in data, but usually import provides full data.
+                // If Team is missing, we might miss an aggregation update, but imports usually include it.
+                if (op.data.Team) affectedTeams.add(op.data.Team);
             } else if (op.type === 'add') {
                 batch.set(fb.doc(fb.collection(db, 'submissions')), op.data);
+                if (op.data.Team) affectedTeams.add(op.data.Team);
             }
         });
         await batch.commit();
+    }
+
+    // After all writes are committed, regenerate aggregation for affected teams
+    if (affectedTeams.size > 0) {
+        await regenerateTeamAggregations(Array.from(affectedTeams));
+    }
+}
+
+/**
+ * Updates the aggregation data on the Team document.
+ * This reduces reads on the Overview page by storing a summary of the submission state directly on the team.
+ */
+async function updateTeamAggregation(teamId, submissionData) {
+    if (!teamId || !submissionData.id) return;
+
+    // 1. Find the Tile Doc ID (Internal ID) using the User-Facing ID (e.g. "A1")
+    const allTiles = tilesStore.get();
+    const tile = allTiles.find(t => t.id === submissionData.id);
+    
+    // If we can't find the tile (e.g. it was deleted), we can't reliably key it.
+    // Fallback to using the user-facing ID if necessary, but prefer docId.
+    const key = tile ? tile.docId : submissionData.id;
+
+    // 2. Determine Status
+    let status = 'Draft';
+    if (submissionData.AdminVerified) status = 'Verified';
+    else if (submissionData.RequiresAction) status = 'Requires Action';
+    else if (submissionData.IsComplete) status = 'Submitted';
+
+    // 3. Determine Timestamp (Completion or Creation)
+    // We store it as a Firestore Timestamp or null
+    const timestamp = submissionData.CompletionTimestamp || submissionData.Timestamp || null;
+
+    // 4. Parse Players
+    let players = [];
+    if (submissionData.AdditionalPlayerNames) {
+        players = submissionData.AdditionalPlayerNames.split(',').map(s => s.trim()).filter(s => s);
+    }
+
+    // 5. Construct Summary Object
+    const summary = {
+        status,
+        timestamp,
+        players,
+        tileId: submissionData.id // Store user-facing ID for easy display
+    };
+
+    // 6. Update Team Document
+    // We use dot notation to update a specific key in the 'bingoState' map
+    const teamRef = fb.doc(db, 'teams', teamId);
+    const updateData = { [`bingoState.${key}`]: summary };
+
+    try {
+        await fb.updateDoc(teamRef, updateData);
+    } catch (e) {
+        console.warn(`[SubmissionsStore] Failed to update team aggregation: ${e.message}`);
+        // We don't throw here to avoid blocking the main submission flow if this optimization fails
     }
 }
 
@@ -211,4 +291,61 @@ export async function clearAllSubmissions() {
         chunk.forEach(doc => batch.delete(doc.ref));
         await batch.commit();
     }
+}
+
+/**
+ * Regenerates the bingoState aggregation for specific teams.
+ * This is used by imports and manual admin actions to ensure the Overview page is correct.
+ * @param {Array<string>} teamIds - List of team IDs to regenerate.
+ */
+export async function regenerateTeamAggregations(teamIds) {
+    if (!teamIds || teamIds.length === 0) return;
+    
+    console.log(`[SubmissionsStore] Regenerating aggregation for ${teamIds.length} teams...`);
+    const allTiles = tilesStore.get();
+    
+    // Fetch all submissions once (more efficient than querying per team if we are doing many)
+    // For a "few MB" database, this is perfectly fine.
+    const snapshot = await fb.getDocs(fb.collection(db, 'submissions'));
+    const allSubmissions = snapshot.docs.map(d => d.data());
+
+    const batch = fb.writeBatch(db);
+    let batchCount = 0;
+
+    teamIds.forEach(teamId => {
+        const teamSubs = allSubmissions.filter(s => s.Team === teamId && !s.IsArchived);
+        const bingoState = {};
+        
+        teamSubs.forEach(sub => {
+            if (!sub.id) return;
+            const tile = allTiles.find(t => t.id === sub.id);
+            const key = tile ? tile.docId : sub.id;
+            
+            let status = 'Draft';
+            if (sub.AdminVerified) status = 'Verified';
+            else if (sub.RequiresAction) status = 'Requires Action';
+            else if (sub.IsComplete) status = 'Submitted';
+
+            const timestamp = sub.CompletionTimestamp || sub.Timestamp || null;
+            let players = [];
+            if (sub.AdditionalPlayerNames) {
+                players = sub.AdditionalPlayerNames.split(',').map(s => s.trim()).filter(s => s);
+            }
+
+            bingoState[key] = { status, timestamp, players, tileId: sub.id };
+        });
+
+        const teamRef = fb.doc(db, 'teams', teamId);
+        batch.update(teamRef, { bingoState });
+        batchCount++;
+    });
+
+    if (batchCount > 0) await batch.commit();
+    console.log('[SubmissionsStore] Aggregation regeneration complete.');
+}
+
+export async function regenerateAllTeamAggregations() {
+    const snapshot = await fb.getDocs(fb.collection(db, 'teams'));
+    const teamIds = snapshot.docs.map(d => d.id);
+    await regenerateTeamAggregations(teamIds);
 }
