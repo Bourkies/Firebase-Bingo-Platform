@@ -1,8 +1,9 @@
 import '../components/Navbar.js';
 import { db, fb } from '../core/firebase-config.js';
 import { initAuth } from '../core/auth.js';
-import { importSubmissions, clearAllSubmissions } from '../stores/submissionsStore.js';
+import { importSubmissions, clearAllSubmissions, regenerateAllTeamAggregations } from '../stores/submissionsStore.js';
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
+import { tilesStore } from '../stores/tilesStore.js';
 
 const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
 const EDITABLE_FIELDS = ['id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'history']; // Use PlayerNames for import mapping
@@ -18,6 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('#clear-submissions-modal .close-button').addEventListener('click', closeClearModal);
     document.getElementById('delete-confirm-input').addEventListener('input', validateClear);
     document.getElementById('delete-confirm-btn').addEventListener('click', executeClear);
+    
+    const regenBtn = document.getElementById('regenerate-scoreboard-btn');
+    if (regenBtn) regenBtn.addEventListener('click', handleRegenerate);
+
+    // Ensure tilesStore is active so regeneration logic can map IDs to DocIDs
+    tilesStore.subscribe(() => {});
+
     initAuth(onAuthStateChanged);
 });
 
@@ -329,5 +337,19 @@ async function executeClear() {
     } finally {
         hideGlobalLoader();
         confirmBtn.textContent = 'Confirm Deletion';
+    }
+}
+
+async function handleRegenerate() {
+    if (!confirm("This will recalculate the 'bingoState' for ALL teams based on current submissions. This is useful if the scoreboard looks incorrect. Continue?")) return;
+    
+    showGlobalLoader();
+    try {
+        await regenerateAllTeamAggregations();
+        showMessage('Scoreboard data regenerated successfully.', false);
+    } catch (error) {
+        showMessage(`Regeneration failed: ${error.message}`, true);
+    } finally {
+        hideGlobalLoader();
     }
 }

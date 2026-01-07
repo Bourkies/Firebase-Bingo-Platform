@@ -68,6 +68,7 @@ Stores team definitions.
 | `id` | String | Unique Team ID (matches Doc ID). |
 | `name` | String | Display name of the team. |
 | `captainId` | String | docid of the user designated as team captain. |
+| `bingoState` | Map | Aggregated status of tiles. Key: `TileDocID`, Value: `{ status, timestamp, players, tileId }`. Used to render the scoreboard without reading submissions. |
 
 ### Collection: `tiles`
 Stores the configuration for each bingo tile on the board.

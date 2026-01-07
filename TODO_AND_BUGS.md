@@ -8,6 +8,7 @@
     - [x] remove overview page loading users
     - [x] submission modal will still support manually adding names tiles
     - [x] update architecture for change
+    - [x] implement aggregation logic (bingoState) on teams to reduce overview reads
   - [ ] Check all stores are efficiently cached to reduce reads on loads
  - [x] **fix score board time scale** unless on narrow screen the scale is in hours, want days to be lowest
 - [ ] **fix setup mode warning scale** text now small after fixed render resolution change 
@@ -91,3 +92,5 @@
 - **Overview Page**: Updated the Filter View selector to allow shrinking (`min-width: 0`) preventing layout breakage with long team names.
 - **Overview Page**: Added a "Team MVPs" section to the side column. It calculates two MVPs per team: "Most Points" (points split evenly among contributors) and "Most Tiles" (count of tiles contributed to).
 - **Scoreboard**: Implemented tie-breaker logic. If teams have the same score, the team that completed their last scored tile *earlier* is ranked higher.
+- **Submissions Store**: Added `regenerateAllTeamAggregations` function to backfill the `bingoState` field on team documents. This ensures the Overview page works correctly with existing data.
+- **Import Submissions**: Updated the import process to automatically regenerate aggregation data for affected teams, ensuring the scoreboard stays in sync after bulk imports. Added a manual "Regenerate Scoreboard Data" button to the import page.
