@@ -22,15 +22,18 @@ export class BingoBoard extends LitElement {
         }
 
         .error-message {
-            padding: 2rem;
+            padding: 4rem;
             background-color: var(--bg-color);
-            border: 2px dashed var(--error-color);
-            border-radius: 8px;
+            border: 6px dashed var(--error-color);
+            border-radius: 24px;
             text-align: center;
             width: 80%;
             word-wrap: break-word;
-            position: absolute;
-            z-index: 1;
+            position: relative;
+            z-index: 10;
+            font-size: 8rem;
+            font-weight: bold;
+            line-height: 1.4;
         }
 
         /* Tooltip styles remain the same */
@@ -176,7 +179,7 @@ export class BingoBoard extends LitElement {
             // CLEAR STYLES: Ensure no stale image persists
             this.style.backgroundImage = '';
             this.style.aspectRatio = '1 / 1';
-            return html`<div class="error-message" style="position: static; z-index: 0;">The event has not started or is currently being set up. Please check back later.</div>`;
+            return html`<div class="error-message">The event has not started or is currently being set up. Please check back later.</div>`;
         }
 
         // REVISED: Only check for config. The tiles array might be temporarily empty during a data refresh (e.g., switching to public_tiles).

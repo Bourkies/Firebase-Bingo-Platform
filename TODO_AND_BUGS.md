@@ -9,9 +9,9 @@
     - [x] submission modal will still support manually adding names tiles
     - [x] update architecture for change
     - [x] implement aggregation logic (bingoState) on teams to reduce overview reads
-  - [ ] Check all stores are efficiently cached to reduce reads on loads
+  - [x] Check all stores are efficiently cached to reduce reads on loads
  - [x] **fix score board time scale** unless on narrow screen the scale is in hours, want days to be lowest
-- [ ] **fix setup mode warning scale** text now small after fixed render resolution change 
+- [x] **fix setup mode warning scale** text now small after fixed render resolution change 
 - [x] **Update README**: Instructions updated for Username-only auth and manual Admin setup.
 
 ## Medium Priority
@@ -49,6 +49,7 @@
 
 ## Change log
 
+- **Index Page**: Increased the font size of the "SETUP MODE IS ON" warning banner to `1.5rem` to ensure visibility. Refactored the setup mode logic in `indexController.js` to remove redundant checks and clarify the distinction between Setup Mode and Censored Mode.
 - **Admin Dashboard**: Updated submission history logging to use the user's email (docId) instead of Auth UID for the "Edit by" field, ensuring consistency with the Index page and other history entries.
 - **Admin Dashboard**: Added a "Edit Player Names" section to the submission review modal. Admins can now moderate the `AdditionalPlayerNames` field directly during verification to correct bad data or inappropriate names.
 - **Performance**: Removed `usersStore` dependency from the main Index page to significantly reduce database reads.
