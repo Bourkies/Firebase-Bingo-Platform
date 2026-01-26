@@ -36,6 +36,7 @@
 
 ## ✨ New Features
 
+- [x] **GIF Generator**: Created a dev tool (`dev/gif_generator.html`) to visualize and export team progress as a GIF.
 - [ ] **Bingo Bonuses**: Implement logic to group specific tiles together (e.g., "Complete Row 1") that awards bonus points when all are completed.
 
 ## 🐛 Known Bugs
@@ -95,3 +96,4 @@
 - **Scoreboard**: Implemented tie-breaker logic. If teams have the same score, the team that completed their last scored tile *earlier* is ranked higher.
 - **Submissions Store**: Added `regenerateAllTeamAggregations` function to backfill the `bingoState` field on team documents. This ensures the Overview page works correctly with existing data.
 - **Import Submissions**: Updated the import process to automatically regenerate aggregation data for affected teams, ensuring the scoreboard stays in sync after bulk imports. Added a manual "Regenerate Scoreboard Data" button to the import page.
+- **Dev Tools**: Added `gif_generator.html` to allow admins to generate and download animated GIFs of a team's board progression. Features include timeline scrubbing, resolution control, and history filtering.
