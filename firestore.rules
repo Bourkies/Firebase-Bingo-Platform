@@ -85,8 +85,8 @@ service cloud.firestore {
                    );
 
       // A logged-in user can create a submission, but only for their own team.
-      allow create: if request.auth != null &&
-                      getUserData().team == request.resource.data.Team;
+      allow create: if isEventMod() || (request.auth != null &&
+                      getUserData().team == request.resource.data.Team);
 
       // An update is allowed if you are an Event Mod, OR
       // if you are on the submission's team AND you are not changing the team field.

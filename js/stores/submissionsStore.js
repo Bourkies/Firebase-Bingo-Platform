@@ -17,11 +17,11 @@ onMount(submissionsStore, () => {
                 ...data,
                 docId: doc.id,
                 // Convert Firestore Timestamps to JS Date objects
-                Timestamp: data.Timestamp?.toDate(),
-                CompletionTimestamp: data.CompletionTimestamp?.toDate(),
+                Timestamp: safeToDate(data.Timestamp),
+                CompletionTimestamp: safeToDate(data.CompletionTimestamp),
                 history: (data.history || []).map(h => ({
                     ...h,
-                    timestamp: h.timestamp?.toDate()
+                    timestamp: safeToDate(h.timestamp)
                 }))
             };
         });
@@ -268,13 +268,29 @@ function processSubmissionDoc(doc) {
     return {
         ...data,
         docId: doc.id,
-        Timestamp: data.Timestamp?.toDate(),
-        CompletionTimestamp: data.CompletionTimestamp?.toDate(),
+        Timestamp: safeToDate(data.Timestamp),
+        CompletionTimestamp: safeToDate(data.CompletionTimestamp),
         history: (data.history || []).map(h => ({
             ...h,
-            timestamp: h.timestamp?.toDate()
+            timestamp: safeToDate(h.timestamp)
         }))
     };
+}
+
+// Helper to safely convert various timestamp formats to a JS Date
+function safeToDate(val) {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
+    if (val instanceof Date) return val; // Already a Date
+    if (typeof val === 'object' && typeof val.seconds === 'number') {
+        // Handle plain object { seconds: ..., nanoseconds: ... } (Bad Import Data)
+        return new Date(val.seconds * 1000 + (val.nanoseconds || 0) / 1000000);
+    }
+    if (typeof val === 'string') {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
 }
 
 /**
@@ -326,7 +342,8 @@ export async function regenerateTeamAggregations(teamIds) {
             else if (sub.RequiresAction) status = 'Requires Action';
             else if (sub.IsComplete) status = 'Submitted';
 
-            const timestamp = sub.CompletionTimestamp || sub.Timestamp || null;
+            // Fix: Ensure we convert any raw objects to proper Dates/Timestamps before writing to team aggregation
+            const timestamp = safeToDate(sub.CompletionTimestamp) || safeToDate(sub.Timestamp) || null;
             let players = [];
             if (sub.AdditionalPlayerNames) {
                 players = sub.AdditionalPlayerNames.split(',').map(s => s.trim()).filter(s => s);

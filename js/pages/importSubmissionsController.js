@@ -5,8 +5,8 @@ import { importSubmissions, clearAllSubmissions, regenerateAllTeamAggregations }
 import { showMessage, showGlobalLoader, hideGlobalLoader } from '../core/utils.js';
 import { tilesStore } from '../stores/tilesStore.js';
 
-const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history'];
-const EDITABLE_FIELDS = ['id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'history']; // Use PlayerNames for import mapping
+const SUBMISSION_FIELDS = ['id', 'Team', 'PlayerIDs', 'AdditionalPlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'Timestamp', 'CompletionTimestamp', 'history']; // All possible fields
+const EDITABLE_FIELDS = ['docId', 'id', 'Team', 'PlayerNames', 'Evidence', 'Notes', 'IsComplete', 'AdminVerified', 'RequiresAction', 'AdminFeedback', 'IsArchived', 'history', 'Timestamp', 'CompletionTimestamp']; // Fields user can map from CSV
 let csvHeaders = [];
 let csvData = [];
 let allTiles = {}, allTeams = {}, allUsers = {};
@@ -230,6 +230,7 @@ async function handleImport() {
 
     const operations = [];
     const failedRows = [];
+    const defaults = { IsComplete: false, AdminVerified: false, RequiresAction: false, IsArchived: false };
 
     csvData.forEach((row, index) => {
         const subData = { PlayerIDs: [], AdditionalPlayerNames: '' };
@@ -243,7 +244,17 @@ async function handleImport() {
                 }
                 // Handle history JSON parsing
                 if (field === 'history') {
-                    try { value = JSON.parse(value); } catch (e) { value = []; }
+                    try { 
+                        value = JSON.parse(value);
+                        // Fix: Convert raw {seconds, nanoseconds} objects back to Firestore Timestamps
+                        if (Array.isArray(value)) {
+                            value.forEach(entry => {
+                                if (entry.timestamp && typeof entry.timestamp.seconds === 'number') {
+                                    entry.timestamp = new fb.Timestamp(entry.timestamp.seconds, entry.timestamp.nanoseconds || 0);
+                                }
+                            });
+                        }
+                    } catch (e) { value = []; }
                 }
 
                 // Don't add PlayerNames directly to subData
@@ -252,6 +263,39 @@ async function handleImport() {
                 }
             }
         });
+
+        // Helper to parse timestamp from string (ISO or JSON object)
+        const parseTimestamp = (val) => {
+            if (!val) return null;
+            if (typeof val === 'string') {
+                // Try JSON parse first (for {seconds, nanoseconds} format from bad exports)
+                if (val.trim().startsWith('{')) {
+                    try {
+                        const obj = JSON.parse(val);
+                        if (obj.seconds !== undefined) {
+                            return new fb.Timestamp(obj.seconds, obj.nanoseconds || 0);
+                        }
+                    } catch (e) {}
+                }
+                // Try standard Date parse
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) return fb.Timestamp.fromDate(d);
+            }
+            return null;
+        };
+
+        // NEW: Convert imported date strings to Firestore Timestamps
+        // This allows backdating submissions via CSV import.
+        if (subData.Timestamp) {
+            const ts = parseTimestamp(subData.Timestamp);
+            if (ts) subData.Timestamp = ts;
+            else delete subData.Timestamp;
+        }
+        if (subData.CompletionTimestamp) {
+            const ts = parseTimestamp(subData.CompletionTimestamp);
+            if (ts) subData.CompletionTimestamp = ts;
+            else delete subData.CompletionTimestamp;
+        }
 
         // NEW: Process PlayerNames into AdditionalPlayerNames only (Architecture update: PlayerIDs is deprecated)
         const playerNamesString = row[mapping['PlayerNames']] || '';
@@ -266,6 +310,18 @@ async function handleImport() {
         if (!allTiles[tileId]) { failedRows.push({ rowNum: index + 2, reason: `Tile ID '${tileId}' does not exist.` }); return; }
         if (!allTeams[teamId]) { failedRows.push({ rowNum: index + 2, reason: `Team ID '${teamId}' does not exist.` }); return; }
 
+        // Determine Document ID: Use mapped docId, or generate one based on the Submission Timestamp (to preserve history), or fallback to Now.
+        let targetDocId = subData.docId;
+        delete subData.docId; // Remove from data payload so we don't save 'docId' as a field within the document
+
+        if (!targetDocId) {
+            const dateBasis = subData.Timestamp instanceof fb.Timestamp ? subData.Timestamp.toDate() : new Date();
+            const year = dateBasis.getUTCFullYear().toString().slice(-2);
+            const month = (dateBasis.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = dateBasis.getUTCDate().toString().padStart(2, '0');
+            targetDocId = `${year}${month}${day}-${teamId}-${tileId}`;
+        }
+
         const existingSub = existingSubs.get(`${tileId}|${teamId}`);
         if (existingSub) {
             if (importMode === 'skip') {
@@ -274,10 +330,20 @@ async function handleImport() {
                 operations.push({ type: 'set', docId: existingSub.docId, data: subData });
             } else if (importMode === 'archive') {
                 operations.push({ type: 'update', docId: existingSub.docId, data: { IsArchived: true } });
-                operations.push({ type: 'add', data: { ...subData, Timestamp: fb.serverTimestamp() } });
+                // For the new submission part of 'archive', use imported timestamp if available
+                const finalData = { ...defaults, ...subData };
+                if (!finalData.Timestamp) {
+                    finalData.Timestamp = fb.serverTimestamp();
+                }
+                operations.push({ type: 'set', docId: targetDocId, data: finalData });
             }
         } else {
-            operations.push({ type: 'add', data: { ...subData, Timestamp: fb.serverTimestamp() } });
+            // For a brand new submission, use imported timestamp if available
+            const finalData = { ...defaults, ...subData };
+            if (!finalData.Timestamp) {
+                finalData.Timestamp = fb.serverTimestamp();
+            }
+            operations.push({ type: 'set', docId: targetDocId, data: finalData });
         }
     });
 
