@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="importmap">
+    {
+        "imports": {
+            "nanostores": "https://esm.sh/nanostores",
+            "lit": "https://esm.sh/lit",
+            "lit/": "https://esm.sh/lit/"
+        }
+    }
+    </script>
+    <script src="../js/theme-loader.js"></script>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Screenshot Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link rel="stylesheet" href="../css/theme.css">
+    <style>
+        body { padding: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; background-color: var(--bg-color); }
+        .controls {
+            background: var(--surface-color); padding: 1rem; border-radius: 8px;
+            display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+            margin-bottom: 1rem; border: 1px solid var(--border-color);
+            color: var(--primary-text);
+        }
+        .chart-container {
+            position: relative;
+            background: white; /* Default to white for screenshots */
+            padding: 1rem;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        /* Google Slide 16:9 Standard (Web) */
+        .slide-size {
+            width: 960px;
+            height: 540px;
+            box-sizing: content-box; /* Ensure padding doesn't eat into the 960x540 content area */
+        }
+    </style>
+</head>
+<body>
+    <app-navbar></app-navbar>
+    <h1 style="color: var(--primary-text);">Chart Screenshot Tool</h1>
+    
+    <div class="controls">
+        <label>
+            Max Label Length:
+            <input type="number" id="label-limit" value="15" style="width: 50px; padding: 4px;">
+        </label>
+        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="legend-right" checked> Legend on Right
+        </label>
+        <button id="refresh-btn" style="padding: 0.5rem 1rem; cursor: pointer;">Refresh Chart</button>
+    </div>
+
+    <div id="chart-wrapper" class="chart-container slide-size">
+        <canvas id="score-chart"></canvas>
+    </div>
+
+    <script type="module" src="../js/pages/screenshotToolController.js"></script>
+</body>
+</html>
